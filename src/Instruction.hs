@@ -1,24 +1,20 @@
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 module Instruction where
 
 import Clash.Prelude hiding (Word)
-import Data.Proxy
 
 data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-newtype Word n = Word { unWord :: BitVector n }
+newtype W n = W { unW :: BitVector n }
   deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
+  deriving anyclass (NFDataX, BitPack)
   deriving newtype Num
-newtype Rd = Rd { unRd :: BitVector 5 }
-newtype Rs1 = Rs1 { unRs1 :: BitVector 5 }
-newtype Rs2 = Rs2 { unRs2 :: BitVector 5 }
-newtype Imm = Imm { unImm :: Word 32 }
+
+newtype Instr = Instr { unInstr :: W 32 }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (NFDataX, BitPack)
 
 {-
 data Type = R
