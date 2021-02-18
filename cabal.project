@@ -1,0 +1,4 @@
+packages: lion.cabal
+
+package clash-prelude
+  flags: -large-tuples
