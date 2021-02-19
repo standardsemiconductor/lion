@@ -1,6 +1,7 @@
 module Instruction where
 
 import Clash.Prelude
+import Data.Function ( on )
 
 data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
@@ -9,21 +10,53 @@ data Exception = IllegalInstruction
 data Op = Add
         | Sub
         | Sll
+        | Slt
+        | Sltu
+        | Xor
+        | Srl
+        | Sra
+        | Or
+        | And
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+alu :: Op -> BitVector 32 -> BitVector 32 -> BitVector 32
+alu = \case
+  Add  -> (+)
+  Sub  -> (-)
+  Sll  -> \x y -> x `shiftL` shamt y
+  Slt  -> boolToBV ... (<) `on` sign
+  Sltu -> boolToBV ... (<)
+  Xor  -> xor
+  Srl  -> \x y -> x `shiftR` shamt y
+  Sra  -> \x y -> pack $ sign x `shiftR` shamt y
+  Or   -> (.|.)
+  And  -> (.&.)
+  where
+    shamt = unpack . resize . slice d4 d0
+    sign = unpack :: BitVector 32 -> Signed 32
+    (...) = (.).(.)
+
 data Alu = Op Op (Unsigned 5)
---         | OpImm Op (BitVector 32)
+         | Opimm Op (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+
+getOp :: Alu -> Op
+getOp = \case
+  Op    op _   -> op
+  Opimm op _ _ -> op
 
 parseAlu :: BitVector 32 -> Either Exception Alu
 parseAlu i = case i of
   $(bitPattern "0000000..........000.....0110011") -> Right $ Op Add rd
   $(bitPattern "0100000..........000.....0110011") -> Right $ Op Sub rd
   $(bitPattern "0000000..........001.....0110011") -> Right $ Op Sll rd
+--  $(bitPattern ".................000.....0010011") -> Right $ Opimm Add rd imm
   _ -> Left IllegalInstruction
   where
+    imm :: BitVector 32
+    imm = signExtend $ slice d31 d20 i
     rd = sliceRd i
 
 sliceRd :: BitVector 32 -> Unsigned 5

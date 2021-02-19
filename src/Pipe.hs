@@ -105,7 +105,8 @@ writeback = use wbIR >>= \instrM ->
     wbRvfi.rvfiOrder <~ wbNRet <<+= 1
     rdData <- wbRvfi.rvfiRdWData <<~ use wbAluOut
     case instr of
-      Op _ rd -> scribe toRd $ First $ Just (rd, rdData)
+      Op    _ rd   -> scribe toRd $ First $ Just (rd, rdData)
+      Opimm _ rd _ -> scribe toRd $ First $ Just (rd, rdData)
     scribe toRvfi . First . Just =<< use wbRvfi
 
 memory :: RWS ToPipe FromPipe Pipe ()
@@ -123,12 +124,9 @@ execute = do
     meRvfi.rvfiPcWData <~ uses exPC (+ 4)
     rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
     rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
-    meAluOut .= case instr of
-      Op Add _ -> rs1Data + rs2Data
-      Op Sub _ -> rs1Data - rs2Data
-      Op Sll _ -> rs1Data `shiftL` shamt rs2Data
-  where
-    shamt = unpack . resize . slice d4 d0
+    assign meAluOut $ alu (getOp instr) rs1Data $ case instr of
+      Op    _ _   -> rs2Data
+      Opimm _ _ i -> i
 
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
