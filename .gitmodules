@@ -1,0 +1,4 @@
+[submodule "riscv-formal"]
+	path = riscv-formal
+	url = https://github.com/dopamane/riscv-formal.git
+	branch = lion
