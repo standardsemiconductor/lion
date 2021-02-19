@@ -38,6 +38,7 @@ data Pipe = Pipe
 
   -- execute stage
   , _exIR     :: Maybe Instr
+  , _exPC     :: BitVector 32
   , _exRvfi   :: Rvfi
 
   -- memory stage
@@ -65,6 +66,7 @@ mkPipe = Pipe
   
   -- execute stage
   , _exIR     = Nothing
+  , _exPC     = 0
   , _exRvfi   = mkRvfi
 
   -- memory stage
@@ -115,8 +117,10 @@ execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meRvfi <~ use exRvfi
   _ <- meIR <<~ use exIR
-  rs1Data <- view fromRs1
-  rs2Data <- view fromRs2
+  rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
+  rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
+  meRvfi.rvfiPcRData <~ use exPC
+  meRvfi.rvfiPcWData <~ uses exPC (+ 4)
   meAluOut .= rs1Data + rs2Data
 
 decode :: RWS ToPipe FromPipe Pipe ()
@@ -127,8 +131,10 @@ decode = do
     case parseAdd mem of
       Right instr -> do
         exIR .= Just instr
+        exRvfi.rvfiInsn .= pack instr
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= rs1 instr
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= rs2 instr
+        exRvfi.rvfiRdAddr .= rd instr
       Left _  -> do
         exRvfi.rvfiTrap .= True
         exIR .= Nothing
@@ -137,4 +143,3 @@ fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
   pc <- dePC <<~ use fetchPC
   fetchPC <~ deNPC <.= pc + 4
-

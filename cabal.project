@@ -1,4 +1,6 @@
 packages: lion.cabal
 
+write-ghc-environment-files: always
+
 package clash-prelude
   flags: -large-tuples

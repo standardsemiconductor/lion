@@ -35,15 +35,15 @@ lionFV memRData =
 
 {-# NOINLINE topEntity #-}
 topEntity
-  :: "clock" ::: Clock Lattice12Mhz
-  -> "reset" ::: Reset Lattice12Mhz
+  :: "clock"     ::: Clock Lattice12Mhz
+  -> "reset"     ::: Reset Lattice12Mhz
   -> "mem_rdata" ::: Signal Lattice12Mhz (BitVector 32)
   -> ( "mem_valid" ::: Signal Lattice12Mhz Bool
      , "mem_instr" ::: Signal Lattice12Mhz Bool
      , "mem_addr"  ::: Signal Lattice12Mhz (BitVector 32)
      , "mem_wdata" ::: Signal Lattice12Mhz (BitVector 32)
      , "mem_wstrb" ::: Signal Lattice12Mhz (BitVector 4)
-     , "rvfi" ::: Signal Lattice12Mhz Rvfi
+     , "rvfi"      ::: Signal Lattice12Mhz Rvfi
      )
 topEntity clk rst = exposeClockResetEnable lionFV clk rst enableGen
 makeTopEntityWithName 'topEntity "LionFV"
