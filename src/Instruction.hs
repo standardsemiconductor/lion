@@ -1,16 +1,11 @@
-{-# LANGUAGE StandaloneDeriving #-}
 module Instruction where
 
-import Clash.Prelude hiding (Word)
+import Clash.Prelude
+import Types
 
 data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-
-newtype W n = W { unW :: BitVector n }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (NFDataX, BitPack)
-  deriving newtype Num
 
 newtype Instr = Instr { unInstr :: W 32 }
   deriving stock (Generic, Show, Eq)

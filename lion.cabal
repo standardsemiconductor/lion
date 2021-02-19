@@ -1,35 +1,28 @@
 cabal-version:      2.4
 name:               lion
 version:            0.1.0.0
-
--- A short (one-line) description of the package.
 -- synopsis:
-
--- A longer description of the package.
 -- description:
-
--- A URL where users can report bugs.
 -- bug-reports:
-
--- The license under which the package is released.
 -- license:
 author:             dopamane
 maintainer:         dwc1295@gmail.com
-
--- A copyright notice.
--- copyright:
--- category:
+copyright:          (c) 2021 David Cox
+category:           Hardware
 extra-source-files:
     CHANGELOG.md
     README.md
 
 library
   exposed-modules: Instruction
+                 , Rvfi
+                 , Types
   hs-source-dirs: src
   default-language: Haskell2010
   build-depends: 
     base ^>= 4.14.1.0,
     Cabal,
+    generic-monoid >= 0.1 && < 0.2,
     mtl,
     lens,
     ice40-prim >= 0.1 && < 0.2,
@@ -51,6 +44,7 @@ library
     DeriveAnyClass
     DeriveGeneric
     DerivingStrategies
+    DerivingVia
     FlexibleInstances
     GADTs
     GeneralizedNewtypeDeriving
