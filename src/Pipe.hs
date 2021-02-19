@@ -17,11 +17,10 @@ data ToPipe = ToPipe
 makeLenses ''ToPipe
 
 data FromPipe = FromPipe
-  { _toMemAddr :: First (BitVector 32)
-  , _toMemData :: First (BitVector 32)
-  , _toRs1Addr :: First (BitVector 5)
-  , _toRs2Addr :: First (BitVector 5)
-  , _toRd      :: First (BitVector 5, BitVector 32)
+  { _toMem     :: First (BitVector 32, Maybe (BitVector 32))
+  , _toRs1Addr :: First (Unsigned 5)
+  , _toRs2Addr :: First (Unsigned 5)
+  , _toRd      :: First (Unsigned 5, BitVector 32)
   , _toRvfi    :: First Rvfi
   }
   deriving stock (Generic, Show, Eq)

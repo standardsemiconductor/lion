@@ -1,6 +1,11 @@
 module Core where
 
 import Clash.Prelude
+import Control.Lens
+import Data.Maybe
+import Data.Monoid
+import Rvfi
+import qualified Pipe as P
 
 data ToCore dom = ToCore
   { _fromMem :: Signal dom (Maybe (BitVector 32))
@@ -17,9 +22,15 @@ core
   :: HiddenClockResetEnable dom
   => ToCore dom
   -> FromCore dom
-core fromMemory = toMemory
+core toCore = FromCore
+  { _toMem  = getFirst . P._toMem <$> fromPipe
+  , _toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
+  }
   where
-    fromPipe = pipe $ ToPipe <$> rs1Data <*> rs2Data
+    fromPipe = P.pipe $ P.ToPipe <$> rs1Data <*> rs2Data <*> _fromMem toCore
+    rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
+    rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
+    rdWrM = getFirst . P._toRd <$> fromPipe
     (rs1Data, rs2Data) = regBank rs1Addr rs2Addr rdWrM
 
 regBank

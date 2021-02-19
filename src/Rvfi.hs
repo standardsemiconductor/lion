@@ -24,11 +24,11 @@ data Rvfi = Rvfi
   , _rvfiIntr        :: "intr"         ::: Bool
   , _rvfiMode        :: "mode"         ::: BitVector 2
   , _rvfiIxl         :: "ixl"          ::: BitVector 2
-  , _rvfiRs1Addr     :: "rs1_addr"     ::: BitVector 5
-  , _rvfiRs2Addr     :: "rs2_addr"     ::: BitVector 5
+  , _rvfiRs1Addr     :: "rs1_addr"     ::: Unsigned 5
+  , _rvfiRs2Addr     :: "rs2_addr"     ::: Unsigned 5
   , _rvfiRs1Data     :: "rs1_rdata"    ::: BitVector 32
   , _rvfiRs2Data     :: "rs2_rdata"    ::: BitVector 32
-  , _rvfiRdAddr      :: "rd_addr"      ::: BitVector 5
+  , _rvfiRdAddr      :: "rd_addr"      ::: Unsigned 5
   , _rvfiRdWData     :: "rd_wdata"     ::: BitVector 32
   , _rvfiPcRData     :: "pc_rdata"     ::: BitVector 32
   , _rvfiPcWData     :: "pc_wdata"     ::: BitVector 32

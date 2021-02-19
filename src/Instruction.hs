@@ -15,14 +15,14 @@ parseAdd i = case i of
   $(bitPattern "0000000..........000.....0110011") -> Right $ Instr i
   _ -> Left IllegalInstruction
 
-rd :: Instr -> BitVector 5
-rd = slice d11 d7 . pack 
+rd :: Instr -> Unsigned 5
+rd = unpack . slice d11 d7 . pack 
 
-rs1 :: Instr -> BitVector 5
-rs1 = slice d19 d15 . pack
+rs1 :: Instr -> Unsigned 5
+rs1 = unpack . slice d19 d15 . pack
 
-rs2 :: Instr -> BitVector 5
-rs2 = slice d24 d20 . pack
+rs2 :: Instr -> Unsigned 5
+rs2 = unpack . slice d24 d20 . pack
 
 {-
 data Type = R
