@@ -6,23 +6,30 @@ data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-newtype Instr = Instr { unInstr :: BitVector 32 }
+data Op = Add
+        | Sub
   deriving stock (Generic, Show, Eq)
-  deriving anyclass (NFDataX, BitPack)
+  deriving anyclass NFDataX
 
-parseAdd :: BitVector 32 -> Either Exception Instr
-parseAdd i = case i of
-  $(bitPattern "0000000..........000.....0110011") -> Right $ Instr i
+data Alu = Op Op (Unsigned 5)
+--         | OpImm Op (BitVector 32)
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+parseAlu :: BitVector 32 -> Either Exception Alu
+parseAlu i = case i of
+  $(bitPattern "0000000..........000.....0110011") -> Right $ Op Add $ sliceRd i
+  $(bitPattern "0100000..........000.....0110011") -> Right $ Op Sub $ sliceRd i
   _ -> Left IllegalInstruction
 
-rd :: Instr -> Unsigned 5
-rd = unpack . slice d11 d7 . pack 
+sliceRd :: BitVector 32 -> Unsigned 5
+sliceRd = unpack . slice d11 d7
 
-rs1 :: Instr -> Unsigned 5
-rs1 = unpack . slice d19 d15 . pack
+sliceRs1 :: BitVector 32 -> Unsigned 5
+sliceRs1 = unpack . slice d19 d15
 
-rs2 :: Instr -> Unsigned 5
-rs2 = unpack . slice d24 d20 . pack
+sliceRs2 :: BitVector 32 -> Unsigned 5
+sliceRs2 = unpack . slice d24 d20
 
 {-
 data Type = R

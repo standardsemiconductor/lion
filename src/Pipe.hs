@@ -37,17 +37,17 @@ data Pipe = Pipe
   , _deNPC    :: BitVector 32
 
   -- execute stage
-  , _exIR     :: Maybe Instr
+  , _exIR     :: Maybe Alu
   , _exPC     :: BitVector 32
   , _exRvfi   :: Rvfi
 
   -- memory stage
-  , _meIR     :: Maybe Instr
+  , _meIR     :: Maybe Alu
   , _meAluOut :: BitVector 32
   , _meRvfi   :: Rvfi
 
   -- writeback stage
-  , _wbIR     :: Maybe Instr
+  , _wbIR     :: Maybe Alu
   , _wbAluOut :: BitVector 32
   , _wbNRet   :: BitVector 64
   , _wbRvfi   :: Rvfi
@@ -103,8 +103,9 @@ writeback = use wbIR >>= \instrM ->
   forM_ instrM $ \instr -> do
     wbRvfi.rvfiValid .= True
     wbRvfi.rvfiOrder <~ wbNRet <<+= 1
-    rdData <- wbRvfi.rvfiRdWData <<~ use wbAluOut 
-    scribe toRd $ First $ Just (rd instr, rdData)
+    rdData <- wbRvfi.rvfiRdWData <<~ use wbAluOut
+    case instr of
+      Op _ rd -> scribe toRd $ First $ Just (rd, rdData)
     scribe toRvfi . First . Just =<< use wbRvfi
 
 memory :: RWS ToPipe FromPipe Pipe ()
@@ -116,25 +117,28 @@ memory = do
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meRvfi <~ use exRvfi
-  _ <- meIR <<~ use exIR
-  rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
-  rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
-  meRvfi.rvfiPcRData <~ use exPC
-  meRvfi.rvfiPcWData <~ uses exPC (+ 4)
-  meAluOut .= rs1Data + rs2Data
+  instrM <- meIR <<~ use exIR
+  forM_ instrM $ \instr -> do
+    meRvfi.rvfiPcRData <~ use exPC
+    meRvfi.rvfiPcWData <~ uses exPC (+ 4)
+    rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
+    rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
+    meAluOut .= case instr of
+      Op Add _ -> rs1Data + rs2Data
+      Op Sub _ -> rs1Data - rs2Data
 
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exRvfi .= mkRvfi
   memM <- view fromMem
   forM_ memM $ \mem -> 
-    case parseAdd mem of
+    case parseAlu mem of
       Right instr -> do
         exIR .= Just instr
-        exRvfi.rvfiInsn .= pack instr
-        scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= rs1 instr
-        scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= rs2 instr
-        exRvfi.rvfiRdAddr .= rd instr
+        exRvfi.rvfiInsn .= mem
+        scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= sliceRs1 mem
+        scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= sliceRs2 mem
+        exRvfi.rvfiRdAddr .= sliceRd mem
       Left _  -> do
         exRvfi.rvfiTrap .= True
         exIR .= Nothing
