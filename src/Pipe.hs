@@ -3,6 +3,7 @@ module Pipe where
 import Clash.Prelude
 import Control.Lens
 import Control.Monad.RWS
+import Instruction
 
 data ToPipe = ToPipe
   { _fromRs1 :: BitVector 32
@@ -19,7 +20,7 @@ data FromPipe = FromPipe
   , _toRs1Addr :: First (BitVector 5)
   , _toRs2Addr :: First (BitVector 5)
   , _toRd      :: First (BitVector 5, BitVector 32)
-  , _toRvfi    :: Rvfi
+  , _toRvfi    :: First Rvfi
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -32,6 +33,7 @@ data Pipe = Pipe
 
   -- decode stage
   , _dePC     :: BitVector 32
+  , _deNPC    :: BitVector 32
 
   -- execute stage
   , _exIR     :: Instr
@@ -46,7 +48,6 @@ data Pipe = Pipe
   , _wbIR     :: Instr
   , _wbAluOut :: BitVector 32
   , _wbNRet   :: BitVector 64
-  , _wbFlags  :: Flags
   , _wbRvfi   :: Rvfi
   }
   deriving stock (Generic, Show, Eq)
@@ -90,10 +91,13 @@ execute = do
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   memM <- view fromMem
-  forM_ memM $ \mem -> do
-    instr <- exIR <.= mem
-    scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= rs1 instr
-    scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= rs2 instr
+  forM_ memM $ \mem -> 
+    case parseAdd mem of
+      Right i -> do
+        instr <- exIR <.= mem
+        scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= rs1 instr
+        scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= rs2 instr
+      Left _  -> exRvfi.rvfiTrap .= True
   
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do

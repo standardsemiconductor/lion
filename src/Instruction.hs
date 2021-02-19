@@ -1,15 +1,19 @@
 module Instruction where
 
 import Clash.Prelude
-import Types
 
 data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-newtype Instr = Instr { unInstr :: W 32 }
+newtype Instr = Instr { unInstr :: BitVector 32 }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (NFDataX, BitPack)
+
+parseAdd :: BitVector 32 -> Either Exception (BitVector 32)
+parseAdd i = case i of
+  $(bitPattern "0000000..........000.....0110011") -> Right i
+  _ -> Left IllegalInstruction
 
 {-
 data Type = R
