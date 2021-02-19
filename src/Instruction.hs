@@ -8,6 +8,7 @@ data Exception = IllegalInstruction
 
 data Op = Add
         | Sub
+        | Sll
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -18,9 +19,12 @@ data Alu = Op Op (Unsigned 5)
 
 parseAlu :: BitVector 32 -> Either Exception Alu
 parseAlu i = case i of
-  $(bitPattern "0000000..........000.....0110011") -> Right $ Op Add $ sliceRd i
-  $(bitPattern "0100000..........000.....0110011") -> Right $ Op Sub $ sliceRd i
+  $(bitPattern "0000000..........000.....0110011") -> Right $ Op Add rd
+  $(bitPattern "0100000..........000.....0110011") -> Right $ Op Sub rd
+  $(bitPattern "0000000..........001.....0110011") -> Right $ Op Sll rd
   _ -> Left IllegalInstruction
+  where
+    rd = sliceRd i
 
 sliceRd :: BitVector 32 -> Unsigned 5
 sliceRd = unpack . slice d11 d7

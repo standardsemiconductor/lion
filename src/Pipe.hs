@@ -126,6 +126,9 @@ execute = do
     meAluOut .= case instr of
       Op Add _ -> rs1Data + rs2Data
       Op Sub _ -> rs1Data - rs2Data
+      Op Sll _ -> rs1Data `shiftL` shamt rs2Data
+  where
+    shamt = unpack . resize . slice d4 d0
 
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
