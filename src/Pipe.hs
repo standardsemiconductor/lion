@@ -1,7 +1,7 @@
 module Pipe where
 
 import Clash.Prelude
-import Control.Lens
+import Control.Lens hiding ( op )
 import Control.Monad.RWS
 import Data.Monoid.Generic
 import Instruction
@@ -37,18 +37,16 @@ data Pipe = Pipe
   , _deNPC    :: BitVector 32
 
   -- execute stage
-  , _exIR     :: Maybe Alu
+  , _exIR     :: Maybe ExInstr
   , _exPC     :: BitVector 32
   , _exRvfi   :: Rvfi
 
   -- memory stage
-  , _meIR     :: Maybe Alu
-  , _meAluOut :: BitVector 32
+  , _meIR     :: Maybe MeInstr
   , _meRvfi   :: Rvfi
 
   -- writeback stage
-  , _wbRdAddrM  :: Maybe (Unsigned 5)
-  , _wbAluOut :: BitVector 32
+  , _wbIR     :: Maybe WbInstr
   , _wbNRet   :: BitVector 64
   , _wbRvfi   :: Rvfi
   }
@@ -71,14 +69,12 @@ mkPipe = Pipe
 
   -- memory stage
   , _meIR     = Nothing
-  , _meAluOut = 0
   , _meRvfi   = mkRvfi
  
   -- writeback stage
-  , _wbRdAddrM  = Nothing
-  , _wbAluOut = 0
-  , _wbNRet   = 0
-  , _wbRvfi   = mkRvfi
+  , _wbIR   = Nothing
+  , _wbNRet = 0
+  , _wbRvfi = mkRvfi
   }
 
 pipe 
@@ -99,12 +95,14 @@ pipeM = do
   fetch
 
 writeback :: RWS ToPipe FromPipe Pipe ()
-writeback = use wbRdAddrM >>= \rdAddrM ->
-  forM_ rdAddrM $ \rdAddr -> do
+writeback = use wbIR >>= \instrM ->
+  forM_ instrM $ \instr -> do
     wbRvfi.rvfiValid .= True
     wbRvfi.rvfiOrder <~ wbNRet <<+= 1
-    rdData <- wbRvfi.rvfiRdWData <<~ uses wbAluOut (guardZero rdAddr)
-    scribe toRd $ First $ Just (rdAddr, rdData)
+    case instr of
+      WbRegWr rdAddr wr -> do
+        rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
+        scribe toRd $ First $ Just (rdAddr, rdData)
     scribe toRvfi . First . Just =<< use wbRvfi
   where
     guardZero 0 = const 0
@@ -113,33 +111,42 @@ writeback = use wbRdAddrM >>= \rdAddrM ->
 memory :: RWS ToPipe FromPipe Pipe ()
 memory = do
   wbRvfi <~ use meRvfi
-  use meIR >>= \case
-    Just (Op _ rd) -> wbRdAddrM ?= rd
-    Just (Opimm _ rd _) -> wbRdAddrM ?= rd
-    _ -> wbRdAddrM .= Nothing
-  wbAluOut <~ use meAluOut
+  use meIR >>= \instrM -> do
+    wbIR .= Nothing
+    forM_ instrM $ \instr -> do
+      case instr of
+        MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
 
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meRvfi <~ use exRvfi
-  instrM <- meIR <<~ use exIR
-  forM_ instrM $ \instr -> do
-    meRvfi.rvfiPcRData <~ use exPC
-    meRvfi.rvfiPcWData <~ uses exPC (+ 4)
-    rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
-    rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
-    assign meAluOut $ alu (getOp instr) rs1Data $ case instr of
-      Op    _ _   -> rs2Data
-      Opimm _ _ i -> i
+  use exIR >>= \instrM -> do
+    meIR .= Nothing
+    forM_ instrM $ \instr -> do
+      pc <- use exPC
+      rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
+      rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
+      meIR <~ case instr of
+        ExLui rd imm -> return $ Just $ MeRegWr rd imm
+        ExJal rd imm -> do
+          npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= pc + imm
+          when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
+          return $ Just $ MeRegWr rd $ pc + 4
+        ExAluOp op rd -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
+        ExAluOpImm src op rd imm -> case src of
+          Reg -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
+          PC  -> return $ Just $ MeRegWr rd $ alu op pc      imm
 
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exRvfi .= mkRvfi
   memM <- view fromMem
   forM_ memM $ \mem -> 
-    case parseAlu mem of
+    case parseInstr mem of
       Right instr -> do
         exIR .= Just instr
+        pc <- exPC <<~ exRvfi.rvfiPcRData <<~ use dePC
+        exRvfi.rvfiPcWData .= pc + 4
         exRvfi.rvfiInsn .= mem
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= sliceRs1 mem
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= sliceRs2 mem
@@ -151,4 +158,6 @@ decode = do
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
   pc <- dePC <<~ use fetchPC
+  scribe toMem $ First $ Just (pc, Nothing)
   fetchPC <~ deNPC <.= pc + 4
+

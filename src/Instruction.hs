@@ -7,6 +7,26 @@ data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+data MeInstr = MeRegWr (Unsigned 5) (BitVector 32)
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+data Source = Reg
+            | PC
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+data ExInstr = ExLui (Unsigned 5) (BitVector 32)
+             | ExJal (Unsigned 5) (BitVector 32)
+             | ExAluOp Op (Unsigned 5)
+             | ExAluOpImm Source Op (Unsigned 5) (BitVector 32)
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
 data Op = Add
         | Sub
         | Sll
@@ -37,45 +57,28 @@ alu = \case
     sign = unpack :: BitVector 32 -> Signed 32
     (...) = (.).(.)
 
-data Alu = Op Op (Unsigned 5)
-         | Opimm Op (Unsigned 5) (BitVector 32)
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
-
-getOp :: Alu -> Op
-getOp = \case
-  Op    op _   -> op
-  Opimm op _ _ -> op
-
-{-
-parseAlu :: BitVector 32 -> Either Exception Alu
-parseAlu i
-  | f7Zero && f3 == 0 && op == 0b0110011 = Right $ Op Add rd
-  | f7Alt  && f3 == 0 && op == 0b0110011 = Right $ Op Sub rd
-  | f7Zero && f3 == 1 && op == 0b0110011 = Right $ Op Sll rd
-  |           f3 == 0 && op == 0b0010011 = Right $ Opimm Add rd imm
-  | otherwise = Left IllegalInstruction
-  where
-    rd = sliceRd i
-    imm :: BitVector 32
-    imm = signExtend $ slice d31 d20 i
-    f7Zero = sliceFunct7 i == 0
-    f7Alt  = sliceFunct7 i == 0b0100000
-    f3 = sliceFunct3 i
-    op = sliceOpcode i
--}
-
-parseAlu :: BitVector 32 -> Either Exception Alu
-parseAlu i = case i of
-  $(bitPattern "0000000..........000.....0110011") -> Right $ Op Add rd
-  $(bitPattern "0100000..........000.....0110011") -> Right $ Op Sub rd
-  $(bitPattern "0000000..........001.....0110011") -> Right $ Op Sll rd
-  $(bitPattern ".................000.....0010011") -> Right $ Opimm Add rd imm
+parseInstr :: BitVector 32 -> Either Exception ExInstr
+parseInstr i = case i of
+  $(bitPattern ".........................0110111") -> Right $ ExLui rd immU -- lui
+  $(bitPattern ".........................0010111") -> Right $ ExAluOpImm PC Add rd immU -- auipc
+  $(bitPattern ".........................1101111") -> Right $ ExJal rd immJ -- jal
+  $(bitPattern "0000000..........000.....0110011") -> Right $ ExAluOp Add rd -- add
+  $(bitPattern "0100000..........000.....0110011") -> Right $ ExAluOp Sub rd -- sub
+  $(bitPattern "0000000..........001.....0110011") -> Right $ ExAluOp Sll rd -- sll
+  $(bitPattern ".................000.....0010011") -> Right $ ExAluOpImm Reg Add rd immI -- addi
   _ -> Left IllegalInstruction
   where
-    imm :: BitVector 32
-    imm = signExtend $ slice d31 d20 i
     rd = sliceRd i
+
+    immI :: BitVector 32
+    immI = signExtend $ slice d31 d20 i
+
+    immU :: BitVector 32
+    immU = (slice d31 d12 i) ++# 0
+    
+    immJ :: BitVector 32
+    immJ = signExtend (slice d31 d31 i ++# slice d19 d12 i ++# slice d20 d20 i ++# slice d30 d25 i ++# slice d24 d21 i) `shiftL` 1
+
 
 sliceRd :: BitVector 32 -> Unsigned 5
 sliceRd = unpack . slice d11 d7
