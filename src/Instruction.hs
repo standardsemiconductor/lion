@@ -47,12 +47,30 @@ getOp = \case
   Op    op _   -> op
   Opimm op _ _ -> op
 
+{-
+parseAlu :: BitVector 32 -> Either Exception Alu
+parseAlu i
+  | f7Zero && f3 == 0 && op == 0b0110011 = Right $ Op Add rd
+  | f7Alt  && f3 == 0 && op == 0b0110011 = Right $ Op Sub rd
+  | f7Zero && f3 == 1 && op == 0b0110011 = Right $ Op Sll rd
+  |           f3 == 0 && op == 0b0010011 = Right $ Opimm Add rd imm
+  | otherwise = Left IllegalInstruction
+  where
+    rd = sliceRd i
+    imm :: BitVector 32
+    imm = signExtend $ slice d31 d20 i
+    f7Zero = sliceFunct7 i == 0
+    f7Alt  = sliceFunct7 i == 0b0100000
+    f3 = sliceFunct3 i
+    op = sliceOpcode i
+-}
+
 parseAlu :: BitVector 32 -> Either Exception Alu
 parseAlu i = case i of
   $(bitPattern "0000000..........000.....0110011") -> Right $ Op Add rd
   $(bitPattern "0100000..........000.....0110011") -> Right $ Op Sub rd
   $(bitPattern "0000000..........001.....0110011") -> Right $ Op Sll rd
---  $(bitPattern ".................000.....0010011") -> Right $ Opimm Add rd imm
+  $(bitPattern ".................000.....0010011") -> Right $ Opimm Add rd imm
   _ -> Left IllegalInstruction
   where
     imm :: BitVector 32
@@ -67,6 +85,15 @@ sliceRs1 = unpack . slice d19 d15
 
 sliceRs2 :: BitVector 32 -> Unsigned 5
 sliceRs2 = unpack . slice d24 d20
+
+sliceOpcode :: BitVector 32 -> BitVector 7
+sliceOpcode = slice d6 d0
+
+sliceFunct3 :: BitVector 32 -> BitVector 3
+sliceFunct3 = slice d14 d12
+
+sliceFunct7 :: BitVector 32 -> BitVector 7
+sliceFunct7 = slice d31 d25
 
 {-
 data Type = R

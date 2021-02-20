@@ -47,7 +47,7 @@ data Pipe = Pipe
   , _meRvfi   :: Rvfi
 
   -- writeback stage
-  , _wbIR     :: Maybe Alu
+  , _wbRdAddrM  :: Maybe (Unsigned 5)
   , _wbAluOut :: BitVector 32
   , _wbNRet   :: BitVector 64
   , _wbRvfi   :: Rvfi
@@ -75,7 +75,7 @@ mkPipe = Pipe
   , _meRvfi   = mkRvfi
  
   -- writeback stage
-  , _wbIR     = Nothing
+  , _wbRdAddrM  = Nothing
   , _wbAluOut = 0
   , _wbNRet   = 0
   , _wbRvfi   = mkRvfi
@@ -99,20 +99,24 @@ pipeM = do
   fetch
 
 writeback :: RWS ToPipe FromPipe Pipe ()
-writeback = use wbIR >>= \instrM ->
-  forM_ instrM $ \instr -> do
+writeback = use wbRdAddrM >>= \rdAddrM ->
+  forM_ rdAddrM $ \rdAddr -> do
     wbRvfi.rvfiValid .= True
     wbRvfi.rvfiOrder <~ wbNRet <<+= 1
-    rdData <- wbRvfi.rvfiRdWData <<~ use wbAluOut
-    case instr of
-      Op    _ rd   -> scribe toRd $ First $ Just (rd, rdData)
-      Opimm _ rd _ -> scribe toRd $ First $ Just (rd, rdData)
+    rdData <- wbRvfi.rvfiRdWData <<~ uses wbAluOut (guardZero rdAddr)
+    scribe toRd $ First $ Just (rdAddr, rdData)
     scribe toRvfi . First . Just =<< use wbRvfi
+  where
+    guardZero 0 = const 0
+    guardZero _ = id
 
 memory :: RWS ToPipe FromPipe Pipe ()
 memory = do
   wbRvfi <~ use meRvfi
-  _ <- wbIR <<~ use meIR
+  use meIR >>= \case
+    Just (Op _ rd) -> wbRdAddrM ?= rd
+    Just (Opimm _ rd _) -> wbRdAddrM ?= rd
+    _ -> wbRdAddrM .= Nothing
   wbAluOut <~ use meAluOut
 
 execute :: RWS ToPipe FromPipe Pipe ()
