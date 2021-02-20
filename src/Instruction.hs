@@ -15,15 +15,10 @@ data MeInstr = MeRegWr (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-data Source = Reg
-            | PC
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
-
-data ExInstr = ExLui (Unsigned 5) (BitVector 32)
-             | ExJal (Unsigned 5) (BitVector 32)
-             | ExAluOp Op (Unsigned 5)
-             | ExAluOpImm Source Op (Unsigned 5) (BitVector 32)
+data ExInstr = Ex ExOp (Unsigned 5) (BitVector 32)
+--             | ExBranch Branch (BitVector 32)
+             | ExAlu Op (Unsigned 5)
+             | ExAluImm Op (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -78,16 +73,49 @@ branch = \case
     sign :: BitVector 32 -> Signed 32
     sign = unpack
 
+data ExOp = Lui
+          | Auipc
+          | Jal
+--          | Jalr
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
 parseInstr :: BitVector 32 -> Either Exception ExInstr
 parseInstr i = case i of
-  $(bitPattern ".........................0110111") -> Right $ ExLui rd immU -- lui
-  $(bitPattern ".........................0010111") -> Right $ ExAluOpImm PC Add rd immU -- auipc
-  $(bitPattern ".........................1101111") -> Right $ ExJal rd immJ -- jal
---  $(bitPattern ".................000.....1100111") -> Right $ ExJalr rd immI -- jalr
-  $(bitPattern "0000000..........000.....0110011") -> Right $ ExAluOp Add rd -- add
-  $(bitPattern "0100000..........000.....0110011") -> Right $ ExAluOp Sub rd -- sub
-  $(bitPattern "0000000..........001.....0110011") -> Right $ ExAluOp Sll rd -- sll
-  $(bitPattern ".................000.....0010011") -> Right $ ExAluOpImm Reg Add rd immI -- addi
+  $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
+  $(bitPattern ".........................0010111") -> Right $ Ex Auipc rd immU -- auipc
+  $(bitPattern ".........................1101111") -> Right $ Ex Jal   rd immJ -- jal
+--  $(bitPattern ".................000.....1100111") -> Right $ Ex Jalr  rd immI -- jalr
+--  $(bitPattern ".................000.....1100011") -> Right $ ExBranch Beq  immB -- beq
+--  $(bitPattern ".................001.....1100011") -> Right $ ExBranch Bne  immB -- bne
+--  $(bitPattern ".................100.....1100011") -> Right $ ExBranch Blt  immB -- blt
+--  $(bitPattern ".................101.....1100011") -> Right $ ExBranch Bge  immB -- bge
+--  $(bitPattern ".................110.....1100011") -> Right $ ExBranch Bltu immB -- bltu
+--  $(bitPattern ".................111.....1100011") -> Right $ ExBranch Bgeu immB -- bgeu
+--  $(bitPattern ".................000.....0000011") -> Right $ ExLoad Lb  rd immI -- lb
+--  $(bitPattern ".................001.....0000011") -> Right $ ExLoad Lh  rd immI -- lh
+--  $(bitPattern ".................010.....0000011") -> Right $ ExLoad Lw  rd immI -- lw
+--  $(bitPattern ".................100.....0000011") -> Right $ ExLoad Lbu rd immI -- lbu
+--  $(bitPattern ".................101.....0000011") -> Right $ ExLoad Lhu rd immI -- lhu
+--  $(bitPattern ".................000.....0100011") -> Right $ ExStore Sb immS -- sb
+--  $(bitPattern ".................001.....0100011") -> Right $ ExStore Sh immS -- sh
+--  $(bitPattern ".................010.....0100011") -> Right $ ExStore Sw immS -- sw
+  $(bitPattern ".................000.....0010011") -> Right $ ExAluImm Add  rd immI -- addi
+  $(bitPattern ".................010.....0010011") -> Right $ ExAluImm Slt  rd immI -- slti
+  $(bitPattern ".................011.....0010011") -> Right $ ExAluImm Sltu rd immI -- sltiu
+  $(bitPattern ".................100.....0010011") -> Right $ ExAluImm Xor  rd immI -- xori
+  $(bitPattern ".................110.....0010011") -> Right $ ExAluImm Or   rd immI -- ori
+  $(bitPattern ".................111.....0010011") -> Right $ ExAluImm And  rd immI -- andi
+  $(bitPattern "0000000..........000.....0110011") -> Right $ ExAlu Add  rd -- add
+  $(bitPattern "0100000..........000.....0110011") -> Right $ ExAlu Sub  rd -- sub
+  $(bitPattern "0000000..........001.....0110011") -> Right $ ExAlu Sll  rd -- sll
+  $(bitPattern "0000000..........010.....0110011") -> Right $ ExAlu Slt  rd -- slt
+  $(bitPattern "0000000..........011.....0110011") -> Right $ ExAlu Sltu rd -- sltu
+  $(bitPattern "0000000..........100.....0110011") -> Right $ ExAlu Xor  rd -- xor
+  $(bitPattern "0000000..........101.....0110011") -> Right $ ExAlu Srl  rd -- srl
+  $(bitPattern "0100000..........101.....0110011") -> Right $ ExAlu Sra  rd -- sra
+  $(bitPattern "0000000..........110.....0110011") -> Right $ ExAlu Or   rd -- or
+  $(bitPattern "0000000..........111.....0110011") -> Right $ ExAlu And  rd -- and
   _ -> Left IllegalInstruction
   where
     rd = sliceRd i

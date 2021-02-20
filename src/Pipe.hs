@@ -127,15 +127,15 @@ execute = do
       rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
       rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
       meIR <~ case instr of
-        ExLui rd imm -> return $ Just $ MeRegWr rd imm
-        ExJal rd imm -> do
-          npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= pc + imm
-          when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
-          return $ Just $ MeRegWr rd $ pc + 4
-        ExAluOp op rd -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
-        ExAluOpImm src op rd imm -> case src of
-          Reg -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
-          PC  -> return $ Just $ MeRegWr rd $ alu op pc      imm
+        Ex op rd imm -> case op of
+          Lui   -> return $ Just $ MeRegWr rd imm
+          Auipc -> return $ Just $ MeRegWr rd $ alu Add pc imm
+          Jal   -> do
+            npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= pc + imm
+            when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
+            return $ Just $ MeRegWr rd $ pc + 4
+        ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
+        ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
 
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
