@@ -57,11 +57,33 @@ alu = \case
     sign = unpack :: BitVector 32 -> Signed 32
     (...) = (.).(.)
 
+data Branch = Beq
+            | Bne
+            | Blt
+            | Bge
+            | Bltu
+            | Bgeu
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+branch :: Branch -> BitVector 32 -> BitVector 32 -> Bool
+branch = \case
+  Beq  -> (==)
+  Bne  -> (/=)
+  Blt  -> (<)  `on` sign
+  Bge  -> (>=) `on` sign
+  Bltu -> (<)
+  Bgeu -> (>=)
+  where
+    sign :: BitVector 32 -> Signed 32
+    sign = unpack
+
 parseInstr :: BitVector 32 -> Either Exception ExInstr
 parseInstr i = case i of
   $(bitPattern ".........................0110111") -> Right $ ExLui rd immU -- lui
   $(bitPattern ".........................0010111") -> Right $ ExAluOpImm PC Add rd immU -- auipc
   $(bitPattern ".........................1101111") -> Right $ ExJal rd immJ -- jal
+--  $(bitPattern ".................000.....1100111") -> Right $ ExJalr rd immI -- jalr
   $(bitPattern "0000000..........000.....0110011") -> Right $ ExAluOp Add rd -- add
   $(bitPattern "0100000..........000.....0110011") -> Right $ ExAluOp Sub rd -- sub
   $(bitPattern "0000000..........001.....0110011") -> Right $ ExAluOp Sll rd -- sll
