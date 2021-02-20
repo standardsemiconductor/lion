@@ -76,7 +76,7 @@ branch = \case
 data ExOp = Lui
           | Auipc
           | Jal
---          | Jalr
+          | Jalr
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -85,7 +85,7 @@ parseInstr i = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
   $(bitPattern ".........................0010111") -> Right $ Ex Auipc rd immU -- auipc
   $(bitPattern ".........................1101111") -> Right $ Ex Jal   rd immJ -- jal
---  $(bitPattern ".................000.....1100111") -> Right $ Ex Jalr  rd immI -- jalr
+  $(bitPattern ".................000.....1100111") -> Right $ Ex Jalr  rd immI -- jalr
 --  $(bitPattern ".................000.....1100011") -> Right $ ExBranch Beq  immB -- beq
 --  $(bitPattern ".................001.....1100011") -> Right $ ExBranch Bne  immB -- bne
 --  $(bitPattern ".................100.....1100011") -> Right $ ExBranch Blt  immB -- blt

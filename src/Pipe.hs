@@ -134,6 +134,10 @@ execute = do
             npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= pc + imm
             when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
             return $ Just $ MeRegWr rd $ pc + 4
+          Jalr  -> do
+            npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= (rs1Data + imm) .&. 0xFFFFFFFE
+            when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
+            return $ Just $ MeRegWr rd $ pc + 4
         ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
         ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
 
