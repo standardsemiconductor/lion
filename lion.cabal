@@ -55,6 +55,7 @@ library
     PolyKinds
     RankNTypes
     TemplateHaskell
+    TupleSections
     TypeFamilies
     TypeOperators
     ViewPatterns
