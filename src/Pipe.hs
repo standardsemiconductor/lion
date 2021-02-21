@@ -103,6 +103,7 @@ writeback = use wbIR >>= \instrM ->
       WbRegWr rdAddr wr -> do
         rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
         scribe toRd $ First $ Just (rdAddr, rdData)
+      WbNop -> return ()
     scribe toRvfi . First . Just =<< use wbRvfi
   where
     guardZero 0 = const 0
@@ -116,6 +117,7 @@ memory = do
     forM_ instrM $ \instr -> do
       case instr of
         MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
+        MeNop         -> wbIR ?= WbNop
 
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
@@ -138,6 +140,11 @@ execute = do
             npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= (rs1Data + imm) .&. 0xFFFFFFFE
             when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
             return $ Just $ MeRegWr rd $ pc + 4
+        ExBranch op imm -> do
+          when (branch op rs1Data rs2Data) $ do
+            npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= pc + imm
+            when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
+          return $ Just MeNop
         ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
         ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
 
