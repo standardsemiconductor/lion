@@ -169,19 +169,17 @@ execute = do
             control.branching ?= npc
             return $ Just $ MeRegWr rd $ pc + 4
         ExBranch op imm -> do
-          let npc = if sign imm >= 0
-                      then pc + imm
-                      else pc - imm
+          npc <- if branch op rs1Data rs2Data
+                   then do
+                     control.branching ?= (pc + imm)
+                     return $ pc + imm
+                   else return $ pc + 4
+          meRvfi.rvfiPcWData .= npc
           meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-          when (branch op rs1Data rs2Data) $ do
-            meRvfi.rvfiPcWData .= npc
-            control.branching ?= npc
           return $ Just MeNop
         ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
         ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
   where
-    sign :: BitVector 32 -> Signed 32
-    sign = unpack
     guardZero rsZero rsValue = do
       isZero <- use rsZero
       if isZero
@@ -200,6 +198,7 @@ decode = do
       Nothing -> case parseInstr mem of
         Right instr -> do
           exIR ?= instr
+          exPC <~ use dePC
           exRvfi.rvfiInsn .= mem
           scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= sliceRs1 mem
           scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= sliceRs2 mem
