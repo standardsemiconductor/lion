@@ -143,6 +143,12 @@ memory = do
       case instr of
         MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
         MeNop         -> wbIR ?= WbNop
+        MeStore op addr value -> do
+          case op of
+            Sb -> _
+            Sh -> _
+            Sw -> _
+          return WbNop 
 
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do

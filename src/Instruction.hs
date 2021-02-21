@@ -19,6 +19,7 @@ data MeInstr = MeRegWr (Unsigned 5) (BitVector 32)
 
 data ExInstr = Ex ExOp (Unsigned 5) (BitVector 32)
              | ExBranch Branch (BitVector 32)
+             | ExStore Store (BitVector 32)
              | ExAlu Op (Unsigned 5)
              | ExAluImm Op (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
@@ -83,6 +84,12 @@ data ExOp = Lui
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+data Store = Sb
+           | Sh
+           | Sw
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
 parseInstr :: BitVector 32 -> Either Exception ExInstr
 parseInstr i = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
@@ -100,9 +107,9 @@ parseInstr i = case i of
 --  $(bitPattern ".................010.....0000011") -> Right $ ExLoad Lw  rd immI -- lw
 --  $(bitPattern ".................100.....0000011") -> Right $ ExLoad Lbu rd immI -- lbu
 --  $(bitPattern ".................101.....0000011") -> Right $ ExLoad Lhu rd immI -- lhu
---  $(bitPattern ".................000.....0100011") -> Right $ ExStore Sb immS -- sb
---  $(bitPattern ".................001.....0100011") -> Right $ ExStore Sh immS -- sh
---  $(bitPattern ".................010.....0100011") -> Right $ ExStore Sw immS -- sw
+  $(bitPattern ".................000.....0100011") -> Right $ ExStore Sb immS -- sb
+  $(bitPattern ".................001.....0100011") -> Right $ ExStore Sh immS -- sh
+  $(bitPattern ".................010.....0100011") -> Right $ ExStore Sw immS -- sw
   $(bitPattern ".................000.....0010011") -> Right $ ExAluImm Add  rd immI -- addi
   $(bitPattern ".................010.....0010011") -> Right $ ExAluImm Slt  rd immI -- slti
   $(bitPattern ".................011.....0010011") -> Right $ ExAluImm Sltu rd immI -- sltiu
@@ -125,6 +132,9 @@ parseInstr i = case i of
 
     immI :: BitVector 32
     immI = signExtend $ slice d31 d20 i
+    
+    immS :: BitVector 32
+    immS = signExtend $ slice d31 d25 i ++# slice d11 d7 i
 
     immB :: BitVector 32
     immB = signExtend (slice d31 d31 i ++# slice d7 d7 i ++# slice d30 d25 i ++# slice d11 d8 i) `shiftL` 1
