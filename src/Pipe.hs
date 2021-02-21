@@ -29,6 +29,18 @@ data FromPipe = FromPipe
   deriving Monoid via GenericMonoid FromPipe
 makeLenses ''FromPipe
 
+data Flags = Flags
+  { _branching :: Bool
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+makeLenses ''Flags
+
+mkFlags :: Flags
+mkFlags = Flags
+  { _branching = False
+  }
+
 data Pipe = Pipe
   { _fetchPC  :: BitVector 32
 
@@ -37,9 +49,11 @@ data Pipe = Pipe
   , _deNPC    :: BitVector 32
 
   -- execute stage
-  , _exIR     :: Maybe ExInstr
-  , _exPC     :: BitVector 32
-  , _exRvfi   :: Rvfi
+  , _exIR      :: Maybe ExInstr
+  , _exPC      :: BitVector 32
+  , _exRs1Zero :: Bool
+  , _exRs2Zero :: Bool
+  , _exRvfi    :: Rvfi
 
   -- memory stage
   , _meIR     :: Maybe MeInstr
@@ -49,6 +63,9 @@ data Pipe = Pipe
   , _wbIR     :: Maybe WbInstr
   , _wbNRet   :: BitVector 64
   , _wbRvfi   :: Rvfi
+
+  -- pipeline flags
+  , _flags :: Flags
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -63,9 +80,11 @@ mkPipe = Pipe
   , _deNPC    = 0
   
   -- execute stage
-  , _exIR     = Nothing
-  , _exPC     = 0
-  , _exRvfi   = mkRvfi
+  , _exIR      = Nothing
+  , _exPC      = 0
+  , _exRs1Zero = False
+  , _exRs2Zero = False
+  , _exRvfi    = mkRvfi
 
   -- memory stage
   , _meIR     = Nothing
@@ -75,7 +94,11 @@ mkPipe = Pipe
   , _wbIR   = Nothing
   , _wbNRet = 0
   , _wbRvfi = mkRvfi
+  
+  -- pipeline flags
+  , _flags = mkFlags
   }
+
 
 pipe 
   :: HiddenClockResetEnable dom
@@ -88,6 +111,7 @@ pipe = mealy pipeMealy mkPipe
 
 pipeM :: RWS ToPipe FromPipe Pipe ()
 pipeM = do
+  flags .= mkFlags -- reset flags
   writeback
   memory
   execute
@@ -101,6 +125,7 @@ writeback = use wbIR >>= \instrM ->
     wbRvfi.rvfiOrder <~ wbNRet <<+= 1
     case instr of
       WbRegWr rdAddr wr -> do
+        wbRvfi.rvfiRdAddr .= rdAddr
         rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
         scribe toRd $ First $ Just (rdAddr, rdData)
       WbNop -> return ()
@@ -126,42 +151,58 @@ execute = do
     meIR .= Nothing
     forM_ instrM $ \instr -> do
       pc <- use exPC
-      rs1Data <- meRvfi.rvfiRs1Data <<~ view fromRs1
-      rs2Data <- meRvfi.rvfiRs2Data <<~ view fromRs2
+      rs1Data <- meRvfi.rvfiRs1Data <<~ guardZero exRs1Zero fromRs1
+      rs2Data <- meRvfi.rvfiRs2Data <<~ guardZero exRs2Zero fromRs2
       meIR <~ case instr of
         Ex op rd imm -> case op of
           Lui   -> return $ Just $ MeRegWr rd imm
           Auipc -> return $ Just $ MeRegWr rd $ alu Add pc imm
           Jal   -> do
+            flags.branching .= True
             npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= pc + imm
             when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
             return $ Just $ MeRegWr rd $ pc + 4
           Jalr  -> do
-            npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= (rs1Data + imm) .&. 0xFFFFFFFE
+            flags.branching .= True
+            npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= clearBit (rs1Data + imm) 0
             when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
             return $ Just $ MeRegWr rd $ pc + 4
-        ExBranch op imm -> do
+        ExBranch op imm -> do -- TODO NEEDS WORK!
           when (branch op rs1Data rs2Data) $ do
-            npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= pc + imm
+            flags.branching .= True
+            npc <- fetchPC <<~ meRvfi.rvfiPcWData <.= signedOffset pc imm
             when (npc .&. 0x3 /= 0) $ meRvfi.rvfiTrap .= True
           return $ Just MeNop
         ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
         ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
+  where
+    sign :: BitVector 32 -> Signed 32
+    sign = unpack
+    signedOffset pc imm
+      | sign imm >= 0 = pc + imm
+      | otherwise = pc - imm
+    guardZero rsZero rsValue = do
+      isZero <- use rsZero
+      if isZero
+        then return 0
+        else view rsValue
 
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exRvfi .= mkRvfi
   memM <- view fromMem
+  isBranch <- use $ flags.branching
   forM_ memM $ \mem -> 
     case parseInstr mem of
       Right instr -> do
-        exIR .= Just instr
+        exIR .= if isBranch 
+          then Nothing
+          else Just instr
         pc <- exPC <<~ exRvfi.rvfiPcRData <<~ use dePC
         exRvfi.rvfiPcWData .= pc + 4
         exRvfi.rvfiInsn .= mem
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= sliceRs1 mem
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= sliceRs2 mem
-        exRvfi.rvfiRdAddr .= sliceRd mem
       Left _  -> do
         exRvfi.rvfiTrap .= True
         exIR .= Nothing
@@ -170,5 +211,5 @@ fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
   pc <- dePC <<~ use fetchPC
   scribe toMem $ First $ Just (pc, Nothing)
-  fetchPC <~ deNPC <.= pc + 4
+  fetchPC += 4
 
