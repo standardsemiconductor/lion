@@ -90,6 +90,12 @@ data Store = Sb
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+store :: Store -> BitVector 32 -> BitVector 32
+store = \case
+  Sb -> concatBitVector# . replicate d4 . slice d7  d0
+  Sh -> concatBitVector# . replicate d2 . slice d15 d0
+  Sw -> id
+
 parseInstr :: BitVector 32 -> Either Exception ExInstr
 parseInstr i = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui

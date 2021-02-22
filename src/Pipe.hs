@@ -17,7 +17,7 @@ data ToPipe = ToPipe
 makeLenses ''ToPipe
 
 data FromPipe = FromPipe
-  { _toMem     :: First (BitVector 32, Maybe (BitVector 32))
+  { _toMem     :: First (BitVector 32, BitVector 4, Maybe (BitVector 32))
   , _toRs1Addr :: First (Unsigned 5)
   , _toRs2Addr :: First (Unsigned 5)
   , _toRd      :: First (Unsigned 5, BitVector 32)
@@ -143,12 +143,12 @@ memory = do
       case instr of
         MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
         MeNop         -> wbIR ?= WbNop
-        MeStore op addr value -> do
-          case op of
-            Sb -> _
-            Sh -> _
-            Sw -> _
-          return WbNop 
+        MeStore addr mask value -> do
+          wbRvfi.rvfiMemAddr .= addr
+          wbRvfi.rvfiMemWMask .= mask
+          wbRvfi.rvfiMemWData .= value
+          scribe toMem $ First $ Just (addr, mask, Just value)
+          wbIR ?= WbNop 
 
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
@@ -183,6 +183,10 @@ execute = do
           meRvfi.rvfiPcWData .= npc
           meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
           return $ Just MeNop
+        ExStore op imm -> do
+          let addr = rs1Data + imm
+          _    
+          return $ Just $ MeStore (rs1Data + imm) _ $ store op rs2Data 
         ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
         ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
   where
