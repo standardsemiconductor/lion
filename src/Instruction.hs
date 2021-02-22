@@ -13,6 +13,7 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
   deriving anyclass NFDataX
 
 data MeInstr = MeRegWr (Unsigned 5) (BitVector 32)
+             | MeStore (BitVector 32) (BitVector 4) (BitVector 32)
              | MeNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX

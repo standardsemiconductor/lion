@@ -51,6 +51,7 @@ library
     GADTs
     GeneralizedNewtypeDeriving
     LambdaCase
+    MagicHash
     NoImplicitPrelude
     PolyKinds
     RankNTypes

@@ -16,8 +16,13 @@ data ToPipe = ToPipe
   deriving anyclass NFDataX
 makeLenses ''ToPipe
 
+data ToMem = InstrMem (BitVector 32)
+           | DataMem (BitVector 32) (BitVector 4) (Maybe (BitVector 32))
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
 data FromPipe = FromPipe
-  { _toMem     :: First (BitVector 32, BitVector 4, Maybe (BitVector 32))
+  { _toMem     :: First ToMem
   , _toRs1Addr :: First (Unsigned 5)
   , _toRs2Addr :: First (Unsigned 5)
   , _toRd      :: First (Unsigned 5, BitVector 32)
@@ -147,7 +152,7 @@ memory = do
           wbRvfi.rvfiMemAddr .= addr
           wbRvfi.rvfiMemWMask .= mask
           wbRvfi.rvfiMemWData .= value
-          scribe toMem $ First $ Just (addr, mask, Just value)
+          scribe toMem $ First $ Just $ DataMem addr mask $ Just value
           wbIR ?= WbNop 
 
 execute :: RWS ToPipe FromPipe Pipe ()
@@ -184,9 +189,23 @@ execute = do
           meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
           return $ Just MeNop
         ExStore op imm -> do
-          let addr = rs1Data + imm
-          _    
-          return $ Just $ MeStore (rs1Data + imm) _ $ store op rs2Data 
+          let addr = rs1Data + imm            -- unaligned
+              addr' = addr .&. complement 0x3 -- aligned
+          case op of
+            Sb -> do
+              let wr = concatBitVector# $ replicate d4 $ slice d7 d0 rs2Data
+                  mask = 0x1 `shiftL` (unpack $ resize $ slice d1 d0 addr)
+              return $ Just $ MeStore addr' mask wr
+            Sh -> do
+              meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
+              let wr = concatBitVector# $ replicate d2 $ slice d15 d0 rs2Data
+                  mask = if addr .&. 0x2 == 0
+                           then 0x3
+                           else 0xC
+              return $ Just $ MeStore addr' mask wr
+            Sw -> do
+              meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
+              return $ Just $ MeStore addr' 0xF rs2Data
         ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
         ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
   where
@@ -216,7 +235,7 @@ decode = do
   
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
-  scribe toMem . First . Just =<< uses fetchPC (,Nothing)
+  scribe toMem . First . Just =<< uses fetchPC InstrMem
   next <- use $ control.fetchNext
   when next $ do
     control.fetchNext .= False -- reset fetch next flag

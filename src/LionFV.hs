@@ -3,6 +3,7 @@ module LionFV where
 import Clash.Prelude
 import Clash.Annotations.TH
 import Core                 ( core, FromCore(FromCore), ToCore(ToCore) )
+import Pipe                 ( ToMem(..) )
 import Data.Maybe           ( fromMaybe, isJust )
 import Rvfi                 ( Rvfi )
 import Ice40.Clock          ( Lattice12Mhz )
@@ -28,10 +29,30 @@ lionFV memRData =
   where
     FromCore toMem rvfi = core $ ToCore $ Just <$> memRData
     memValid = isJust <$> toMem
-    memInstr = pure True -- TODO FIX!
-    memAddr  = maybe 0 fst <$> toMem
-    memWData = fromMaybe 0 . (snd =<<) <$> toMem
-    memWStrb = pure 0 -- TODO FIX!
+    memInstr = fromMaybe False . fmap isInstr <$> toMem
+    memAddr  = maybe 0 getAddr <$> toMem
+    memWData = fromMaybe 0 . (getData =<<) <$> toMem
+    memWStrb = fromMaybe 0 . fmap getMask <$> toMem
+
+isInstr :: ToMem -> Bool
+isInstr = \case
+  InstrMem _    -> True
+  DataMem _ _ _ -> False
+
+getAddr :: ToMem -> BitVector 32
+getAddr = \case
+  InstrMem a     -> a
+  DataMem  a _ _ -> a
+
+getData :: ToMem -> Maybe (BitVector 32)
+getData = \case
+  InstrMem _     -> Nothing
+  DataMem  _ _ d -> d
+
+getMask :: ToMem -> BitVector 4
+getMask = \case
+  InstrMem _     -> 0xF
+  DataMem  _ m _ -> m
 
 {-# NOINLINE topEntity #-}
 topEntity

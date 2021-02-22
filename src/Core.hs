@@ -13,7 +13,7 @@ data ToCore dom = ToCore
 makeLenses ''ToCore
 
 data FromCore dom = FromCore
-  { _toMem  :: Signal dom (Maybe (BitVector 32, Maybe (BitVector 32)))
+  { _toMem  :: Signal dom (Maybe P.ToMem)
   , _toRvfi :: Signal dom Rvfi
   }
 makeLenses ''FromCore
