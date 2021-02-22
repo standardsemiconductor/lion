@@ -180,12 +180,11 @@ execute = do
             control.branching ?= npc
             return $ Just $ MeRegWr rd $ pc + 4
         ExBranch op imm -> do
-          npc <- if branch op rs1Data rs2Data
-                   then do
-                     control.branching ?= (pc + imm)
-                     return $ pc + imm
-                   else return $ pc + 4
-          meRvfi.rvfiPcWData .= npc
+          npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
+                                          then do
+                                            control.branching ?= (pc + imm)
+                                            return $ pc + imm
+                                          else return $ pc + 4
           meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
           return $ Just MeNop
         ExStore op imm -> do
