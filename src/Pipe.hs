@@ -34,6 +34,14 @@ data FromPipe = FromPipe
   deriving Monoid via GenericMonoid FromPipe
 makeLenses ''FromPipe
 
+data Control = Idle
+             | Fetching
+             | Branching (BitVector 32)
+             | Memorizing
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+{-
 data Control = Control
   { _branching :: Maybe (BitVector 32)
   , _fetchNext :: Bool
@@ -41,12 +49,9 @@ data Control = Control
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Control
-
+-}
 mkControl :: Control
-mkControl = Control
-  { _branching = Nothing
-  , _fetchNext = False
-  }
+mkControl = Fetching
 
 data Pipe = Pipe
   { _fetchPC  :: BitVector 32
@@ -144,16 +149,23 @@ memory = do
   wbRvfi <~ use meRvfi
   use meIR >>= \instrM -> do
     wbIR .= Nothing
-    forM_ instrM $ \instr -> do
-      case instr of
-        MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
-        MeNop         -> wbIR ?= WbNop
-        MeStore addr mask value -> do
+    forM_ instrM $ \case
+      MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
+      MeNop         -> wbIR ?= WbNop
+      MeStore addr mask value -> do
+        control .= Storing
+        wbRvfi.rvfiMemAddr .= addr
+        wbRvfi.rvfiMemWMask .= mask
+        wbRvfi.rvfiMemWData .= value
+        scribe toMem $ First $ Just $ DataMem addr mask $ Just value
+        wbIR ?= WbNop 
+      MeLoad rdAddr addr mask -> view fromMem >>= \case
+        Just memData -> do
+          control .= Fetching -- load complete, reset control to fetching
           wbRvfi.rvfiMemAddr .= addr
-          wbRvfi.rvfiMemWMask .= mask
-          wbRvfi.rvfiMemWData .= value
-          scribe toMem $ First $ Just $ DataMem addr mask $ Just value
-          wbIR ?= WbNop 
+          wbRvfi.rvfiMemRMask .= mask
+          wbIR ?= WbRegWr rdAddr wr
+        Nothing -> scribe toMem $ First $ Just $ DataMem addr mask Nothing
 
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
@@ -205,6 +217,14 @@ execute = do
             Sw -> do
               meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
               return $ Just $ MeStore addr' 0xF rs2Data
+        ExLoad op rdAddr imm -> do
+          _
+          case op of
+            Lb  -> _
+            Lh  -> _
+            Lw  -> _
+            Lbu -> _
+            Lhu -> _
         ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
         ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
   where
@@ -233,16 +253,17 @@ decode = do
         Left _ -> exRvfi.rvfiTrap .= True
   
 fetch :: RWS ToPipe FromPipe Pipe ()
-fetch = do
-  scribe toMem . First . Just =<< uses fetchPC InstrMem
-  next <- use $ control.fetchNext
-  when next $ do
-    control.fetchNext .= False -- reset fetch next flag
-    use (control.branching) >>= \case
-      Just npc -> do
-        control.branching .= Nothing -- reset branching flag
-        dePC <~ fetchPC <.= npc
-      Nothing -> dePC <~ fetchPC <+= 4      -- increment PC
-
-
-
+fetch = use control >>= \case
+  Idle -> control .= Fetching
+  Fetching -> do
+    scribe toMem . First . Just =<< uses fetchPC InstrMem
+    deIR .= Nothing
+    memM <- use fromMem
+    forM_ memM $ \mem -> do
+      deIR ?= mem
+      dePC <~ fetchPC <<+= 4
+      control .= Idle
+  Branching pc -> do
+    control .= Fetching
+    fetchPC .= pc
+  Memorizing -> return ()

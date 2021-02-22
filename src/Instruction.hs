@@ -8,21 +8,24 @@ data Exception = IllegalInstruction
   deriving anyclass NFDataX
 
 data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
+             | WbLoad  (Unsigned 5)
              | WbNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
 data MeInstr = MeRegWr (Unsigned 5) (BitVector 32)
-             | MeStore (BitVector 32) (BitVector 4) (BitVector 32)
+             | MeStore              (BitVector 32) (BitVector 4) (BitVector 32)
+             | MeLoad  (Unsigned 5) (BitVector 32) (BitVector 4)
              | MeNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-data ExInstr = Ex ExOp (Unsigned 5) (BitVector 32)
-             | ExBranch Branch (BitVector 32)
-             | ExStore Store (BitVector 32)
-             | ExAlu Op (Unsigned 5)
-             | ExAluImm Op (Unsigned 5) (BitVector 32)
+data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
+             | ExBranch Branch              (BitVector 32)
+             | ExStore  Store               (BitVector 32)
+             | ExLoad   Load   (Unsigned 5) (BitVector 32)
+             | ExAlu    Op     (Unsigned 5)
+             | ExAluImm Op     (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -91,11 +94,13 @@ data Store = Sb
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-store :: Store -> BitVector 32 -> BitVector 32
-store = \case
-  Sb -> concatBitVector# . replicate d4 . slice d7  d0
-  Sh -> concatBitVector# . replicate d2 . slice d15 d0
-  Sw -> id
+data Load = Lb
+          | Lh
+          | Lw
+          | Lbu
+          | Lhu
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
 
 parseInstr :: BitVector 32 -> Either Exception ExInstr
 parseInstr i = case i of
@@ -109,11 +114,11 @@ parseInstr i = case i of
   $(bitPattern ".................101.....1100011") -> Right $ ExBranch Bge  immB -- bge
   $(bitPattern ".................110.....1100011") -> Right $ ExBranch Bltu immB -- bltu
   $(bitPattern ".................111.....1100011") -> Right $ ExBranch Bgeu immB -- bgeu
---  $(bitPattern ".................000.....0000011") -> Right $ ExLoad Lb  rd immI -- lb
---  $(bitPattern ".................001.....0000011") -> Right $ ExLoad Lh  rd immI -- lh
---  $(bitPattern ".................010.....0000011") -> Right $ ExLoad Lw  rd immI -- lw
---  $(bitPattern ".................100.....0000011") -> Right $ ExLoad Lbu rd immI -- lbu
---  $(bitPattern ".................101.....0000011") -> Right $ ExLoad Lhu rd immI -- lhu
+  $(bitPattern ".................000.....0000011") -> Right $ ExLoad Lb  rd immI -- lb
+  $(bitPattern ".................001.....0000011") -> Right $ ExLoad Lh  rd immI -- lh
+  $(bitPattern ".................010.....0000011") -> Right $ ExLoad Lw  rd immI -- lw
+  $(bitPattern ".................100.....0000011") -> Right $ ExLoad Lbu rd immI -- lbu
+  $(bitPattern ".................101.....0000011") -> Right $ ExLoad Lhu rd immI -- lhu
   $(bitPattern ".................000.....0100011") -> Right $ ExStore Sb immS -- sb
   $(bitPattern ".................001.....0100011") -> Right $ ExStore Sh immS -- sh
   $(bitPattern ".................010.....0100011") -> Right $ ExStore Sw immS -- sw
