@@ -187,16 +187,16 @@ memory = use meIR >>= \instrM ->
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = use exIR >>= \instrM ->
   forM_ instrM $ \instr -> do
---    pc <- meRvfi.rvfiPcRData <<~ use exPC
---    meRvfi.rvfiPcWData .= pc + 4
-    exRs1Data <~ meRvfi.rvfiRs1Data <<~ guardZero exRs1Zero fromRs1
-    exRs2Data <~ meRvfi.rvfiRs2Data <<~ guardZero exRs2Zero fromRs2
+    exRs1Data <~ guardZero exRs1Zero fromRs1
+    exRs2Data <~ guardZero exRs2Zero fromRs2
     case instr of
       Ex op rd imm -> case op of
         Lui -> when memRdy $ do
           meRvfi <~ use exRvfi
           pc <- meRvfi.rvfiPcRData <<~ use exPC
           meRvfi.rvfiPcWData .= pc + 4
+          meRvfi.rvfiRs1Data .= exRs1Data
+          meRvfi.rvfiRs2Data .= exRs2Data
           meIR ?= MeRegWr rd imm
           exIR .= Nothing
         Auipc -> when memRdy $ do
@@ -234,30 +234,22 @@ execute = use exIR >>= \instrM ->
         meIR ?= MeNop
         exIR .= Nothing
       ExStore op imm -> when memRdy $ do
+        meRvfi <~ use exRvfi
+        pc <- meRvfi.rvfiPcRData <<~ use exPC
+        meRvfi.rvfiPcWData .= pc + 4
         addr <- uses exRs1Data (+ imm)      -- unaligned
         let addr' = addr .&. complement 0x3 -- aligned
         case op of
           Sb -> do
-            meRvfi <~ use exRvfi
-            pc <- meRvfi.rvfiPcRData <<~ use exPC
-            meRvfi.rvfiPcWData .= pc + 4
             wr <- concatBitVector# . replicate d4 . slice d7 d0 <$> use exRs2Data
-            let mask = 0x1 `shiftL` (unpack $ resize $ slice d1 d0 addr)
-            meIR ?= MeStore addr' mask wr
-            exIR .= Nothing
+            meIR ?= MeStore addr' (byteMask addr) wr
           Sh -> do
-            meRvfi <~ use exRvfi
-            pc <- meRvfi.rvfiPcRData <<~ use exPC
-            meRvfi.rvfiPcWData .= pc + 4
             meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
-            let wr = concatBitVector# $ replicate d2 $ slice d15 d0 rs2Data
-                mask = if addr .&. 0x2 == 0
-                         then 0x3
-                         else 0xC
-            return $ Just $ MeStore addr' mask wr
+            wr <- concatBitVector# . replicate d2 . slice d15 d0 <$> use exRs2Data
+            meIR ?= MeStore addr' (halfMask addr) wr
           Sw -> do
             meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
-            return $ Just $ MeStore addr' 0xF rs2Data
+            meIR ?= MeStore addr' 0xF rs2Data
         exIR .= Nothing
       ExLoad op rdAddr imm -> do
         _
@@ -307,3 +299,17 @@ fetch = use control >>= \case
     control .= Fetching
     fetchPC .= pc
   Memorizing -> return ()
+
+-------------
+-- Utility --
+-------------
+
+-- | calcluate byte mask based on address
+byteMask :: BitVector 32 -> BitVector 4
+byteMask = (1 `shiftL`) . unpack . resize . slice d1 d0
+
+-- | calculate half word mask based on address
+halfMask :: BitVector 32 -> BitVector 4
+halfMask addr = if addr .&. 0x2 == 0
+                  then 0x3
+                  else 0xC
