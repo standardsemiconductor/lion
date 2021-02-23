@@ -10,7 +10,7 @@ import Rvfi
 data ToPipe = ToPipe
   { _fromRs1 :: BitVector 32
   , _fromRs2 :: BitVector 32
-  , _fromMem :: Maybe (BitVector 32)
+  , _fromMem :: BitVector 32
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -269,30 +269,35 @@ execute = use exIR >>= \instrM ->
         else view rsValue
 
 decode :: RWS ToPipe FromPipe Pipe ()
-decode = use deIR >>= \memM ->
-  forM_ memM $ \mem -> do
-    use (control.branching) >>= \case
-      Just _ -> deIR .= Nothing -- insert bubble
-      Nothing -> when exRdy $ case parseInstr mem of
-        Right instr -> do
-          exRvfi .= mkRvfi
-          exIR ?= instr
-          exPC <~ use dePC
-          exRvfi.rvfiInsn .= mem
-          scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= sliceRs1 mem
-          scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= sliceRs2 mem
-          deIR .= Nothing
-        Left _ -> deIR .= Nothing -- exRvfi.rvfiTrap .= True
+decode = do
+  exIR   .= Nothing
+  exRvfi .= mkRvfi
+  isBranching <- uses (control.branching) isJust
+  unless isBranching $ do
+    mem <- view fromMem
+    case parseInstr mem of
+      Right instr -> do
+        exIR ?= instr
+        exPC <~ use dePC
+        exRvfi.rvfiInsn .= mem
+        scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= sliceRs1 mem
+        scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= sliceRs2 mem
+      Left _ -> exRvfi.rvfiTrap .= True
   
 fetch :: RWS ToPipe FromPipe Pipe ()
-fetch = use control >>= \case
+fetch = do
+  branchM <- use (control.branching)
+  forM_ branchM $ assign fetchPC
+  scribe toMem . First . Just =<< uses fetchPC InstrMem  
+  
+
+use control >>= \case
   Idle -> control .= Fetching
   Fetching -> do
-    scribe toMem . First . Just =<< uses fetchPC InstrMem
+
     deIR .= Nothing
     memM <- use fromMem
     forM_ memM $ \mem -> do
-      deIR ?= mem
       dePC <~ fetchPC <<+= 4
       control .= Idle
   Branching pc -> do
