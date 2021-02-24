@@ -231,7 +231,8 @@ decode = do
   exIR   .= Nothing
   exRvfi .= mkRvfi
   isBranching <- uses (control.branching) isJust
-  unless isBranching $ do
+  isMeMemory <- use $ control.meMemory
+  unless (isBranching || isMeMemory) $ do
     mem <- view fromMem
     case parseInstr mem of
       Right instr -> do
@@ -246,7 +247,8 @@ fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
   use (control.branching) >>= mapM_ (assign fetchPC)
   scribe toMem . First . Just =<< uses fetchPC InstrMem
-  dePC <~ fetchPC <<+= 4  
+  isExMemory <- use $ control.exMemory
+  unless isExMemory $ dePC <~ fetchPC <<+= 4  
 
 -------------
 -- Utility --
