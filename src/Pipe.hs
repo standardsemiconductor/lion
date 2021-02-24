@@ -129,138 +129,96 @@ pipeM = do
   fetch
 
 writeback :: RWS ToPipe FromPipe Pipe ()
-writeback = use wbIR >>= \instrM ->
-  forM_ instrM $ \instr -> do
-    wbRvfi.rvfiValid .= True
-    wbRvfi.rvfiOrder <~ wbNRet <<+= 1
-    case instr of
-      WbRegWr rdAddr wr -> do
-        wbRvfi.rvfiRdAddr .= rdAddr
-        rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
-        scribe toRd $ First $ Just (rdAddr, rdData)
-      WbNop -> return ()
-    scribe toRvfi . First . Just =<< use wbRvfi
-  wbIR .= Nothing -- reset instruction, ready for next
+writeback = withInstr wbIR $ \instr -> do
+  wbRvfi.rvfiValid .= True
+  wbRvfi.rvfiOrder <~ wbNRet <<+= 1
+  case instr of
+    WbRegWr rdAddr wr -> do
+      wbRvfi.rvfiRdAddr .= rdAddr
+      rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
+      scribe toRd $ First $ Just (rdAddr, rdData)
+    WbLoad op rdAddr -> _
+    WbNop -> return ()
+  scribe toRvfi . First . Just =<< use wbRvfi
   where
     guardZero 0 = const 0
     guardZero _ = id
 
 memory :: RWS ToPipe FromPipe Pipe ()
-memory = use meIR >>= \instrM ->
-  forM_ instrM $ \case
-    MeRegWr rd wr -> do
-      wbRvfi <~ use meRvfi
-      wbIR ?= WbRegWr rd wr
-      meIR .= Nothing
-    MeNop -> 
-      wbRvfi <~ use meRvfi
-      wbIR ?= WbNop
-      meIR .= Nothing
+memory = do
+  wbIR   .= Nothing
+  wbRvfi <~ meRvfi
+  withInstr meIR $ \case
+    MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
+    MeNop -> wbIR ?= WbNop
     MeStore addr mask value -> do
-      busStatus <- uses bus
-      when (busStatus == Idling || busStatus == Memorizing) $ do
-        busStatus .= Memorizing
-        scribe toMem $ First $ Just $ DataMem addr mask $ Just value
-        memM <- view fromMem
-        forM_ memM $ const $ do
-          wbRvfi <~ use meRvfi
-          wbRvfi.rvfiMemAddr  .= addr
-          wbRvfi.rvfiMemWMask .= mask
-          wbRvfi.rvfiMemWData .= value
-          wbIR ?= WbNop
-          meIR .= Nothing 
-          busStatus .= Idling
-    MeLoad rdAddr addr mask -> do
-      busStatus <- uses bus
-      when (busStatus == Idling || busStatus == Memorizing) $ do
-        busStatus .= Memorizing
-        scribe toMem $ First $ Just $ DataMem addr mask Nothing
-        memM <- view fromMem
-        forM_ memM $ \memData -> do
-          wbRvfi <~ use meRvfi
-          wbRvfi.rvfiMemAddr .= addr
-          wbRvfi.rvfiMemRMask .= mask
-          wbIR ?= WbRegWr rdAddr wr
-          meIR .= Nothing
-          busStatus .= Idling
+      scribe toMem $ First $ Just $ DataMem addr mask $ Just value
+      wbRvfi.rvfiMemAddr  .= addr
+      wbRvfi.rvfiMemWMask .= mask
+      wbRvfi.rvfiMemWData .= value
+      wbIR ?= WbNop
+    MeLoad op rdAddr addr mask -> do
+      scribe toMem $ First $ Just $ DataMem addr mask Nothing
+      wbRvfi.rvfiMemAddr  .= addr
+      wbRvfi.rvfiMemRMask .= mask
+      wbIR ?= WbLoad op rdAddr
 
 execute :: RWS ToPipe FromPipe Pipe ()
-execute = use exIR >>= \instrM ->
-  forM_ instrM $ \instr -> do
-    exRs1Data <~ guardZero exRs1Zero fromRs1
-    exRs2Data <~ guardZero exRs2Zero fromRs2
-    case instr of
-      Ex op rd imm -> case op of
-        Lui -> when memRdy $ do
-          meRvfi <~ use exRvfi
-          pc <- meRvfi.rvfiPcRData <<~ use exPC
-          meRvfi.rvfiPcWData .= pc + 4
-          meRvfi.rvfiRs1Data .= exRs1Data
-          meRvfi.rvfiRs2Data .= exRs2Data
-          meIR ?= MeRegWr rd imm
-          exIR .= Nothing
-        Auipc -> when memRdy $ do
-          meRvfi <~ use exRvfi
-          pc <- meRvfi.rvfiPcRData <<~ use exPC
-          meRvfi.rvfiPcWData .= pc + 4
-          meIR ?= MeRegWr rd (pc + imm) 
-          exIR .= Nothing
-        Jal -> when memRdy $ do
-          meRvfi <~ use exRvfi
-          pc <- meRvfi.rvfiPcRData <<~ use exPC
-          npc <- meRvfi.rvfiPcWData <.= pc + imm
-          meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-          control.branching ?= npc
-          meIR ?= MeRegWr rd (pc + 4)
-          exIR .= Nothing
-        Jalr -> when memRdy $ do
-          meRvfi <~ use exRvfi
-          pc <- meRvfi.rvfiPcRData <<~ use exPC
-          npc <- meRvfi.rvfiPcWData <.= clearBit (rs1Data + imm) 0
-          meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-          control.branching ?= npc
-          meIR ?= MeRegWr rd (pc + 4)
-          exIR .= Nothing
-      ExBranch op imm -> when (memRdy && not fetching) $ do
-        meRvfi <~ use exRvfi
-        pc <- meRvfi.rvfiPcRData <<~ use exPC
-        isBranch <- branch op <$> use exRs1Data <*> use exRs2Data
-        npc <- meRvfi.rvfiPcWData <<~ if isBranch
-                                        then do
-                                          control.branching ?= (pc + imm)
-                                          return $ pc + imm
-                                        else return $ pc + 4
+execute = do
+  meIR   .= Nothing
+  meRvfi <~ use exRvfi
+  pc <- meRvfi.rvfiPcRData <<~ use exPC
+  meRvfi.rvfiPcWData .= pc + 4
+  rs1Data <- meRvfi.rvfiRs1Data <<~ guardZero exRs1Zero fromRs1
+  rs2Data <- meRvfi.rvfiRs2Data <<~ guardZero exRs2Zero fromRs2
+  withInstr exIR $ \case
+    Ex op rd imm -> case op of
+      Lui -> meIR ?= MeRegWr rd imm
+      Auipc -> meIR ?= MeRegWr rd (pc + imm) 
+      Jal -> do
+        npc <- meRvfi.rvfiPcWData <.= pc + imm
         meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-        meIR ?= MeNop
-        exIR .= Nothing
-      ExStore op imm -> when memRdy $ do
-        meRvfi <~ use exRvfi
-        pc <- meRvfi.rvfiPcRData <<~ use exPC
-        meRvfi.rvfiPcWData .= pc + 4
-        addr <- uses exRs1Data (+ imm)      -- unaligned
-        let addr' = addr .&. complement 0x3 -- aligned
-        case op of
-          Sb -> do
-            wr <- concatBitVector# . replicate d4 . slice d7 d0 <$> use exRs2Data
-            meIR ?= MeStore addr' (byteMask addr) wr
-          Sh -> do
-            meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
-            wr <- concatBitVector# . replicate d2 . slice d15 d0 <$> use exRs2Data
-            meIR ?= MeStore addr' (halfMask addr) wr
-          Sw -> do
-            meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
-            meIR ?= MeStore addr' 0xF rs2Data
-        exIR .= Nothing
-      ExLoad op rdAddr imm -> do
-        _
-        case op of
-          Lb  -> _
-          Lh  -> _
-          Lw  -> _
-          Lbu -> _
-          Lhu -> _
-      ExAlu    op rd     -> return $ Just $ MeRegWr rd $ alu op rs1Data rs2Data
-      ExAluImm op rd imm -> return $ Just $ MeRegWr rd $ alu op rs1Data imm
+        control.branching ?= npc
+        meIR ?= MeRegWr rd (pc + 4)
+      Jalr -> do
+        npc <- meRvfi.rvfiPcWData <.= clearBit (rs1Data + imm) 0
+        meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+        control.branching ?= npc
+        meIR ?= MeRegWr rd (pc + 4)
+    ExBranch op imm -> do
+      let isBranch = branch op rs1Data rs2Data
+      npc <- meRvfi.rvfiPcWData <<~ if isBranch
+                                      then do
+                                        control.branching ?= (pc + imm)
+                                        return $ pc + imm
+                                      else return $ pc + 4
+      meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      meIR ?= MeNop
+    ExStore op imm -> do
+      let addr = rs1Data + imm            -- unaligned
+          addr' = addr .&. complement 0x3 -- aligned
+      case op of
+        Sb -> let wr = concatBitVector# $ replicate d4 $ slice d7 d0 rs2Data
+              in meIR ?= MeStore addr' (byteMask addr) wr
+        Sh -> do
+          meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
+          let wr = concatBitVector# $ replicate d2 $ slice d15 d0 rs2Data
+          meIR ?= MeStore addr' (halfMask addr) wr
+        Sw -> do
+          meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
+          meIR ?= MeStore addr' 0xF rs2Data
+    ExLoad op rdAddr imm -> do
+      let addr = rs1Data + imm            -- unaligned
+          addr' = addr .&. complement 0x3 -- aligned
+      if | op == Lb || op == Lbu = meIR ?= MeLoad op addr' (byteMask addr)
+         | op == Lh || op == Lhu = do
+             meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
+             meIR ?= MeLoad op addr' (halfMask addr)
+         | otherwise = do -- Lw
+             meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
+             meIR ?= MeLoad op addr' 0xF
+    ExAlu    op rd     -> meIR ?= MeRegWr rd (alu op rs1Data rs2Data)
+    ExAluImm op rd imm -> meIR ?= MeRegWr rd (alu op rs1Data imm)
   where
     guardZero rsZero rsValue = do
       isZero <- use rsZero
@@ -286,24 +244,9 @@ decode = do
   
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
-  branchM <- use (control.branching)
-  forM_ branchM $ assign fetchPC
-  scribe toMem . First . Just =<< uses fetchPC InstrMem  
-  
-
-use control >>= \case
-  Idle -> control .= Fetching
-  Fetching -> do
-
-    deIR .= Nothing
-    memM <- use fromMem
-    forM_ memM $ \mem -> do
-      dePC <~ fetchPC <<+= 4
-      control .= Idle
-  Branching pc -> do
-    control .= Fetching
-    fetchPC .= pc
-  Memorizing -> return ()
+  use (control.branching) >>= mapM_ (assign fetchPC)
+  scribe toMem . First . Just =<< uses fetchPC InstrMem
+  dePC <~ fetchPC <<+= 4  
 
 -------------
 -- Utility --
@@ -318,3 +261,6 @@ halfMask :: BitVector 32 -> BitVector 4
 halfMask addr = if addr .&. 0x2 == 0
                   then 0x3
                   else 0xC
+
+withInstr :: Lens' s (Maybe a) -> (a -> m ()) -> m ()
+withInstr l k = use l >>= mapM_ k
