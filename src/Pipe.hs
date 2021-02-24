@@ -36,14 +36,20 @@ data FromPipe = FromPipe
 makeLenses ''FromPipe
 
 data Control = Control
-  { _branching :: Maybe (BitVector 32)
+  { _branching :: Maybe (BitVector 32) -- ^ execute stage branch
+  , _exMemory  :: Bool                 -- ^ execute stage load/store
+  , _meMemory  :: Bool                 -- ^ memory stage load/store
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Control
 
 mkControl :: Control
-mkControl = Control Nothing
+mkControl = Control 
+  { _branching = Nothing
+  , _exMemory = False
+  , _meMemory = False
+  }
 
 data Pipe = Pipe
   { _fetchPC  :: BitVector 32
@@ -60,11 +66,13 @@ data Pipe = Pipe
 
   -- memory stage
   , _meIR     :: Maybe MeInstr
+  , _meRegFwd :: Maybe (Unsigned 5, BitVector 32)
   , _meRvfi   :: Rvfi
 
   -- writeback stage
   , _wbIR     :: Maybe WbInstr
   , _wbNRet   :: BitVector 64
+  , _wbRegFwd :: Maybe (Unsigned 5, BitVector 32)
   , _wbRvfi   :: Rvfi
 
   -- pipeline control
@@ -90,12 +98,14 @@ mkPipe = Pipe
 
   -- memory stage
   , _meIR     = Nothing
+  , _meRegFwd = Nothing
   , _meRvfi   = mkRvfi
  
   -- writeback stage
-  , _wbIR   = Nothing
-  , _wbNRet = 0
-  , _wbRvfi = mkRvfi
+  , _wbIR     = Nothing
+  , _wbNRet   = 0
+  , _wbRegFwd = Nothing
+  , _wbRvfi   = mkRvfi
   
   -- pipeline control
   , _control = mkControl
@@ -129,7 +139,7 @@ writeback = withInstr wbIR $ \instr -> do
       scribe toRd $ First $ Just (rdAddr, rdData)
     WbLoad op rdAddr mask -> do
       wbRvfi.rvfiRdAddr .= rdAddr
-      mem <- view fromMem
+      mem <- wbRvfi.rvfiMemRData <<~ view fromMem
       let wr = case op of
             Lb  -> signExtend $ sliceByte mask mem
             Lh  -> signExtend $ sliceHalf mask mem
@@ -147,17 +157,20 @@ writeback = withInstr wbIR $ \instr -> do
 memory :: RWS ToPipe FromPipe Pipe ()
 memory = do
   wbIR   .= Nothing
+  control.meMemory .= False -- reset memory stage memory control
   wbRvfi <~ use meRvfi
   withInstr meIR $ \case
     MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
     MeNop -> wbIR ?= WbNop
     MeStore addr mask value -> do
+      control.meMemory .= True
       scribe toMem $ First $ Just $ DataMem addr mask $ Just value
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemWMask .= mask
       wbRvfi.rvfiMemWData .= value
       wbIR ?= WbNop
     MeLoad op rdAddr addr mask -> do
+      control.meMemory .= True
       scribe toMem $ First $ Just $ DataMem addr mask Nothing
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemRMask .= mask
@@ -165,7 +178,8 @@ memory = do
 
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
-  meIR   .= Nothing
+  meIR .= Nothing
+  control.exMemory .= False -- initial execute stage memory control
   meRvfi <~ use exRvfi
   pc <- meRvfi.rvfiPcRData <<~ use exPC
   meRvfi.rvfiPcWData .= pc + 4
@@ -195,27 +209,29 @@ execute = do
       meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
       meIR ?= MeNop
     ExStore op imm -> do
+      control.exMemory .= True -- memory pipeline control
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
       case op of
         Sb -> let wr = concatBitVector# $ replicate d4 $ slice d7 d0 rs2Data
               in meIR ?= MeStore addr' (byteMask addr) wr
         Sh -> do
-          meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
+          meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0) -- trap on half-word boundary
           let wr = concatBitVector# $ replicate d2 $ slice d15 d0 rs2Data
           meIR ?= MeStore addr' (halfMask addr) wr
         Sw -> do
-          meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
+          meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
           meIR ?= MeStore addr' 0xF rs2Data
     ExLoad op rdAddr imm -> do
+      control.exMemory .= True -- memory pipeline control
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
       if | op == Lb || op == Lbu -> meIR ?= MeLoad op rdAddr addr' (byteMask addr)
          | op == Lh || op == Lhu -> do
-             meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
+             meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0) -- trap on half-word boundary
              meIR ?= MeLoad op rdAddr addr' (halfMask addr)
          | otherwise -> do -- Lw
-             meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
+             meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
              meIR ?= MeLoad op rdAddr addr' 0xF
     ExAlu    op rd     -> meIR ?= MeRegWr rd (alu op rs1Data rs2Data)
     ExAluImm op rd imm -> meIR ?= MeRegWr rd (alu op rs1Data imm)
@@ -253,6 +269,8 @@ fetch = do
 -------------
 -- Utility --
 -------------
+
+--regFwd :: Unsigned 5 -> BitVector 32 -> 
 
 -- | calcluate byte mask based on address
 byteMask :: BitVector 32 -> BitVector 4

@@ -128,6 +128,9 @@ parseInstr i = case i of
   $(bitPattern ".................100.....0010011") -> Right $ ExAluImm Xor  rd immI -- xori
   $(bitPattern ".................110.....0010011") -> Right $ ExAluImm Or   rd immI -- ori
   $(bitPattern ".................111.....0010011") -> Right $ ExAluImm And  rd immI -- andi
+  $(bitPattern "0000000..........001.....0010011") -> Right $ ExAluImm Sll  rd immI -- slli
+  $(bitPattern "0000000..........101.....0010011") -> Right $ ExAluImm Srl  rd immI -- srli
+  $(bitPattern "0100000..........101.....0010011") -> Right $ ExAluImm Sra  rd immI -- srai
   $(bitPattern "0000000..........000.....0110011") -> Right $ ExAlu Add  rd -- add
   $(bitPattern "0100000..........000.....0110011") -> Right $ ExAlu Sub  rd -- sub
   $(bitPattern "0000000..........001.....0110011") -> Right $ ExAlu Sll  rd -- sll
