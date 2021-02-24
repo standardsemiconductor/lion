@@ -18,7 +18,7 @@ data ToPipe = ToPipe
 makeLenses ''ToPipe
 
 data ToMem = InstrMem (BitVector 32)
-           | DataMem (BitVector 32) (BitVector 4) (Maybe (BitVector 32))
+           | DataMem  (BitVector 32) (BitVector 4) (Maybe (BitVector 32))
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -50,7 +50,6 @@ data Pipe = Pipe
 
   -- decode stage
   , _dePC     :: BitVector 32
-  , _deNPC    :: BitVector 32
 
   -- execute stage
   , _exIR      :: Maybe ExInstr
@@ -81,7 +80,6 @@ mkPipe = Pipe
 
   -- decode stage 
   , _dePC     = 0
-  , _deNPC    = 0
   
   -- execute stage
   , _exIR      = Nothing
