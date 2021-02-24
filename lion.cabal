@@ -52,6 +52,7 @@ library
     GeneralizedNewtypeDeriving
     LambdaCase
     MagicHash
+    MultiWayIf
     NoImplicitPrelude
     PolyKinds
     RankNTypes

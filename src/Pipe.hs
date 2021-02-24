@@ -3,6 +3,7 @@ module Pipe where
 import Clash.Prelude
 import Control.Lens hiding ( op )
 import Control.Monad.RWS
+import Data.Maybe ( isJust )
 import Data.Monoid.Generic
 import Instruction
 import Rvfi
@@ -34,24 +35,15 @@ data FromPipe = FromPipe
   deriving Monoid via GenericMonoid FromPipe
 makeLenses ''FromPipe
 
-data Control = Idle
-             | Fetching
-             | Branching (BitVector 32)
-             | Memorizing
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
-
-{-
 data Control = Control
   { _branching :: Maybe (BitVector 32)
-  , _fetchNext :: Bool
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Control
--}
+
 mkControl :: Control
-mkControl = Fetching
+mkControl = Control Nothing
 
 data Pipe = Pipe
   { _fetchPC  :: BitVector 32
@@ -137,7 +129,17 @@ writeback = withInstr wbIR $ \instr -> do
       wbRvfi.rvfiRdAddr .= rdAddr
       rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
       scribe toRd $ First $ Just (rdAddr, rdData)
-    WbLoad op rdAddr -> _
+    WbLoad op rdAddr mask -> do
+      wbRvfi.rvfiRdAddr .= rdAddr
+      mem <- view fromMem
+      let wr = case op of
+            Lb  -> signExtend $ sliceByte mask mem
+            Lh  -> signExtend $ sliceHalf mask mem
+            Lw  -> mem
+            Lbu -> zeroExtend $ sliceByte mask mem
+            Lhu -> zeroExtend $ sliceHalf mask mem
+      rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
+      scribe toRd $ First $ Just (rdAddr, rdData)
     WbNop -> return ()
   scribe toRvfi . First . Just =<< use wbRvfi
   where
@@ -147,7 +149,7 @@ writeback = withInstr wbIR $ \instr -> do
 memory :: RWS ToPipe FromPipe Pipe ()
 memory = do
   wbIR   .= Nothing
-  wbRvfi <~ meRvfi
+  wbRvfi <~ use meRvfi
   withInstr meIR $ \case
     MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
     MeNop -> wbIR ?= WbNop
@@ -161,7 +163,7 @@ memory = do
       scribe toMem $ First $ Just $ DataMem addr mask Nothing
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemRMask .= mask
-      wbIR ?= WbLoad op rdAddr
+      wbIR ?= WbLoad op rdAddr mask
 
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
@@ -210,13 +212,13 @@ execute = do
     ExLoad op rdAddr imm -> do
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
-      if | op == Lb || op == Lbu = meIR ?= MeLoad op addr' (byteMask addr)
-         | op == Lh || op == Lhu = do
+      if | op == Lb || op == Lbu -> meIR ?= MeLoad op rdAddr addr' (byteMask addr)
+         | op == Lh || op == Lhu -> do
              meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0)
-             meIR ?= MeLoad op addr' (halfMask addr)
-         | otherwise = do -- Lw
+             meIR ?= MeLoad op rdAddr addr' (halfMask addr)
+         | otherwise -> do -- Lw
              meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0)
-             meIR ?= MeLoad op addr' 0xF
+             meIR ?= MeLoad op rdAddr addr' 0xF
     ExAlu    op rd     -> meIR ?= MeRegWr rd (alu op rs1Data rs2Data)
     ExAluImm op rd imm -> meIR ?= MeRegWr rd (alu op rs1Data imm)
   where
@@ -262,5 +264,21 @@ halfMask addr = if addr .&. 0x2 == 0
                   then 0x3
                   else 0xC
 
-withInstr :: Lens' s (Maybe a) -> (a -> m ()) -> m ()
+-- | slice address based on mask
+sliceByte :: BitVector 4 -> BitVector 32 -> BitVector 8
+sliceByte = \case
+  $(bitPattern "0001") -> slice d7  d0
+  $(bitPattern "0010") -> slice d15 d8
+  $(bitPattern "0100") -> slice d23 d16
+  $(bitPattern "1000") -> slice d31 d24
+  _ -> const 0
+
+-- | slice address based on mask
+sliceHalf :: BitVector 4 -> BitVector 32 -> BitVector 16
+sliceHalf = \case
+  $(bitPattern "0011") -> slice d15 d0
+  $(bitPattern "1100") -> slice d31 d16
+  _ -> const 0
+
+withInstr :: MonadState s m => Lens' s (Maybe a) -> (a -> m ()) -> m ()
 withInstr l k = use l >>= mapM_ k

@@ -27,7 +27,7 @@ lionFV memRData =
   , rvfi
   )
   where
-    FromCore toMem rvfi = core $ ToCore $ Just <$> memRData
+    FromCore toMem rvfi = core $ ToCore memRData
     memValid = isJust <$> toMem
     memInstr = fromMaybe False . fmap isInstr <$> toMem
     memAddr  = maybe 0 getAddr <$> toMem

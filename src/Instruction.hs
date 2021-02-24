@@ -8,14 +8,14 @@ data Exception = IllegalInstruction
   deriving anyclass NFDataX
 
 data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
-             | WbLoad  (Unsigned 5)
+             | WbLoad Load (Unsigned 5) (BitVector 4)
              | WbNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
 data MeInstr = MeRegWr (Unsigned 5) (BitVector 32)
              | MeStore              (BitVector 32) (BitVector 4) (BitVector 32)
-             | MeLoad  (Unsigned 5) (BitVector 32) (BitVector 4)
+             | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
              | MeNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX

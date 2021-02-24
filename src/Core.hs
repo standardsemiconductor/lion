@@ -8,7 +8,7 @@ import Rvfi
 import qualified Pipe as P
 
 data ToCore dom = ToCore
-  { _fromMem :: Signal dom (Maybe (BitVector 32))
+  { _fromMem :: Signal dom (BitVector 32)
   }
 makeLenses ''ToCore
 
