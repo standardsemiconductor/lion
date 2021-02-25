@@ -36,9 +36,11 @@ data FromPipe = FromPipe
 makeLenses ''FromPipe
 
 data Control = Control
-  { _branching :: Maybe (BitVector 32) -- ^ execute stage branch
-  , _exMemory  :: Bool                 -- ^ execute stage load/store
-  , _meMemory  :: Bool                 -- ^ memory stage load/store
+  { _branching :: Maybe (BitVector 32)             -- ^ execute stage branch
+  , _exMemory  :: Bool                             -- ^ execute stage load/store
+  , _meMemory  :: Bool                             -- ^ memory stage load/store
+  , _meRegFwd  :: Maybe (Unsigned 5, BitVector 32) -- ^ memory stage register forwarding
+  , _wbRegFwd  :: Maybe (Unsigned 5, BitVector 32) -- ^ writeback stage register forwading
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -49,6 +51,8 @@ mkControl = Control
   { _branching = Nothing
   , _exMemory = False
   , _meMemory = False
+  , _meRegFwd = Nothing
+  , _wbRegFwd = Nothing
   }
 
 data Pipe = Pipe
@@ -66,13 +70,11 @@ data Pipe = Pipe
 
   -- memory stage
   , _meIR     :: Maybe MeInstr
-  , _meRegFwd :: Maybe (Unsigned 5, BitVector 32)
   , _meRvfi   :: Rvfi
 
   -- writeback stage
   , _wbIR     :: Maybe WbInstr
   , _wbNRet   :: BitVector 64
-  , _wbRegFwd :: Maybe (Unsigned 5, BitVector 32)
   , _wbRvfi   :: Rvfi
 
   -- pipeline control
@@ -98,13 +100,11 @@ mkPipe = Pipe
 
   -- memory stage
   , _meIR     = Nothing
-  , _meRegFwd = Nothing
   , _meRvfi   = mkRvfi
  
   -- writeback stage
   , _wbIR     = Nothing
   , _wbNRet   = 0
-  , _wbRegFwd = Nothing
   , _wbRvfi   = mkRvfi
   
   -- pipeline control
@@ -129,27 +129,29 @@ pipeM = do
   fetch
 
 writeback :: RWS ToPipe FromPipe Pipe ()
-writeback = withInstr wbIR $ \instr -> do
-  wbRvfi.rvfiValid .= True
-  wbRvfi.rvfiOrder <~ wbNRet <<+= 1
-  case instr of
-    WbRegWr rdAddr wr -> do
-      wbRvfi.rvfiRdAddr .= rdAddr
-      rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
-      scribe toRd $ First $ Just (rdAddr, rdData)
-    WbLoad op rdAddr mask -> do
-      wbRvfi.rvfiRdAddr .= rdAddr
-      mem <- wbRvfi.rvfiMemRData <<~ view fromMem
-      let wr = case op of
-            Lb  -> signExtend $ sliceByte mask mem
-            Lh  -> signExtend $ sliceHalf mask mem
-            Lw  -> mem
-            Lbu -> zeroExtend $ sliceByte mask mem
-            Lhu -> zeroExtend $ sliceHalf mask mem
-      rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
-      scribe toRd $ First $ Just (rdAddr, rdData)
-    WbNop -> return ()
-  scribe toRvfi . First . Just =<< use wbRvfi
+writeback = do
+  control.wbRegFwd .= Nothing -- initialize writeback register forwarding
+  withInstr wbIR $ \instr -> do
+    wbRvfi.rvfiValid .= True
+    wbRvfi.rvfiOrder <~ wbNRet <<+= 1
+    case instr of
+      WbRegWr rdAddr wr -> do
+        wbRvfi.rvfiRdAddr .= rdAddr
+        rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
+        scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
+      WbLoad op rdAddr mask -> do
+        wbRvfi.rvfiRdAddr .= rdAddr
+        mem <- wbRvfi.rvfiMemRData <<~ view fromMem
+        let wr = case op of
+              Lb  -> signExtend $ sliceByte mask mem
+              Lh  -> signExtend $ sliceHalf mask mem
+              Lw  -> mem
+              Lbu -> zeroExtend $ sliceByte mask mem
+              Lhu -> zeroExtend $ sliceHalf mask mem
+        rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
+        scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
+      WbNop -> return ()
+    scribe toRvfi . First . Just =<< use wbRvfi
   where
     guardZero 0 = const 0
     guardZero _ = id
@@ -157,10 +159,13 @@ writeback = withInstr wbIR $ \instr -> do
 memory :: RWS ToPipe FromPipe Pipe ()
 memory = do
   wbIR   .= Nothing
-  control.meMemory .= False -- reset memory stage memory control
+  control.meMemory .= False   -- reset memory stage memory control
+  control.meRegFwd .= Nothing -- initialize memory stage register forwarding
   wbRvfi <~ use meRvfi
   withInstr meIR $ \case
-    MeRegWr rd wr -> wbIR ?= WbRegWr rd wr
+    MeRegWr rd wr -> do
+      control.meRegFwd ?= (rd, wr)
+      wbIR ?= WbRegWr rd wr
     MeNop -> wbIR ?= WbNop
     MeStore addr mask value -> do
       control.meMemory .= True
@@ -179,7 +184,8 @@ memory = do
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meIR .= Nothing
-  control.exMemory .= False -- initial execute stage memory control
+  control.branching .= Nothing -- initial execute stage branching control
+  control.exMemory  .= False   -- initial execute stage memory control
   meRvfi <~ use exRvfi
   pc <- meRvfi.rvfiPcRData <<~ use exPC
   meRvfi.rvfiPcWData .= pc + 4
@@ -202,9 +208,7 @@ execute = do
     ExBranch op imm -> do
       let isBranch = branch op rs1Data rs2Data
       npc <- meRvfi.rvfiPcWData <<~ if isBranch
-                                      then do
-                                        control.branching ?= (pc + imm)
-                                        return $ pc + imm
+                                      then control.branching <?= (pc + imm)
                                       else return $ pc + 4
       meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
       meIR ?= MeNop
@@ -262,15 +266,33 @@ decode = do
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
   use (control.branching) >>= mapM_ (assign fetchPC)
-  scribe toMem . First . Just =<< uses fetchPC InstrMem
+  scribe toMem . First . Just . InstrMem =<< dePC <<~ use fetchPC
   isExMemory <- use $ control.exMemory
-  unless isExMemory $ dePC <~ fetchPC <<+= 4  
+  isMeMemory <- use $ control.meMemory
+  unless (isExMemory || isMeMemory) $ fetchPC += 4  
 
 -------------
 -- Utility --
 -------------
 
---regFwd :: Unsigned 5 -> BitVector 32 -> 
+-- | forward register writes
+regFwd 
+  :: Unsigned 5 
+  -> BitVector 32 
+  -> Maybe (Unsigned 5, BitVector 32) -- ^ meRegFwd
+  -> Maybe (Unsigned 5, BitVector 32) -- ^ wbRegFwd
+  -> BitVector 32
+regFwd _    wr Nothing Nothing = wr
+regFwd addr wr Nothing (Just (wbAddr, wbWr))
+  | addr == wbAddr = wbWr
+  | otherwise      = wr
+regFwd addr wr (Just (meAddr, meWr)) Nothing
+  | addr == meAddr = meWr
+  | otherwise      = wr
+regFwd addr wr (Just (meAddr, meWr)) (Just (wbAddr, wbWr))
+  | addr == meAddr = meWr
+  | addr == wbAddr = wbWr
+  | otherwise      = wr
 
 -- | calcluate byte mask based on address
 byteMask :: BitVector 32 -> BitVector 4
