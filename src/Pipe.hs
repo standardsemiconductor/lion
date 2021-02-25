@@ -158,6 +158,7 @@ writeback = do
               Lhu -> zeroExtend $ sliceHalf mask mem
         rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
         scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
+      WbStore -> control.wbMemory .= True
       WbNop -> return ()
     scribe toRvfi . First . Just =<< use wbRvfi
   where
@@ -181,7 +182,7 @@ memory = do
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemWMask .= mask
       wbRvfi.rvfiMemWData .= value
-      wbIR ?= WbNop
+      wbIR ?= WbStore
     MeLoad op rdAddr addr mask -> do
       control.meMemory .= True
       scribe toMem $ First $ Just $ DataMem addr mask Nothing

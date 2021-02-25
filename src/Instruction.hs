@@ -9,6 +9,7 @@ data Exception = IllegalInstruction
 
 data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
              | WbLoad Load (Unsigned 5) (BitVector 4)
+             | WbStore
              | WbNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
