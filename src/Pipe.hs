@@ -36,11 +36,14 @@ data FromPipe = FromPipe
 makeLenses ''FromPipe
 
 data Control = Control
-  { _branching :: Maybe (BitVector 32)             -- ^ execute stage branch
-  , _meMemory  :: Bool                             -- ^ memory stage load/store
-  , _wbMemory  :: Bool                             -- ^ writeback stage load/store
-  , _meRegFwd  :: Maybe (Unsigned 5, BitVector 32) -- ^ memory stage register forwarding
-  , _wbRegFwd  :: Maybe (Unsigned 5, BitVector 32) -- ^ writeback stage register forwading
+  { _firstCycle :: Bool 
+  , _branching  :: Maybe (BitVector 32)             -- ^ execute stage branch
+  , _deLoad     :: Bool                             -- ^ decode stage load
+  , _exLoad     :: Bool                             -- ^ execute stage load
+  , _meMemory   :: Bool                             -- ^ memory stage load/store
+  , _wbMemory   :: Bool                             -- ^ writeback stage load/store
+  , _meRegFwd   :: Maybe (Unsigned 5, BitVector 32) -- ^ memory stage register forwarding
+  , _wbRegFwd   :: Maybe (Unsigned 5, BitVector 32) -- ^ writeback stage register forwading
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -48,11 +51,14 @@ makeLenses ''Control
 
 mkControl :: Control
 mkControl = Control 
-  { _branching = Nothing
-  , _meMemory = False
-  , _wbMemory = False
-  , _meRegFwd = Nothing
-  , _wbRegFwd = Nothing
+  { _firstCycle = True
+  , _branching  = Nothing
+  , _deLoad     = False
+  , _exLoad     = False
+  , _meMemory   = False
+  , _wbMemory   = False
+  , _meRegFwd   = Nothing
+  , _wbRegFwd   = Nothing
   }
 
 data Pipe = Pipe
@@ -187,6 +193,7 @@ execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meIR .= Nothing
   control.branching .= Nothing -- initial execute stage branching control
+  control.exLoad    .= False   -- initial execute stage load control
   meRvfi <~ use exRvfi
   pc <- meRvfi.rvfiPcRData <<~ use exPC
   meRvfi.rvfiPcWData .= pc + 4
@@ -227,6 +234,7 @@ execute = do
           meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
           meIR ?= MeStore addr' 0xF rs2Data
     ExLoad op rdAddr imm -> do
+      control.exLoad .= True
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
       if | op == Lb || op == Lbu -> meIR ?= MeLoad op rdAddr addr' (byteMask addr)
@@ -260,15 +268,21 @@ decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exIR   .= Nothing
   exRvfi .= mkRvfi
-  isBranching <- uses (control.branching) isJust
-  isWbMemory <- use $ control.wbMemory
-  unless (isBranching || isWbMemory) $ do
+  control.deLoad .= False -- initialize decode stage load stall control
+  isFirstCycle <- control.firstCycle <<.= False -- first memory output undefined
+  isBranching  <- uses (control.branching) isJust
+  isWbMemory   <- use $ control.wbMemory
+  isExLoad     <- use $ control.exLoad
+  unless (isFirstCycle || isBranching || isWbMemory || isExLoad) $ do
     mem <- view fromMem
     case parseInstr mem of
       Right instr -> do
         exIR ?= instr
         exPC <~ use dePC
         exRvfi.rvfiInsn .= mem
+        control.deLoad .= case instr of
+          ExLoad _ _ _ -> True
+          _ -> False
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
       Left _ -> exRvfi.rvfiTrap .= True
@@ -280,7 +294,8 @@ fetch = do
   use (control.branching) >>= mapM_ (assign fetchPC)
   scribe toMem . First . Just . InstrMem =<< dePC <<~ use fetchPC
   isMeMemory <- use $ control.meMemory
-  unless isMeMemory $ fetchPC += 4  
+  isDeLoad   <- use $ control.deLoad
+  unless (isMeMemory || isDeLoad) $ fetchPC += 4  
 
 -------------
 -- Utility --
