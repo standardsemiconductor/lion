@@ -62,11 +62,11 @@ data Pipe = Pipe
   , _dePC     :: BitVector 32
 
   -- execute stage
-  , _exIR      :: Maybe ExInstr
-  , _exPC      :: BitVector 32
-  , _exRs1Zero :: Bool
-  , _exRs2Zero :: Bool
-  , _exRvfi    :: Rvfi
+  , _exIR   :: Maybe ExInstr
+  , _exPC   :: BitVector 32
+  , _exRs1  :: Unsigned 5
+  , _exRs2  :: Unsigned 5
+  , _exRvfi :: Rvfi
 
   -- memory stage
   , _meIR     :: Maybe MeInstr
@@ -92,11 +92,11 @@ mkPipe = Pipe
   , _dePC     = 0
   
   -- execute stage
-  , _exIR      = Nothing
-  , _exPC      = 0
-  , _exRs1Zero = False
-  , _exRs2Zero = False
-  , _exRvfi    = mkRvfi
+  , _exIR   = Nothing
+  , _exPC   = 0
+  , _exRs1  = 0
+  , _exRs2  = 0
+  , _exRvfi = mkRvfi
 
   -- memory stage
   , _meIR     = Nothing
@@ -189,8 +189,8 @@ execute = do
   meRvfi <~ use exRvfi
   pc <- meRvfi.rvfiPcRData <<~ use exPC
   meRvfi.rvfiPcWData .= pc + 4
-  rs1Data <- meRvfi.rvfiRs1Data <<~ guardZero exRs1Zero fromRs1
-  rs2Data <- meRvfi.rvfiRs2Data <<~ guardZero exRs2Zero fromRs2
+  rs1Data <- meRvfi.rvfiRs1Data <<~ regFwd exRs1 fromRs1 (control.meRegFwd) (control.wbRegFwd)
+  rs2Data <- meRvfi.rvfiRs2Data <<~ regFwd exRs2 fromRs2 (control.meRegFwd) (control.wbRegFwd)
   withInstr exIR $ \case
     Ex op rd imm -> case op of
       Lui -> meIR ?= MeRegWr rd imm
@@ -240,11 +240,22 @@ execute = do
     ExAlu    op rd     -> meIR ?= MeRegWr rd (alu op rs1Data rs2Data)
     ExAluImm op rd imm -> meIR ?= MeRegWr rd (alu op rs1Data imm)
   where
-    guardZero rsZero rsValue = do
-      isZero <- use rsZero
-      if isZero
-        then return 0
-        else view rsValue
+    guardZero :: MonadState s m => Lens' s (Unsigned 5) -> BitVector 32 -> m (BitVector 32)
+    guardZero rsAddr rsValue = do
+      isZero <- uses rsAddr (== 0)
+      return $ if isZero
+        then 0
+        else rsValue
+    regFwd 
+      :: MonadState s m 
+      => MonadReader r m
+      => Lens' s (Unsigned 5) 
+      -> Lens' r (BitVector 32)
+      -> Lens' s (Maybe (Unsigned 5, BitVector 32))
+      -> Lens' s (Maybe (Unsigned 5, BitVector 32))
+      -> m (BitVector 32)
+    regFwd rsAddr rsData meFwd wbFwd = 
+      guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
 
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
@@ -259,8 +270,8 @@ decode = do
         exIR ?= instr
         exPC <~ use dePC
         exRvfi.rvfiInsn .= mem
-        scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <.= sliceRs1 mem
-        scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <.= sliceRs2 mem
+        scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
+        scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
       Left _ -> exRvfi.rvfiTrap .= True
   
 fetch :: RWS ToPipe FromPipe Pipe ()
@@ -276,20 +287,20 @@ fetch = do
 -------------
 
 -- | forward register writes
-regFwd 
+fwd 
   :: Unsigned 5 
   -> BitVector 32 
   -> Maybe (Unsigned 5, BitVector 32) -- ^ meRegFwd
   -> Maybe (Unsigned 5, BitVector 32) -- ^ wbRegFwd
   -> BitVector 32
-regFwd _    wr Nothing Nothing = wr
-regFwd addr wr Nothing (Just (wbAddr, wbWr))
+fwd _    wr Nothing Nothing = wr
+fwd addr wr Nothing (Just (wbAddr, wbWr))
   | addr == wbAddr = wbWr
   | otherwise      = wr
-regFwd addr wr (Just (meAddr, meWr)) Nothing
+fwd addr wr (Just (meAddr, meWr)) Nothing
   | addr == meAddr = meWr
   | otherwise      = wr
-regFwd addr wr (Just (meAddr, meWr)) (Just (wbAddr, wbWr))
+fwd addr wr (Just (meAddr, meWr)) (Just (wbAddr, wbWr))
   | addr == meAddr = meWr
   | addr == wbAddr = wbWr
   | otherwise      = wr
