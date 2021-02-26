@@ -1,7 +1,10 @@
 module Soc where
 
 import Clash.Prelude
-import Core (FromCore(FromCore), ToCore(ToCore), core)
+import Clash.Annotations.TH
+import Core (FromCore(FromCore), ToCore(ToCore), ToMem(DataMem, InstrMem), core)
+import Data.Functor ( (<&>) )
+import Data.Maybe ( fromMaybe )
 import Ice40.Clock
 import Ice40.Osc
 import Ice40.Rgb
@@ -12,25 +15,34 @@ import Ice40.Led
 ---------
 type Rgb = ("red" ::: Bit, "green" ::: Bit, "blue" ::: Bit)
 
-
-
-rgb :: Signal dom ToMem -> Signal dom Rgb
+rgb :: HiddenClock dom => Signal dom (Maybe ToMem) -> Signal dom Rgb
 rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
-    (r, g, b, _) = led cs wr addr en exe
+    (wr, addr, en) = unbundle $ mem <&> \case
+      Just (DataMem a m (Just d)) -> case (a, m) of
+        ($(bitPattern "0000000000000000000000010000...."), $(bitPattern "0001")) 
+          -> (slice d7 d0 d, slice d3 d0 a, True)
+        _ -> (0, 0, False)
+      _ -> (0, 0, False)
+    (r, g, b, _) = led (pure 1) wr addr en (pure True)
+
 ----------
 -- BIOS --
 ----------
 bios
   :: HiddenClockResetEnable dom
-  => Signal dom ToMem
+  => Signal dom (Maybe ToMem)
   -> Signal dom (BitVector 32)
-bios _ = concat4 <$> b3 <*> b2 <*> b1 <*> b0
+bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
+    addr = unpack . slice d8 d0 . fromMaybe 0 . fmap getAddr <$> mem
     b3 = romFilePow2 "_build/bios/Bios.rom3" addr
     b2 = romFilePow2 "_build/bios/Bios.rom2" addr
     b1 = romFilePow2 "_build/bios/Bios.rom1" addr
     b0 = romFilePow2 "_build/bios/Bios.rom0" addr
+    getAddr = \case
+      InstrMem a    -> a
+      DataMem a _ _ -> a
 
 concat4
   :: KnownNat n
@@ -38,7 +50,7 @@ concat4
   -> BitVector n
   -> BitVector n
   -> BitVector n
-  -> BitVector (4*n)
+  -> BitVector (4 * n)
 concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 
 --------------
@@ -48,7 +60,7 @@ lion :: HiddenClockResetEnable dom => Signal dom Rgb
 lion = rgb toMem
   where
     FromCore toMem _ = core $ ToCore fromBios
-    fromBios = fromCore^.toMem.to bios
+    fromBios = bios toMem
     
 ----------------
 -- Top Entity --
