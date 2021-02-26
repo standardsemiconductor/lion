@@ -19,10 +19,11 @@ rgb :: HiddenClock dom => Signal dom (Maybe ToMem) -> Signal dom Rgb
 rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
-      Just (DataMem a m (Just d)) -> case (a, m) of
-        ($(bitPattern "0000000000000000000000010000...."), $(bitPattern "0001")) 
-          -> (slice d7 d0 d, slice d3 d0 a, True)
-        _ -> (0, 0, False)
+      Just (DataMem 
+              a@($(bitPattern "0000000000000000000000010000....")) 
+              $(bitPattern "0001")
+              (Just d)
+           ) -> (slice d7 d0 d, slice d3 d0 a, True)
       _ -> (0, 0, False)
     (r, g, b, _) = led (pure 1) wr addr en (pure True)
 
