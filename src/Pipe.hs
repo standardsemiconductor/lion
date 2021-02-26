@@ -61,6 +61,7 @@ mkControl = Control
   , _wbRegFwd   = Nothing
   }
 
+
 data Pipe = Pipe
   { _fetchPC  :: BitVector 32
 
@@ -126,8 +127,20 @@ pipe = mealy pipeMealy mkPipe
     pipeMealy s i = let ((), s', o) = runRWS pipeM i s
                     in (s', o) 
 
+-- | reset control signals (except first cycle)
+resetControl :: MonadState Pipe m => m ()
+resetControl = do
+  control.branching .= Nothing
+  control.deLoad    .= False
+  control.exLoad    .= False
+  control.meMemory  .= False
+  control.wbMemory  .= False
+  control.meRegFwd  .= Nothing
+  control.wbRegFwd  .= Nothing
+
 pipeM :: RWS ToPipe FromPipe Pipe ()
 pipeM = do
+  resetControl
   writeback
   memory
   execute
@@ -135,32 +148,29 @@ pipeM = do
   fetch
 
 writeback :: RWS ToPipe FromPipe Pipe ()
-writeback = do
-  control.wbMemory .= False   -- initialize writeback stage memory control
-  control.wbRegFwd .= Nothing -- initialize writeback register forwarding
-  withInstr wbIR $ \instr -> do
-    wbRvfi.rvfiValid .= True
-    wbRvfi.rvfiOrder <~ wbNRet <<+= 1
-    case instr of
-      WbRegWr rdAddr wr -> do
-        wbRvfi.rvfiRdAddr .= rdAddr
-        rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
-        scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
-      WbLoad op rdAddr mask -> do
-        control.wbMemory .= True
-        wbRvfi.rvfiRdAddr .= rdAddr
-        mem <- wbRvfi.rvfiMemRData <<~ view fromMem
-        let wr = case op of
-              Lb  -> signExtend $ sliceByte mask mem
-              Lh  -> signExtend $ sliceHalf mask mem
-              Lw  -> mem
-              Lbu -> zeroExtend $ sliceByte mask mem
-              Lhu -> zeroExtend $ sliceHalf mask mem
-        rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
-        scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
-      WbStore -> control.wbMemory .= True
-      WbNop -> return ()
-    scribe toRvfi . First . Just =<< use wbRvfi
+writeback = withInstr wbIR $ \instr -> do
+  wbRvfi.rvfiValid .= True
+  wbRvfi.rvfiOrder <~ wbNRet <<+= 1
+  case instr of
+    WbRegWr rdAddr wr -> do
+      wbRvfi.rvfiRdAddr .= rdAddr
+      rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
+      scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
+    WbLoad op rdAddr mask -> do
+      control.wbMemory .= True
+      wbRvfi.rvfiRdAddr .= rdAddr
+      mem <- wbRvfi.rvfiMemRData <<~ view fromMem
+      let wr = case op of
+            Lb  -> signExtend $ sliceByte mask mem
+            Lh  -> signExtend $ sliceHalf mask mem
+            Lw  -> mem
+            Lbu -> zeroExtend $ sliceByte mask mem
+            Lhu -> zeroExtend $ sliceHalf mask mem
+      rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
+      scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
+    WbStore -> control.wbMemory .= True
+    WbNop -> return ()
+  scribe toRvfi . First . Just =<< use wbRvfi
   where
     guardZero 0 = const 0
     guardZero _ = id
@@ -168,8 +178,6 @@ writeback = do
 memory :: RWS ToPipe FromPipe Pipe ()
 memory = do
   wbIR   .= Nothing
-  control.meMemory .= False   -- reset memory stage memory control
-  control.meRegFwd .= Nothing -- initialize memory stage register forwarding
   wbRvfi <~ use meRvfi
   withInstr meIR $ \case
     MeRegWr rd wr -> do
@@ -193,8 +201,6 @@ memory = do
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meIR .= Nothing
-  control.branching .= Nothing -- initial execute stage branching control
-  control.exLoad    .= False   -- initial execute stage load control
   meRvfi <~ use exRvfi
   pc <- meRvfi.rvfiPcRData <<~ use exPC
   meRvfi.rvfiPcWData .= pc + 4
@@ -215,8 +221,7 @@ execute = do
         control.branching ?= npc
         meIR ?= MeRegWr rd (pc + 4)
     ExBranch op imm -> do
-      let isBranch = branch op rs1Data rs2Data
-      npc <- meRvfi.rvfiPcWData <<~ if isBranch
+      npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
                                       then control.branching <?= (pc + imm)
                                       else return $ pc + 4
       meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
@@ -269,7 +274,6 @@ decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exIR   .= Nothing
   exRvfi .= mkRvfi
-  control.deLoad .= False -- initialize decode stage load stall control
   isFirstCycle <- control.firstCycle <<.= False -- first memory output undefined
   isBranching  <- uses (control.branching) isJust
   isWbMemory   <- use $ control.wbMemory

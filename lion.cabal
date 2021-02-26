@@ -47,6 +47,7 @@ library
     DeriveGeneric
     DerivingStrategies
     DerivingVia
+    FlexibleContexts
     FlexibleInstances
     GADTs
     GeneralizedNewtypeDeriving
