@@ -20,7 +20,7 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
       Just (DataMem 
-              a@($(bitPattern "0000000000000000000000010000....")) 
+              a@($(bitPattern "0000000000000000000000100000....")) 
               $(bitPattern "0001")
               (Just d)
            ) -> (slice d7 d0 d, slice d3 d0 a, True)
