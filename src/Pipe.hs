@@ -290,7 +290,8 @@ decode = do
           _ -> False
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
-      Left _ -> exRvfi.rvfiTrap .= True
+      Left IllegalInstruction -> fetchPC <~ use dePC -- roll-back PC, should handle trap
+        
 
 -- | fetch instruction
 --   stalled when instruction in memory stage needs bus  
