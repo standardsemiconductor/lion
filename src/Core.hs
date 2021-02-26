@@ -1,4 +1,12 @@
-module Core where
+module Core 
+  ( ToCore(..)
+  , fromMem
+  , FromCore(..)
+  , toMem
+  , toRvfi
+  , P.ToMem(..)
+  , core
+  ) where
 
 import Clash.Prelude
 import Control.Lens
