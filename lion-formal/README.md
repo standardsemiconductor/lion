@@ -5,6 +5,8 @@ See the [ricv-formal prerequisites](https://github.com/standardsemiconductor/ris
 
 ## Usage
 Build:      `cabal build`
+
 Run checks: `cabal run`
+
 Clean:      `cabal run formal -- clean`
 
