@@ -2,7 +2,7 @@ cabal-version:      2.4
 name:               lion
 version:            0.1.0.0
 synopsis:           RISC-V Core
-description:        Lion is a formally verified 5-stage pipelined RISC-V core written in Haskell
+description:        Lion is a formally verified 5-stage pipelined [RISC-V](https://riscv.org) core.
 -- bug-reports:
 license:            BSD-3-Clause
 license-file:       LICENSE

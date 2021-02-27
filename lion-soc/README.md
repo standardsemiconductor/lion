@@ -9,3 +9,9 @@ System-On-Chip using Lion and targeting the VELDT FPGA development board.
 ## Usage
 1. Ensure the VELDT is ON and in the FLASH mode.
 2. `cabal run soc -- prog` 
+
+To compile, synthesize, and route without programming:
+`cabal run`
+
+## Clean
+`cabal run soc -- clea

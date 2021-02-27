@@ -1,3 +1,11 @@
+{-|
+Module      : Lion.Pipe
+Description : RISC-V 5-stage pipeline
+Copyright   : (c) David Cox, 2021
+License     : BSD-3-Clause
+Maintainer  : standardsemiconductor@gmail.com
+-}
+
 module Lion.Pipe where
 
 import Clash.Prelude
@@ -21,8 +29,12 @@ makeLenses ''ToPipe
 -- | Memory bus
 --
 --   Lion has a shared instruction/memory bus
-data ToMem = InstrMem (BitVector 32) -- ^ instruction memory read
-           | DataMem  (BitVector 32) (BitVector 4) (Maybe (BitVector 32)) -- ^ data memory access
+data ToMem = InstrMem         -- ^ instruction read
+               (BitVector 32) -- ^ instruction address
+           | DataMem                  -- ^ data access
+               (BitVector 32)         -- ^ data address
+               (BitVector 4)          -- ^ data mask
+               (Maybe (BitVector 32)) -- ^ read=Nothing write=(Just wr)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -95,9 +107,9 @@ data Pipe = Pipe
   deriving anyclass NFDataX
 makeLenses ''Pipe
 
-mkPipe :: Pipe
-mkPipe = Pipe
-  { _fetchPC = 0  
+mkPipe :: BitVector 32 -> Pipe
+mkPipe start = Pipe
+  { _fetchPC = start  
 
   -- decode stage 
   , _dePC    = 0
@@ -125,9 +137,10 @@ mkPipe = Pipe
 -- | 5-Stage RISC-V pipeline
 pipe 
   :: HiddenClockResetEnable dom
-  => Signal dom ToPipe
+  => BitVector 32
+  -> Signal dom ToPipe
   -> Signal dom FromPipe
-pipe = mealy pipeMealy mkPipe
+pipe start = mealy pipeMealy (mkPipe start)
   where
     pipeMealy s i = let ((), s', o) = runRWS pipeM i s
                     in (s', o) 

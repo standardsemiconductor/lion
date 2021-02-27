@@ -59,7 +59,7 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
 lion = rgb toMem
   where
-    FromCore toMem _ = core $ ToCore fromBios
+    FromCore toMem _ = core 0 $ ToCore fromBios
     fromBios = bios toMem
     
 ----------------

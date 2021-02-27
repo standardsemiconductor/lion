@@ -5,7 +5,7 @@ Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
-The Lion RISC-V Core is a 32-bit processor. Connect to larger systems via the `ToCore` and `FromCore` buses. Note any peripherals must have single cycle latency. See [lion-soc]() for an example of using the Lion core in a system.
+The Lion RISC-V Core is a 32-bit processor written in Haskell using [Clash](https://clash-lang.org). Connect to larger systems via the `ToCore` and `FromCore` buses. Note any peripherals must have single cycle latency. See [lion-soc]() for an example of using the Lion core in a system.
 -}
 
 module Lion.Core 
@@ -41,14 +41,15 @@ makeLenses ''FromCore
 -- | RISC-V Core
 core
   :: HiddenClockResetEnable dom
-  => ToCore dom
-  -> FromCore dom
-core toCore = FromCore
+  => BitVector 32 -- ^ start address
+  -> ToCore dom   -- ^ core input
+  -> FromCore dom -- ^ core output
+core start toCore = FromCore
   { _toMem  = getFirst . P._toMem <$> fromPipe
   , _toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
   }
   where
-    fromPipe = P.pipe $ P.ToPipe <$> rs1Data <*> rs2Data <*> _fromMem toCore
+    fromPipe = P.pipe start $ P.ToPipe <$> rs1Data <*> rs2Data <*> _fromMem toCore
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
     rdWrM = getFirst . P._toRd <$> fromPipe
