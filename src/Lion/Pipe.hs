@@ -19,6 +19,7 @@ data ToPipe = ToPipe
 makeLenses ''ToPipe
 
 -- | Memory bus
+--
 --   Lion has a shared instruction/memory bus
 data ToMem = InstrMem (BitVector 32) -- ^ instruction memory read
            | DataMem  (BitVector 32) (BitVector 4) (Maybe (BitVector 32)) -- ^ data memory access

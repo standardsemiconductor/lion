@@ -1,3 +1,13 @@
+{-|
+Module      : Lion.Rvfi
+Description : Lion RISC-V Formal Verification Framework
+Copyright   : (c) David Cox, 2021
+License     : BSD-3-Clause
+Maintainer  : standardsemiconductor@gmail.com
+
+As the pipeline processes instructions, it populates the fields of the Rvfi data. When the instruction reaches the end of the pipeline, the core retires the instruction and writes the Rvfi data to output. This output is inspected and verified by the riscv-formal framework. See [riscv-formal](https://github.com/standardsemiconductor/riscv-formal) for more information about the interface. To verify the Lion core, see [lion-formal]().
+-}
+
 module Lion.Rvfi where
 
 import Clash.Prelude
@@ -5,6 +15,7 @@ import Control.Lens
 import Data.Maybe
 import Data.Monoid
 
+-- | RISC-V Formal Csr Interface
 data RvfiCsr n = RvfiCsr
   { _wdataCsr :: "wdata" ::: BitVector n
   , _rdataCsr :: "rdata" ::: BitVector n
@@ -15,6 +26,7 @@ data RvfiCsr n = RvfiCsr
   deriving anyclass NFDataX
 makeLenses ''RvfiCsr
 
+-- | RISC-V Formal Interface
 data Rvfi = Rvfi
   { _rvfiValid       :: "valid"        ::: Bool
   , _rvfiOrder       :: "order"        ::: BitVector 64
@@ -47,9 +59,11 @@ data Rvfi = Rvfi
   deriving anyclass NFDataX
 makeLenses ''Rvfi
 
+-- | Unwrap Rvfi from First monoid
 fromRvfi :: First Rvfi -> Rvfi
 fromRvfi = fromMaybe mkRvfi . getFirst
 
+-- | Construct the RISC-V Formal Interface
 mkRvfi :: Rvfi 
 mkRvfi = Rvfi
   { _rvfiValid       = False

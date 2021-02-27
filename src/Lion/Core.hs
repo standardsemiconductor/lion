@@ -1,3 +1,13 @@
+{-|
+Module      : Lion.Core
+Description : Lion RISC-V Core
+Copyright   : (c) David Cox, 2021
+License     : BSD-3-Clause
+Maintainer  : standardsemiconductor@gmail.com
+
+The Lion RISC-V Core is a 32-bit processor. Connect to larger systems via the `ToCore` and `FromCore` buses. Note any peripherals must have single cycle latency. See [lion-soc]() for an example of using the Lion core in a system.
+-}
+
 module Lion.Core 
   ( ToCore(..)
   , fromMem
