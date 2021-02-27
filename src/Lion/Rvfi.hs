@@ -5,7 +5,7 @@ Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
-As the pipeline processes instructions, it populates the fields of the Rvfi data. When the instruction reaches the end of the pipeline, the core retires the instruction and writes the Rvfi data to output. This output is inspected and verified by the riscv-formal framework. See [riscv-formal](https://github.com/standardsemiconductor/riscv-formal) for more information about the interface. To verify the Lion core, see [lion-formal]().
+As the pipeline processes instructions, it populates the fields of the Rvfi data. When the instruction reaches the end of the pipeline, the core retires the instruction and writes the Rvfi data to output. This output is inspected and verified by the riscv-formal framework. See [riscv-formal](https://github.com/standardsemiconductor/riscv-formal) for more information about the interface. To verify the Lion core, see [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal).
 -}
 
 module Lion.Rvfi where

@@ -5,7 +5,7 @@ Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
-The Lion RISC-V Core is a 32-bit processor written in Haskell using [Clash](https://clash-lang.org). Connect to larger systems via the `ToCore` and `FromCore` buses. Note any peripherals must have single cycle latency. See [lion-soc]() for an example of using the Lion core in a system.
+The Lion RISC-V Core is a 32-bit processor written in Haskell using [Clash](https://clash-lang.org). Connect to larger systems via the `ToCore` and `FromCore` buses. Note any peripherals must have single cycle latency. See [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc) for an example of using the Lion core in a system.
 -}
 
 module Lion.Core 
