@@ -72,7 +72,6 @@ executable formal
                  , clash-prelude >= 1.2.5 && < 1.4
                  , directory
                  , ice40-prim >= 0.1 && < 0.2
-                 , lion
                  , shake
                  , ghc-typelits-natnormalise
                  , ghc-typelits-extra
@@ -99,7 +98,6 @@ executable soc
                  , clash-ghc
                  , clash-prelude >= 1.2.5 && < 1.4
                  , ice40-prim
-                 , lion
                  , shake
                  , ghc-typelits-natnormalise
                  , ghc-typelits-extra
