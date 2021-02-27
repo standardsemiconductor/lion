@@ -1,0 +1,151 @@
+name: Haskell CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # run at the start of every day
+    - cron: '0 0 * * *'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }} 
+    strategy:
+      matrix:
+        ghc: ['8.6.5', '8.8.4', '8.10.4']
+        cabal: ['3.2.0.0', '3.4.0.0']
+        os: [ubuntu-20.04]
+    name: ${{ matrix.os }} GHC ${{ matrix.ghc }} Cabal ${{ matrix.cabal }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+
+    - name: Install icestorm prerequisites
+      run: |
+        sudo apt-get update
+        sudo apt-get install build-essential clang bison flex libreadline-dev gawk tcl-dev libffi-dev git graphviz xdot pkg-config python python3 libftdi-dev qt5-default python3-dev libboost-all-dev cmake libeigen3-dev
+
+    - name: Checkout icestorm
+      uses: actions/checkout@v2
+      with:
+        repository: YosysHQ/icestorm
+        path: icestorm
+
+    - name: Install icestorm
+      working-directory: icestorm
+      run: |
+        make
+        sudo make install
+
+    - name: Checkout nextpnr
+      uses: actions/checkout@v2
+      with:
+        repository: YosysHQ/nextpnr
+        ref: master
+        path: nextpnr
+
+    - name: Install nextpnr
+      working-directory: nextpnr
+      run: |
+        cmake -DARCH=ice40 -DCMAKE_INSTALL_PREFIX=/usr/local .
+        make
+        sudo make install
+
+    - name: Checkout yosys
+      uses: actions/checkout@v2
+      with:
+        repository: YosysHQ/yosys
+        ref: master
+        path: yosys
+
+    - name: Install yosys
+      working-directory: yosys
+      run: |
+        make -j$(nproc)
+        sudo make install
+
+    - name: Checkout SymbiYosys
+      uses: actions/checkout@v2
+      with:
+        repository: YosysHQ/SymbiYosys
+        ref: master
+        path: SymbiYosys
+
+    - name: Install SymbiYosys
+      working-directory: SymbiYosys
+      run: |
+        sudo apt-get install libboost-program-options-dev autoconf libgmp-dev cmake
+        sudo make install
+
+    - name: Checkout Boolector
+      uses: actions/checkout@v2
+      with:
+        repository: boolector/boolector
+        ref: master
+        path: boolector
+
+    - name: Install boolector
+      working-directory: boolector
+      run: |
+        ./contrib/setup-btor2tools.sh
+        ./contrib/setup-lingeling.sh
+        ./configure.sh
+        make -C build -j$(nproc)
+        sudo cp build/bin/{boolector,btor*} /usr/local/bin
+        sudo cp deps/btor2tools/bin/btorsim /usr/local/bin
+
+    - name: Checkout riscv-gnu-toolchain
+      uses: actions/checkout@v2
+      with:
+        repository: riscv/riscv-gnu-toolchain
+        ref: master
+        path: riscv-gnu-toolchain
+
+    - name: Install RISC-V toolchains
+      working-directory: riscv-gnu-toolchain
+      run: |
+        sudo apt-get install autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev texinfo libtool patchutils bc zlib1g-dev libexpat-dev
+        ./configure --prefix=/opt/riscv --with-arch=rv32i --with-abi=ilp32
+        make linux
+        ./configure --prefix=/opt/riscv
+        make
+        export PATH=$PATH:/opt/riscv/bin
+
+    - name: Setup Haskell
+      uses: haskell/actions/setup@v1
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
+
+    - name: Cache
+      uses: actions/cache@v1
+      env:
+        cache-name: cache-cabal
+      with:
+        path: ~/.cabal
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+
+    - name: Install dependencies
+      run: |
+        cabal update
+        cabal build --only-dependencies
+    - name: Build
+      run: cabal build
+
+    - name: Formal Verification
+      working-directory: lion-formal
+      run: |
+        cabal build
+        cabal run
+
+    - name: SoC
+      working-directory: lion-soc
+      run: |
+        cabal build
+        cabal run
