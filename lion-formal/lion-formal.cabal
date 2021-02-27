@@ -1,0 +1,60 @@
+cabal-version:      2.4
+name:               lion-formal
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+-- synopsis:
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+-- The license under which the package is released.
+-- license:
+author:             dopamane
+maintainer:         dwc1295@gmail.com
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files: CHANGELOG.md
+
+library
+  exposed-modules: LionFV
+  hs-source-dirs: src
+  default-language: Haskell2010
+  build-depends:
+    base ^>= 4.14.1.0,
+    Cabal,
+    clash-prelude >= 1.2.5 && < 1.4,
+    lion >= 0.1 && < 0.2,
+    ice40-prim,
+    ghc-typelits-natnormalise,
+    ghc-typelits-extra,
+    ghc-typelits-knownnat
+  ghc-options:
+    -Wall -Werror -Wcompat
+    -haddock
+    -fplugin GHC.TypeLits.Extra.Solver
+    -fplugin GHC.TypeLits.Normalise
+    -fplugin GHC.TypeLits.KnownNat.Solver
+    -fexpose-all-unfoldings
+    -fno-worker-wrapper
+  default-extensions:
+    DataKinds
+    LambdaCase
+    NoImplicitPrelude
+    TemplateHaskell
+    TypeOperators
+
+executable formal
+    main-is:          Main.hs
+    build-depends:    base ^>=4.14.1.0
+                    , clash-ghc
+                    , directory
+                    , lion-formal
+                    , shake
+    hs-source-dirs:   app
+    default-language: Haskell2010

@@ -9,20 +9,20 @@ formalTop :: String
 formalTop = "LionFV"
 
 buildDir :: FilePath
-buildDir = "formal/_build"
+buildDir = "_build"
 
 buildDir' :: FilePath -> FilePath
 buildDir' = (buildDir </>)
 
 verilog :: String -> FilePath
-verilog top = "formal/_build/verilog" </> top </> top
+verilog top = "_build/verilog" </> top </> top
 
 main :: IO ()
 main = shakeArgs opts $ do
 
   phony "clean" $ do
     putInfo "Cleaning files in _build"
-    removeFilesAfter "formal/_build" ["//*"]
+    removeFilesAfter "_build" ["//*"]
     putInfo "Cleaning riscv-formal checks"
     removeFilesAfter "riscv-formal/cores/lion/checks" ["//*"]
 
