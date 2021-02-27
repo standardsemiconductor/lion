@@ -1,13 +1,14 @@
-module Pipe where
+module Lion.Pipe where
 
 import Clash.Prelude
 import Control.Lens hiding ( op )
 import Control.Monad.RWS
 import Data.Maybe ( isJust )
 import Data.Monoid.Generic
-import Instruction
-import Rvfi
+import Lion.Instruction
+import Lion.Rvfi
 
+-- | Pipeline inputs
 data ToPipe = ToPipe
   { _fromRs1 :: BitVector 32
   , _fromRs2 :: BitVector 32
@@ -17,11 +18,14 @@ data ToPipe = ToPipe
   deriving anyclass NFDataX
 makeLenses ''ToPipe
 
-data ToMem = InstrMem (BitVector 32)
-           | DataMem  (BitVector 32) (BitVector 4) (Maybe (BitVector 32))
+-- | Memory bus
+--   Lion has a shared instruction/memory bus
+data ToMem = InstrMem (BitVector 32) -- ^ instruction memory read
+           | DataMem  (BitVector 32) (BitVector 4) (Maybe (BitVector 32)) -- ^ data memory access
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Pipeline outputs
 data FromPipe = FromPipe
   { _toMem     :: First ToMem
   , _toRs1Addr :: First (Unsigned 5)
@@ -36,7 +40,7 @@ data FromPipe = FromPipe
 makeLenses ''FromPipe
 
 data Control = Control
-  { _firstCycle :: Bool 
+  { _firstCycle :: Bool                             -- ^ First cycle True, then always False
   , _branching  :: Maybe (BitVector 32)             -- ^ execute stage branch
   , _deLoad     :: Bool                             -- ^ decode stage load
   , _exLoad     :: Bool                             -- ^ execute stage load
@@ -51,7 +55,7 @@ makeLenses ''Control
 
 mkControl :: Control
 mkControl = Control 
-  { _firstCycle = True
+  { _firstCycle = True   
   , _branching  = Nothing
   , _deLoad     = False
   , _exLoad     = False
@@ -61,28 +65,27 @@ mkControl = Control
   , _wbRegFwd   = Nothing
   }
 
-
 data Pipe = Pipe
-  { _fetchPC  :: BitVector 32
+  { _fetchPC :: BitVector 32
 
   -- decode stage
-  , _dePC     :: BitVector 32
+  , _dePC    :: BitVector 32
 
   -- execute stage
-  , _exIR   :: Maybe ExInstr
-  , _exPC   :: BitVector 32
-  , _exRs1  :: Unsigned 5
-  , _exRs2  :: Unsigned 5
-  , _exRvfi :: Rvfi
+  , _exIR    :: Maybe ExInstr
+  , _exPC    :: BitVector 32
+  , _exRs1   :: Unsigned 5
+  , _exRs2   :: Unsigned 5
+  , _exRvfi  :: Rvfi
 
   -- memory stage
-  , _meIR     :: Maybe MeInstr
-  , _meRvfi   :: Rvfi
+  , _meIR    :: Maybe MeInstr
+  , _meRvfi  :: Rvfi
 
   -- writeback stage
-  , _wbIR     :: Maybe WbInstr
-  , _wbNRet   :: BitVector 64
-  , _wbRvfi   :: Rvfi
+  , _wbIR    :: Maybe WbInstr
+  , _wbNRet  :: BitVector 64
+  , _wbRvfi  :: Rvfi
 
   -- pipeline control
   , _control :: Control
@@ -93,31 +96,32 @@ makeLenses ''Pipe
 
 mkPipe :: Pipe
 mkPipe = Pipe
-  { _fetchPC  = 0  
+  { _fetchPC = 0  
 
   -- decode stage 
-  , _dePC     = 0
+  , _dePC    = 0
   
   -- execute stage
-  , _exIR   = Nothing
-  , _exPC   = 0
-  , _exRs1  = 0
-  , _exRs2  = 0
-  , _exRvfi = mkRvfi
+  , _exIR    = Nothing
+  , _exPC    = 0
+  , _exRs1   = 0
+  , _exRs2   = 0
+  , _exRvfi  = mkRvfi
 
   -- memory stage
-  , _meIR     = Nothing
-  , _meRvfi   = mkRvfi
+  , _meIR    = Nothing
+  , _meRvfi  = mkRvfi
  
   -- writeback stage
-  , _wbIR     = Nothing
-  , _wbNRet   = 0
-  , _wbRvfi   = mkRvfi
+  , _wbIR    = Nothing
+  , _wbNRet  = 0
+  , _wbRvfi  = mkRvfi
   
   -- pipeline control
   , _control = mkControl
   }
 
+-- | 5-Stage RISC-V pipeline
 pipe 
   :: HiddenClockResetEnable dom
   => Signal dom ToPipe
@@ -138,6 +142,7 @@ resetControl = do
   control.meRegFwd  .= Nothing
   control.wbRegFwd  .= Nothing
 
+-- | Monadic pipeline
 pipeM :: RWS ToPipe FromPipe Pipe ()
 pipeM = do
   resetControl
@@ -147,6 +152,7 @@ pipeM = do
   decode
   fetch
 
+-- | Writeback stage
 writeback :: RWS ToPipe FromPipe Pipe ()
 writeback = withInstr wbIR $ \instr -> do
   wbRvfi.rvfiValid .= True
@@ -175,6 +181,7 @@ writeback = withInstr wbIR $ \instr -> do
     guardZero 0 = const 0
     guardZero _ = id
 
+-- | Memory stage
 memory :: RWS ToPipe FromPipe Pipe ()
 memory = do
   wbIR   .= Nothing
@@ -198,6 +205,7 @@ memory = do
       wbRvfi.rvfiMemRMask .= mask
       wbIR ?= WbLoad op rdAddr mask
 
+-- | Execute stage
 execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meIR .= Nothing
@@ -270,6 +278,7 @@ execute = do
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
 
+-- | Decode stage
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exIR   .= Nothing
@@ -352,5 +361,6 @@ sliceHalf = \case
   $(bitPattern "1100") -> slice d31 d16
   _ -> const 0
 
+-- | run monadic action when instruction is Just
 withInstr :: MonadState s m => Lens' s (Maybe a) -> (a -> m ()) -> m ()
 withInstr l k = use l >>= mapM_ k

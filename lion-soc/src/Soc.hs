@@ -2,12 +2,12 @@ module Soc where
 
 import Clash.Prelude
 import Clash.Annotations.TH
-import Core (FromCore(FromCore), ToCore(ToCore), ToMem(DataMem, InstrMem), core)
 import Data.Functor ( (<&>) )
 import Data.Maybe ( fromMaybe )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
+import Lion.Core (FromCore(FromCore), ToCore(ToCore), ToMem(DataMem, InstrMem), core)
 
 ---------
 -- RGB --

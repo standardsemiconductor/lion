@@ -1,4 +1,4 @@
-module Instruction where
+module Lion.Instruction where
 
 import Clash.Prelude
 import Data.Function ( on )

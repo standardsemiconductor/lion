@@ -1,12 +1,13 @@
 cabal-version:      2.4
 name:               lion
 version:            0.1.0.0
--- synopsis:
--- description:
+synopsis:           RISC-V Core
+description:        Lion is a formally verified 5-stage pipelined RISC-V core written in Haskell
 -- bug-reports:
--- license:
-author:             dopamane
-maintainer:         dwc1295@gmail.com
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             dopamane <standard.semiconductor@gmail.com>
+maintainer:         dopamane <standard.semiconductor@gmail.com>
 copyright:          (c) 2021 David Cox
 category:           Hardware
 extra-source-files:
@@ -14,11 +15,10 @@ extra-source-files:
     README.md
 
 library
-  exposed-modules: Core
-                 , Rvfi
---                 , Soc
-  other-modules:   Instruction
-                 , Pipe
+  exposed-modules: Lion.Core
+                 , Lion.Rvfi
+  other-modules:   Lion.Instruction
+                 , Lion.Pipe
   hs-source-dirs: src
   default-language: Haskell2010
   build-depends: 
@@ -63,57 +63,3 @@ library
     TypeFamilies
     TypeOperators
     ViewPatterns
-
---executable formal
---    main-is: Formal.hs
---    build-depends: base ^>= 4.14.1.0
---                 , clash-ghc
---                 , clash-prelude >= 1.2.5 && < 1.4
---                 , directory
---                 , ice40-prim >= 0.1 && < 0.2
---                 , shake
---                 , ghc-typelits-natnormalise
---                 , ghc-typelits-extra
---                 , ghc-typelits-knownnat
---    ghc-options:
---      -Wall -Werror -Wcompat
---      -haddock
---      -fplugin GHC.TypeLits.Extra.Solver
---      -fplugin GHC.TypeLits.Normalise
---      -fplugin GHC.TypeLits.KnownNat.Solver
---      -fexpose-all-unfoldings
---      -fno-worker-wrapper
---    hs-source-dirs: formal
---    default-language: Haskell2010
---    default-extensions: DataKinds
---                      , LambdaCase
---                      , TemplateHaskell
---                      , TypeOperators
-
---executable soc
---    main-is: Lion.hs
---    build-depends: base ^>= 4.14.1.0
---                 , bytestring
---                 , clash-ghc
---                 , clash-prelude >= 1.2.5 && < 1.4
---                 , ice40-prim
---                 , shake
---                 , ghc-typelits-natnormalise
---                 , ghc-typelits-extra
---                 , ghc-typelits-knownnat
---    ghc-options:
---      -Wall -Werror -Wcompat
---      -haddock
---      -fplugin GHC.TypeLits.Extra.Solver
---      -fplugin GHC.TypeLits.Normalise
---      -fplugin GHC.TypeLits.KnownNat.Solver
---      -fexpose-all-unfoldings
---      -fno-worker-wrapper
---    hs-source-dirs: soc
---    default-language: Haskell2010
---    default-extensions: DataKinds
---                      , LambdaCase
---                      , NoStarIsType
---                      , TemplateHaskell
---                      , TypeOperators
---                      , ViewPatterns

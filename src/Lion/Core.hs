@@ -1,4 +1,4 @@
-module Core 
+module Lion.Core 
   ( ToCore(..)
   , fromMem
   , FromCore(..)
@@ -12,20 +12,23 @@ import Clash.Prelude
 import Control.Lens
 import Data.Maybe
 import Data.Monoid
-import Rvfi
-import qualified Pipe as P
+import Lion.Rvfi
+import qualified Lion.Pipe as P
 
+-- | Core input
 data ToCore dom = ToCore
   { _fromMem :: Signal dom (BitVector 32)
   }
 makeLenses ''ToCore
 
+-- | Core outputs
 data FromCore dom = FromCore
   { _toMem  :: Signal dom (Maybe P.ToMem)
   , _toRvfi :: Signal dom Rvfi
   }
 makeLenses ''FromCore
 
+-- | Core: run pipeline with register file
 core
   :: HiddenClockResetEnable dom
   => ToCore dom
@@ -41,6 +44,7 @@ core toCore = FromCore
     rdWrM = getFirst . P._toRd <$> fromPipe
     (rs1Data, rs2Data) = regBank rs1Addr rs2Addr rdWrM
 
+-- | Register bank
 regBank
   :: HiddenClockResetEnable dom
   => Signal dom (Unsigned 5)                        -- ^ Rs1 Addr

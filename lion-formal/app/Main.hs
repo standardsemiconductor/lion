@@ -19,6 +19,8 @@ verilog top = "_build/verilog" </> top </> top
 
 main :: IO ()
 main = shakeArgs opts $ do
+ 
+  want ["formal"]
 
   phony "clean" $ do
     putInfo "Cleaning files in _build"

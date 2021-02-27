@@ -2,10 +2,10 @@ module LionFV where
 
 import Clash.Prelude
 import Clash.Annotations.TH
-import Core                 ( core, FromCore(FromCore), ToCore(ToCore), ToMem(..) )
 import Data.Maybe           ( fromMaybe, isJust )
-import Rvfi                 ( Rvfi )
 import Ice40.Clock          ( Lattice12Mhz )
+import Lion.Core            (core, FromCore(FromCore), ToCore(ToCore), ToMem(..) )
+import Lion.Rvfi            ( Rvfi )
 
 lionFV
   :: HiddenClockResetEnable dom

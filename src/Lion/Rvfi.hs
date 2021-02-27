@@ -1,4 +1,4 @@
-module Rvfi where
+module Lion.Rvfi where
 
 import Clash.Prelude
 import Control.Lens
