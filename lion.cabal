@@ -16,10 +16,10 @@ extra-source-files:
 library
   exposed-modules: LionFV
                  , Soc
-  other-modules:   Core
-                 , Instruction
-                 , Pipe
+                 , Core
                  , Rvfi
+  other-modules:   Instruction
+                 , Pipe
   hs-source-dirs: src
   default-language: Haskell2010
   build-depends: 
@@ -75,3 +75,31 @@ executable lion
     ghc-options: -dynamic
     hs-source-dirs:   app
     default-language: Haskell2010
+
+executable formal
+    main-is: Formal.hs
+    other-modules: LionFV
+    build-depends: base ^>= 4.14.1.0
+                 , clash-ghc
+                 , clash-prelude >= 1.2.5 && < 1.4
+                 , directory
+                 , ice40-prim >= 0.1 && < 0.2
+                 , lion
+                 , shake
+                 , ghc-typelits-natnormalise
+                 , ghc-typelits-extra
+                 , ghc-typelits-knownnat
+    ghc-options:
+      -Wall -Werror -Wcompat
+      -haddock
+      -fplugin GHC.TypeLits.Extra.Solver
+      -fplugin GHC.TypeLits.Normalise
+      -fplugin GHC.TypeLits.KnownNat.Solver
+      -fexpose-all-unfoldings
+      -fno-worker-wrapper
+    hs-source-dirs: formal
+    default-language: Haskell2010
+    default-extensions: DataKinds
+                      , LambdaCase
+                      , TemplateHaskell
+                      , TypeOperators
