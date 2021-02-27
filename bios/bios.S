@@ -1,4 +1,4 @@
-    .equ LED_BASE, 0x200
+    .equ LED_BASE, 0x100
     .equ CR0     , 0x8
     .equ BR      , 0x9
     .equ ONR     , 0xA
