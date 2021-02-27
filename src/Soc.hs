@@ -20,7 +20,7 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
       Just (DataMem 
-              a@($(bitPattern "0000000000000000000000100000....")) 
+              a@($(bitPattern "0000000000000000000000010000....")) 
               $(bitPattern "0001")
               (Just d)
            ) -> (slice d7 d0 d, slice d3 d0 a, True)
@@ -36,7 +36,7 @@ bios
   -> Signal dom (BitVector 32)
 bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
-    addr = unpack . slice d8 d0 . fromMaybe 0 . fmap getAddr <$> mem
+    addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap getAddr <$> mem
     b3 = romFilePow2 "_build/bios/Bios.rom3" addr
     b2 = romFilePow2 "_build/bios/Bios.rom2" addr
     b1 = romFilePow2 "_build/bios/Bios.rom1" addr

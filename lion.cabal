@@ -68,7 +68,9 @@ library
 executable lion
     main-is:          Lion.hs
     build-depends:    base ^>=4.14.1.0
+                    , bytestring
                     , clash-ghc
+                    , directory
                     , shake
     ghc-options: -dynamic
     hs-source-dirs:   app
