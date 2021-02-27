@@ -1,0 +1,4 @@
+[submodule "lion-formal/riscv-formal"]
+	path = lion-formal/riscv-formal
+	url = https://github.com/standardsemiconductor/riscv-formal
+	branch = lion
