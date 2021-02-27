@@ -1,6 +1,6 @@
 # Where Lions Roam: RISC-V on the VELDT
 
-Lion is a formally verified 5-stage pipelined [RISC-V](https://riscv.org) processor core written in Haskell using [Clash](https://clash-lang.org). Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com).
+Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core written in Haskell using [Clash](https://clash-lang.org). Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com).
 
 This repository contains three parts:
   1. The Lion library: a pipelined RISC-V core.
