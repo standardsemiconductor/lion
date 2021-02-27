@@ -28,7 +28,7 @@ data FromCore dom = FromCore
   }
 makeLenses ''FromCore
 
--- | Core: run pipeline with register file
+-- | RISC-V Core
 core
   :: HiddenClockResetEnable dom
   => ToCore dom
