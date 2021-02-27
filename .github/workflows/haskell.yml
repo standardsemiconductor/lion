@@ -108,7 +108,7 @@ jobs:
       run: |
         sudo apt-get install autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev texinfo libtool patchutils bc zlib1g-dev libexpat-dev
         ./configure --prefix=/opt/riscv --with-arch=rv32i --with-abi=ilp32
-        make linux
+        make
         ./configure --prefix=/opt/riscv
         make
         export PATH=$PATH:/opt/riscv/bin
