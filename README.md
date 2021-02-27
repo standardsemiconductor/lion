@@ -2,7 +2,7 @@
 
 [![Haskell CI](https://github.com/standardsemiconductor/lion/actions/workflows/haskell.yml/badge.svg?branch=main)](https://github.com/standardsemiconductor/lion/actions/workflows/haskell.yml)
 
-Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core written in Haskell using [Clash](https://clash-lang.org). Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com).
+Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core. Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com) and is written in Haskell using [Clash](https://clash-lang.org).
 
 This repository contains three parts:
   1. The Lion library: a pipelined RISC-V core.
@@ -14,7 +14,7 @@ This repository contains three parts:
 1. Add `lion` to build depends section of Cabal file
 2. import module in source files `import Lion.Core`
 
-When connecting the `core` to memory and peripherals, ensure the read latency is 1 cycle.
+When connecting the `core` to memory and peripherals, ensure single cycle latency.
 
 ## Lion formal verification
 See the [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) directory.

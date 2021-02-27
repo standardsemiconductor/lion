@@ -1,3 +1,11 @@
+{-|
+Module      : LionFV
+Description : Lion Formal Verification
+Copyright   : (c) David Cox, 2021
+License     : BSD-3-Clause
+Maintainer  : standardsemiconductor@gmail.com
+-}
+
 module LionFV where
 
 import Clash.Prelude

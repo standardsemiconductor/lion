@@ -1,3 +1,11 @@
+{-|
+Module      : Soc
+Description : Lion SoC on the VELDT
+Copyright   : (c) David Cox, 2021
+License     : BSD-3-Clause
+Maintainer  : standardsemiconductor@gmail.com
+-}
+
 module Soc where
 
 import Clash.Prelude
