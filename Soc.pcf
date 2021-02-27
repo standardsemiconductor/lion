@@ -1,0 +1,12 @@
+# led
+set_io led_blue   41
+set_io led_green 40
+set_io led_red  39
+
+# spi
+#set_io SS   16
+#set_io SCK  15
+#set_io MOSI 17
+# set_io MISO 14
+
+set_io clk 35

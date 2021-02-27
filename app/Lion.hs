@@ -22,10 +22,11 @@ buildDir = "_build"
 buildDir' :: FilePath -> FilePath
 buildDir' = (buildDir </>)
 
+verilog :: String -> FilePath
+verilog top = "_build/verilog" </> top </> top
+
 main :: IO ()
 main = shakeArgs opts $ do
-
-  want ["_build/verilog" </> socTop </> socTop </> socTop <.> "v"]
 
   phony "clean" $ do
     putInfo "Cleaning files in _build"
@@ -35,7 +36,7 @@ main = shakeArgs opts $ do
 
   phony "formal" $ do
     putInfo "Formal Verification of Lion Core"
-    need [buildDir' ("verilog" </> formalTop </> formalTop </> formalTop <.> "v")]
+    need [verilog formalTop </> formalTop <.> "v"]
 
     -- generate checks
     liftIO $ withCurrentDirectory "riscv-formal/cores/lion" $
@@ -52,12 +53,49 @@ main = shakeArgs opts $ do
       putInfo $ show checkNoExt ++ ": PASS"
     putInfo "All formal checks PASS"
 
+  phony "soc" $ do
+    putInfo "Synthesizing Soc"
+    need ["_build/Soc.bin"]
+
+  phony "prog" $ do
+    putInfo "Programming"
+    need ["_build/Soc.bin"]
+    cmd_ "iceprog" "_build/Soc.bin"
+
+  -- yosys synthesis
+  "_build/Soc.json" %> \out -> do
+    putInfo "Synthesizing Soc"
+    need [verilog socTop </> socTop <.> "v"]
+    cmd_ "yosys" 
+         "-q" 
+         "-p" 
+         ["synth_ice40 -top " ++ socTop ++ " -json " ++ out ++ " -retime -abc2"] 
+         [verilog socTop </> "*.v"]
+
+  -- place and route NextPNR
+  "_build/Soc.asc" %> \out -> do
+    putInfo "Place and Route Soc"
+    need ["_build/Soc.json", "Soc.pcf"]
+    cmd_ "nextpnr-ice40"
+         "--up5k"
+         "--package sg48"
+         "--pcf Soc.pcf"
+         "--asc"
+         [out]
+         "--json _build/Soc.json"
+  
+  -- ice pack
+  "_build/Soc.bin" %> \out -> do
+    putInfo "Ice Pack"
+    need ["_build/Soc.asc"]
+    cmd_ "icepack" "_build/Soc.asc" [out]
+    
   -- build formal 
-  buildDir' ("verilog" </> formalTop </> formalTop </> formalTop <.> "v") %> \_ ->
+  verilog formalTop </> formalTop <.> "v" %> \_ ->
     liftIO $ compile formalTop
 
   -- build soc
-  buildDir' ("verilog" </> socTop </> socTop </> socTop <.> "v") %> \_ -> do
+  verilog socTop </> socTop <.> "v" %> \_ -> do
     need [ "_build/bios/bios.rom0"
          , "_build/bios/bios.rom1"
          , "_build/bios/bios.rom2"

@@ -6,7 +6,6 @@ import Core (FromCore(FromCore), ToCore(ToCore), ToMem(DataMem, InstrMem), core)
 import Data.Functor ( (<&>) )
 import Data.Maybe ( fromMaybe )
 import Ice40.Clock
---import qualified Ice40.Osc as O
 import Ice40.Rgb
 import Ice40.Led
 
@@ -66,12 +65,6 @@ lion = rgb toMem
 ----------------
 -- Top Entity --
 ----------------
-{-
-{-# NOINLINE clk #-}
-clk :: Clock Lattice12Mhz
-clk = O.hf12Mhz (pure True :: Signal XilinxSystem Bool) (pure True :: Signal XilinxSystem Bool)
--}
-
 {-# NOINLINE topEntity #-}
 topEntity :: "clk" ::: Clock Lattice12Mhz -> "led" ::: Signal Lattice12Mhz Rgb
 topEntity clk = withClockResetEnable clk latticeRst enableGen lion
