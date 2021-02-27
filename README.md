@@ -1,5 +1,7 @@
 # Where Lions Roam: RISC-V on the VELDT
 
+[![Haskell CI](https://github.com/standardsemiconductor/lion/actions/workflows/haskell.yml/badge.svg?branch=main)](https://github.com/standardsemiconductor/lion/actions/workflows/haskell.yml)
+
 Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core written in Haskell using [Clash](https://clash-lang.org). Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com).
 
 This repository contains three parts:
