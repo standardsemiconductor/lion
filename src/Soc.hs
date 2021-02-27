@@ -36,10 +36,10 @@ bios
 bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
     addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap getAddr <$> mem
-    b3 = romFilePow2 "_build/bios/bios.rom3" addr
-    b2 = romFilePow2 "_build/bios/bios.rom2" addr
-    b1 = romFilePow2 "_build/bios/bios.rom1" addr
-    b0 = romFilePow2 "_build/bios/bios.rom0" addr
+    b3 = romFilePow2 "soc/_build/bios/bios.rom3" addr
+    b2 = romFilePow2 "soc/_build/bios/bios.rom2" addr
+    b1 = romFilePow2 "soc/_build/bios/bios.rom1" addr
+    b0 = romFilePow2 "soc/_build/bios/bios.rom0" addr
     getAddr = \case
       InstrMem a    -> a
       DataMem a _ _ -> a
