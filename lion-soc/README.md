@@ -17,12 +17,15 @@ To compile, synthesize, and route without programming: `cabal run`
 `cabal run soc -- clean`
 
 ## Memory Map
-Bios: 0x00000000 - 0x000000FF
-Led : 0x00000100 - 0x00000100
+| Peripheral | Start Address | End Address |
+|------------|---------------|-------------|
+| Bios       |  0x00000000   | 0x000000FF  |
+| Led        |  0x00000100   | 0x00000100  |
 
 ## Peripherals
 ### Led
-[********|********|*  *  *  *  *  *  *  *|*  *  *  *  *  *  *  *]
+|********|********|*  *  *  *  *  *  *  *|*  *  *  *  *  *  *  *|
+
 |--resvd-|-resvd--|15----Reg Address-----|7-----Reg Data-------0|
 
 See [Appendix D of the iCE40 LED Driver Usage Guide](https://github.com/standardsemiconductor/VELDT-info/blob/master/ICE40LEDDriverUsageGuide.pdf) for information on LED control bus addressable registers and register field descriptions.
