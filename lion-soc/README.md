@@ -24,8 +24,8 @@ To compile, synthesize, and route without programming: `cabal run`
 
 ## Peripherals
 ### Led
-|********|********|*  *  *  *  *  *  *  *|*  *  *  *  *  *  *  *|
-
-|--resvd-|-resvd--|15----Reg Address-----|7-----Reg Data-------0|
+| Byte 3   | Byte 2   | Byte 1           | Byte 0        |
+|----------|----------|------------------|---------------|
+| reserved | reserved | Register Address | Register Data |
 
 See [Appendix D of the iCE40 LED Driver Usage Guide](https://github.com/standardsemiconductor/VELDT-info/blob/master/ICE40LEDDriverUsageGuide.pdf) for information on LED control bus addressable registers and register field descriptions.
