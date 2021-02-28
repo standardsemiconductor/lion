@@ -113,7 +113,7 @@ jobs:
         make
         ./configure --prefix=/opt/riscv
         make
-        export PATH=$PATH:/opt/riscv/bin
+        echo "/opt/riscv/bin" >> $GITHUB_PATH
 
     - name: Setup Haskell
       uses: haskell/actions/setup@v1
