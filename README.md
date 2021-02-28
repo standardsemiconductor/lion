@@ -1,6 +1,8 @@
 # Where Lions Roam: RISC-V on the VELDT
 
 [![Haskell CI](https://github.com/standardsemiconductor/lion/actions/workflows/haskell.yml/badge.svg?branch=main)](https://github.com/standardsemiconductor/lion/actions/workflows/haskell.yml)
+[![Hackage][hackage-badge]][hackage]
+[![Hackage Dependencies][hackage-deps-badge]][hackage-deps]
 
 Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core. Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com) and is written in Haskell using [Clash](https://clash-lang.org).
 
@@ -26,3 +28,8 @@ Architecture: RV32I (no FENCE, ECALL, EBREAK) -- Default configuration
 * CSR registers
 * RV32IM
 * Hard IP ALU
+
+[hackage]:            <https://hackage.haskell.org/package/lion>
+[hackage-badge]:      <https://img.shields.io/hackage/v/lion.svg?color=success>
+[hackage-deps-badge]: <https://img.shields.io/hackage-deps/v/lion.svg>
+[hackage-deps]:       <http://packdeps.haskellers.com/feed?needle=lion>
