@@ -37,7 +37,7 @@ library
     ghc-typelits-extra,
     ghc-typelits-knownnat
   ghc-options:
-    -Wall -Werror -Wcompat
+    -Wall -Wcompat
     -haddock
     -fplugin GHC.TypeLits.Extra.Solver
     -fplugin GHC.TypeLits.Normalise
