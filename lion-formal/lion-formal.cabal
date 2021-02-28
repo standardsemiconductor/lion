@@ -1,24 +1,14 @@
 cabal-version:      2.4
 name:               lion-formal
 version:            0.1.0.0
-
--- A short (one-line) description of the package.
--- synopsis:
-
--- A longer description of the package.
--- description:
-
--- A URL where users can report bugs.
--- bug-reports:
-
--- The license under which the package is released.
--- license:
+synopsis:           Lion formal verification
+description:        Formal verification using riscv-formal.
+bug-reports:        https://github.com/standardsemiconductor/lion/issues
+license:            BSD-3-Clause
 author:             dopamane
-maintainer:         dwc1295@gmail.com
-
--- A copyright notice.
--- copyright:
--- category:
+maintainer:         dopamane <standard.semiconductor@gmail.com>
+copyright:          (c) 2021 David Cox
+category:           Hardware
 extra-source-files: CHANGELOG.md
 
 library
@@ -51,7 +41,7 @@ library
 
 executable formal
     main-is:          Main.hs
-    build-depends:    base ^>=4.14.1.0
+    build-depends:    base >= 4.13 && < 4.15
                     , clash-ghc
                     , directory
                     , shake
