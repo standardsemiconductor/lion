@@ -6,8 +6,8 @@ Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core. 
 
 This repository contains three parts:
   1. The Lion library: a pipelined RISC-V core.
-  2. The Lion formal verification executable: verify the core using [riscv-formal](https://github.com/standardsemiconductor/riscv-formal/tree/lion).
-  3. The Lion SoC: a System-on-Chip demonstrating usage of the Lion core on the VELDT.
+  2. [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal): formally verify the core using [riscv-formal](https://github.com/standardsemiconductor/riscv-formal/tree/lion).
+  3. [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc): a System-on-Chip demonstrating usage of the Lion core on the VELDT.
 
 ## Lion library
 ### Usage:
@@ -26,9 +26,3 @@ Architecture: RV32I (no FENCE, ECALL, EBREAK) -- Default configuration
 * CSR registers
 * RV32IM
 * Hard IP ALU
-
-## Lion formal verification
-See the [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) directory.
-
-## Lion SoC
-See the [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc) directory.
