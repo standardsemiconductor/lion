@@ -20,10 +20,10 @@ When connecting the `core` to memory and peripherals, ensure single cycle latenc
 
 ## Features
 ### Current Support
-Architecture: RV32I (no FENCE, ECALL, EBREAK) -- Default configuration
+Architecture: RV32I (no FENCE, ECALL, EBREAK)
 
 ### Future Support 
-**All features will be added in a configurable manner extending the default configuration noted above**
+**All features will be added in a configurable manner extending the base RV32I configuration noted above**
 * Zicsr, Control and Status Register (CSR) Instructions
 * CSR registers
 * RV32IM
