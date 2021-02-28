@@ -9,13 +9,11 @@ The Lion RISC-V Core is a 32-bit processor written in Haskell using [Clash](http
 -}
 
 module Lion.Core 
-  ( ToCore(..)
-  , fromMem
+  ( core
   , FromCore(..)
   , toMem
   , toRvfi
   , P.ToMem(..)
-  , core
   ) where
 
 import Clash.Prelude
@@ -24,12 +22,6 @@ import Data.Maybe
 import Data.Monoid
 import Lion.Rvfi
 import qualified Lion.Pipe as P
-
--- | Core input
-data ToCore dom = ToCore
-  { _fromMem :: Signal dom (BitVector 32)
-  }
-makeLenses ''ToCore
 
 -- | Core outputs
 data FromCore dom = FromCore
@@ -41,15 +33,15 @@ makeLenses ''FromCore
 -- | RISC-V Core
 core
   :: HiddenClockResetEnable dom
-  => BitVector 32 -- ^ start address
-  -> ToCore dom   -- ^ core input
-  -> FromCore dom -- ^ core output
+  => BitVector 32               -- ^ start address
+  -> Signal dom (BitVector 32)  -- ^ core input, from memory/peripherals
+  -> FromCore dom               -- ^ core output
 core start toCore = FromCore
   { _toMem  = getFirst . P._toMem <$> fromPipe
   , _toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
   }
   where
-    fromPipe = P.pipe start $ P.ToPipe <$> rs1Data <*> rs2Data <*> _fromMem toCore
+    fromPipe = P.pipe start $ P.ToPipe <$> rs1Data <*> rs2Data <*> toCore
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
     rdWrM = getFirst . P._toRd <$> fromPipe

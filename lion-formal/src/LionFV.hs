@@ -12,7 +12,7 @@ import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Maybe           ( fromMaybe, isJust )
 import Ice40.Clock          ( Lattice12Mhz )
-import Lion.Core            (core, FromCore(FromCore), ToCore(ToCore), ToMem(..) )
+import Lion.Core            (core, FromCore(FromCore), ToMem(..) )
 import Lion.Rvfi            ( Rvfi )
 
 lionFV
@@ -34,7 +34,7 @@ lionFV memRData =
   , rvfi
   )
   where
-    FromCore toMem rvfi = core 0 $ ToCore memRData
+    FromCore toMem rvfi = core 0 memRData
     memValid = isJust <$> toMem
     memInstr = fromMaybe False . fmap isInstr <$> toMem
     memAddr  = maybe 0 getAddr <$> toMem
