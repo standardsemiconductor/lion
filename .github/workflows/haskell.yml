@@ -109,11 +109,9 @@ jobs:
       working-directory: riscv-gnu-toolchain
       run: |
         sudo apt-get install autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev texinfo libtool patchutils bc zlib1g-dev libexpat-dev
-        ./configure --prefix=/opt/riscv --with-arch=rv32i --with-abi=ilp32
-        make
-        ./configure --prefix=/opt/riscv
-        make
-        echo "/opt/riscv/bin" >> $GITHUB_PATH
+        ./configure --prefix=$HOME/opt/riscv
+        sudo make
+        echo "$HOME/opt/riscv/bin" >> $GITHUB_PATH
 
     - name: Setup Haskell
       uses: haskell/actions/setup@v1
