@@ -1,7 +1,7 @@
 # Lion Formal Verification
 
 ## Prerequisites
-See the [ricv-formal prerequisites](https://github.com/standardsemiconductor/riscv-formal/blob/lion/docs/quickstart.md#prerequisites)
+See the [ricsv-formal prerequisites](https://github.com/standardsemiconductor/riscv-formal/blob/lion/docs/quickstart.md#prerequisites)
 
 ## Usage
 Build:      `cabal build`
