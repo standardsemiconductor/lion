@@ -25,8 +25,8 @@ import qualified Lion.Pipe as P
 
 -- | Core outputs
 data FromCore dom = FromCore
-  { _toMem  :: Signal dom (Maybe P.ToMem)
-  , _toRvfi :: Signal dom Rvfi
+  { _toMem  :: Signal dom (Maybe P.ToMem) -- ^ shared memory and instruction bus, output from core to memory and peripherals
+  , _toRvfi :: Signal dom Rvfi -- ^ formal verification interface output, see [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) for usage
   }
 makeLenses ''FromCore
 

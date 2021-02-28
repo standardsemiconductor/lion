@@ -33,7 +33,7 @@ data ToMem = InstrMem         -- ^ instruction read
                (BitVector 32) -- ^ instruction address
            | DataMem                  -- ^ data access
                (BitVector 32)         -- ^ data address
-               (BitVector 4)          -- ^ data mask
+               (BitVector 4)          -- ^ data byte mask
                (Maybe (BitVector 32)) -- ^ read=Nothing write=(Just wr)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
