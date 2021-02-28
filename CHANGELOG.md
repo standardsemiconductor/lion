@@ -1,5 +1,6 @@
 # Revision history for lion
 
-## 0.1.0.0 -- YYYY-mm-dd
+## 0.1.0.0 -- 2021-02-28
 
-* First version. Released on an unsuspecting world.
+* First version.
+* RV32I (no FENCE, ECALL, EBREAK)
