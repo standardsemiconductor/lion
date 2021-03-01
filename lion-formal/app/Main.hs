@@ -27,6 +27,9 @@ main = shakeArgs opts $ do
     removeFilesAfter "_build" ["//*"]
     putInfo "Cleaning riscv-formal checks"
     removeFilesAfter "riscv-formal/cores/lion/checks" ["//*"]
+    removeFilesAfter "riscv-formal/cores/lion/dmemcheck" ["//*"]
+    removeFilesAfter "riscv-formal/cores/lion/imemcheck" ["//*"]
+    removeFilesAfter "riscv-formal/cores/lion/complete" ["//*"]
 
   phony "formal" $ do
     putInfo "Formal Verification of Lion Core"
@@ -45,8 +48,19 @@ main = shakeArgs opts $ do
       cmd_ "make" "-C" ["riscv-formal/cores/lion/checks"] [checkNoExt]
       need ["riscv-formal/cores/lion/checks" </> checkNoExt </> "PASS"]
       putInfo $ show checkNoExt ++ ": PASS"
-    putInfo "All formal checks PASS"
+    
+    -- verify dmemcheck, imemcheck, complete
+    liftIO $ withCurrentDirectory "riscv-formal/cores/lion" $ do
+      cmd_ "sby" "dmemcheck.sby"
+      cmd_ "sby" "imemcheck.sby"
+      cmd_ "sby" "complete.sby"
 
+    need ["riscv-formal/cores/lion/dmemcheck/PASS"]
+    need ["riscv-formal/cores/lion/imemcheck/PASS"]
+    need ["riscv-formal/cores/lion/complete/PASS"]
+
+    putInfo "All formal checks PASS"
+    
   -- build formal 
   verilog formalTop </> formalTop <.> "v" %> \_ ->
     liftIO $ compile formalTop
