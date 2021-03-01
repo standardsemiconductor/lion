@@ -13,8 +13,24 @@ System-On-Chip using Lion and targeting the [VELDT FPGA development board](https
 
 To compile, synthesize, and route without programming: `cabal run`
 
-## Clean
+### Clean
 `cabal run soc -- clean`
+
+## Metrics for iCE40 FPGA
+### Device utilisation
+```
+Device utilisation:
+ ICESTORM_LC:  2616/ 5280    49%
+ICESTORM_RAM:     8/   30    26%
+       SB_IO:     1/   96     1%
+       SB_GB:     3/    8    37%
+ SB_LEDDA_IP:     1/    1   100%
+ SB_RGBA_DRV:     1/    1   100%
+```
+### Clock frequency
+```
+Max frequency for clock: 13.52 MHz
+```
 
 ## Memory Map
 | Peripheral | Start Address | End Address |
