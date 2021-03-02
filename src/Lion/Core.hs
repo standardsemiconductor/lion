@@ -21,6 +21,7 @@ import Data.Maybe
 import Data.Monoid
 import Lion.Rvfi
 import qualified Lion.Pipe as P
+import qualified Lion.Instruction as I (Op(Add), alu)
 
 -- | Core outputs
 data FromCore dom = FromCore
@@ -39,11 +40,31 @@ core config toCore = FromCore
   , toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
   }
   where
-    fromPipe = P.pipe config $ P.ToPipe <$> rs1Data <*> rs2Data <*> toCore
+    -- alu connection
+    aluOp = fromMaybe I.Add . getFirst . P._toAluOp <$> fromPipe
+    aluInput1 = fromMaybe 0 . getFirst . P._toAluInput1 <$> fromPipe
+    aluInput2 = fromMaybe 0 . getFirst . P._toAluInput2 <$> fromPipe
+    aluOutput = alu aluOp aluInput1 aluInput2
+    -- reg bank connection
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
     rdWrM = getFirst . P._toRd <$> fromPipe
     (rs1Data, rs2Data) = regBank rs1Addr rs2Addr rdWrM
+
+    -- pipeline connection
+    fromPipe = P.pipe config $ P.ToPipe <$> rs1Data 
+                                        <*> rs2Data 
+                                        <*> aluOutput
+                                        <*> toCore
+
+-- | ALU
+alu 
+  :: HiddenClockResetEnable dom 
+  => Signal dom I.Op
+  -> Signal dom (BitVector 32)
+  -> Signal dom (BitVector 32)
+  -> Signal dom (BitVector 32)
+alu op in1 = register 0 . liftA3 I.alu op in1
 
 -- | Register bank
 regBank

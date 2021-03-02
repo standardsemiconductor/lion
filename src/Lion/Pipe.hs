@@ -32,6 +32,7 @@ defaultPipeConfig = PipeConfig 0
 data ToPipe = ToPipe
   { _fromRs1 :: BitVector 32
   , _fromRs2 :: BitVector 32
+  , _fromAlu :: BitVector 32
   , _fromMem :: BitVector 32
   }
   deriving stock (Generic, Show, Eq)
@@ -52,11 +53,14 @@ data ToMem = InstrMem         -- ^ instruction read
 
 -- | Pipeline outputs
 data FromPipe = FromPipe
-  { _toMem     :: First ToMem
-  , _toRs1Addr :: First (Unsigned 5)
-  , _toRs2Addr :: First (Unsigned 5)
-  , _toRd      :: First (Unsigned 5, BitVector 32)
-  , _toRvfi    :: First Rvfi
+  { _toMem       :: First ToMem
+  , _toRs1Addr   :: First (Unsigned 5)
+  , _toRs2Addr   :: First (Unsigned 5)
+  , _toRd        :: First (Unsigned 5, BitVector 32)
+  , _toAluOp     :: First Op
+  , _toAluInput1 :: First (BitVector 32)
+  , _toAluInput2 :: First (BitVector 32)
+  , _toRvfi      :: First Rvfi
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -213,7 +217,8 @@ memory = do
   wbIR   .= Nothing
   wbRvfi <~ use meRvfi
   withInstr meIR $ \case
-    MeRegWr rd wr -> do
+    MeRegWr rd -> do
+      wr <- view fromAlu
       control.meRegFwd ?= (rd, wr)
       wbIR ?= WbRegWr rd wr
     MeNop -> wbIR ?= WbNop
@@ -242,18 +247,24 @@ execute = do
   rs2Data <- meRvfi.rvfiRs2Data <<~ regFwd exRs2 fromRs2 (control.meRegFwd) (control.wbRegFwd)
   withInstr exIR $ \case
     Ex op rd imm -> case op of
-      Lui -> meIR ?= MeRegWr rd imm
-      Auipc -> meIR ?= MeRegWr rd (pc + imm) 
+      Lui -> do
+        scribeAlu Add 0 imm
+        meIR ?= MeRegWr rd
+      Auipc -> do
+        scribeAlu Add pc imm
+        meIR ?= MeRegWr rd
       Jal -> do
         npc <- meRvfi.rvfiPcWData <.= pc + imm
         meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
         control.branching ?= npc
-        meIR ?= MeRegWr rd (pc + 4)
+        scribeAlu Add pc 4
+        meIR ?= MeRegWr rd
       Jalr -> do
         npc <- meRvfi.rvfiPcWData <.= clearBit (rs1Data + imm) 0
         meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
         control.branching ?= npc
-        meIR ?= MeRegWr rd (pc + 4)
+        scribeAlu Add pc 4
+        meIR ?= MeRegWr rd
     ExBranch op imm -> do
       npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
                                       then control.branching <?= (pc + imm)
@@ -284,10 +295,23 @@ execute = do
          | otherwise -> do -- Lw
              meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
              meIR ?= MeLoad op rdAddr addr' 0xF
-    ExAlu    op rd     -> meIR ?= MeRegWr rd (alu op rs1Data rs2Data)
-    ExAluImm op rd imm -> meIR ?= MeRegWr rd (alu op rs1Data imm)
+    ExAlu    op rd     -> do -- meIR ?= MeRegWr rd (alu op rs1Data rs2Data)
+      scribeAlu op rs1Data rs2Data
+      meIR ?= MeRegWr rd
+    ExAluImm op rd imm -> do -- meIR ?= MeRegWr rd (alu op rs1Data imm)
+      scribeAlu op rs1Data imm
+      meIR ?= MeRegWr rd
   where
-    guardZero :: MonadState s m => Lens' s (Unsigned 5) -> BitVector 32 -> m (BitVector 32)
+    scribeAlu op in1 in2 = do
+      scribe toAluOp     $ First $ Just op
+      scribe toAluInput1 $ First $ Just in1
+      scribe toAluInput2 $ First $ Just in2
+
+    guardZero  -- register x0 always has value 0.
+      :: MonadState s m 
+      => Lens' s (Unsigned 5) 
+      -> BitVector 32 
+      -> m (BitVector 32)
     guardZero rsAddr rsValue = do
       isZero <- uses rsAddr (== 0)
       return $ if isZero

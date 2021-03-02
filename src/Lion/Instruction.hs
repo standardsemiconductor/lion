@@ -15,6 +15,7 @@ data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Writeback pipeline instruction
 data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
              | WbLoad Load (Unsigned 5) (BitVector 4)
              | WbStore
@@ -22,13 +23,15 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-data MeInstr = MeRegWr      (Unsigned 5) (BitVector 32)
+-- | Memory pipeline instruction
+data MeInstr = MeRegWr      (Unsigned 5)
              | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
              | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
              | MeNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Execute pipeline instruction
 data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
              | ExBranch Branch              (BitVector 32)
              | ExStore  Store               (BitVector 32)
@@ -38,6 +41,7 @@ data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | ALU operation
 data Op = Add
         | Sub
         | Sll
@@ -68,6 +72,7 @@ alu = \case
     sign = unpack :: BitVector 32 -> Signed 32
     (...) = (.).(.)
 
+-- | Branch operation
 data Branch = Beq
             | Bne
             | Blt
@@ -97,12 +102,14 @@ data ExOp = Lui
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Store operation
 data Store = Sb
            | Sh
            | Sw
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Load operation
 data Load = Lb
           | Lh
           | Lw
