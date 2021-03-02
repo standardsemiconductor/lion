@@ -16,6 +16,18 @@ import Data.Monoid.Generic
 import Lion.Instruction
 import Lion.Rvfi
 
+-- | Pipeline configuration
+newtype PipeConfig = PipeConfig
+  { startPC :: BitVector 32 -- ^ initial Program Counter address
+  }
+  deriving stock (Generic, Show, Eq)
+
+-- | Default pipeline configuration
+--
+--   startPC = 0
+defaultPipeConfig :: PipeConfig
+defaultPipeConfig = PipeConfig 0
+
 -- | Pipeline inputs
 data ToPipe = ToPipe
   { _fromRs1 :: BitVector 32
@@ -107,9 +119,9 @@ data Pipe = Pipe
   deriving anyclass NFDataX
 makeLenses ''Pipe
 
-mkPipe :: BitVector 32 -> Pipe
-mkPipe start = Pipe
-  { _fetchPC = start  
+mkPipe :: PipeConfig -> Pipe
+mkPipe config = Pipe
+  { _fetchPC = startPC config
 
   -- decode stage 
   , _dePC    = 0
@@ -137,10 +149,10 @@ mkPipe start = Pipe
 -- | 5-Stage RISC-V pipeline
 pipe 
   :: HiddenClockResetEnable dom
-  => BitVector 32
+  => PipeConfig
   -> Signal dom ToPipe
   -> Signal dom FromPipe
-pipe start = mealy pipeMealy (mkPipe start)
+pipe config = mealy pipeMealy (mkPipe config)
   where
     pipeMealy s i = let ((), s', o) = runRWS pipeM i s
                     in (s', o) 

@@ -12,7 +12,7 @@ import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Maybe           ( fromMaybe, isJust )
 import Ice40.Clock          ( Lattice12Mhz )
-import Lion.Core            (core, FromCore(FromCore), ToMem(..) )
+import Lion.Core            (core, defaultPipeConfig, FromCore(..), ToMem(..) )
 import Lion.Rvfi            ( Rvfi )
 
 lionFV
@@ -31,15 +31,15 @@ lionFV memRData =
   , memAddr
   , memWData
   , memWStrb
-  , rvfi
+  , toRvfi fromCore
   )
   where
-    FromCore toMem rvfi = core 0 memRData
-    memValid = isJust <$> toMem
-    memInstr = fromMaybe False . fmap isInstr <$> toMem
-    memAddr  = maybe 0 getAddr <$> toMem
-    memWData = fromMaybe 0 . (getData =<<) <$> toMem
-    memWStrb = fromMaybe 0 . fmap getMask <$> toMem
+    fromCore = core defaultPipeConfig memRData
+    memValid = isJust <$> toMem fromCore
+    memInstr = fromMaybe False . fmap isInstr <$> toMem fromCore
+    memAddr  = maybe 0 getAddr <$> toMem fromCore
+    memWData = fromMaybe 0 . (getData =<<) <$> toMem fromCore
+    memWStrb = fromMaybe 0 . fmap getMask <$> toMem fromCore
 
 isInstr :: ToMem -> Bool
 isInstr = \case

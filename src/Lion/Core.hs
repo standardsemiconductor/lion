@@ -10,14 +10,13 @@ The Lion core is a 32-bit RISC-V processor written in Haskell using [Clash](http
 
 module Lion.Core 
   ( core
+  , P.PipeConfig(..)
+  , P.defaultPipeConfig
   , FromCore(..)
-  , toMem
-  , toRvfi
   , P.ToMem(..)
   ) where
 
 import Clash.Prelude
-import Control.Lens
 import Data.Maybe
 import Data.Monoid
 import Lion.Rvfi
@@ -25,23 +24,22 @@ import qualified Lion.Pipe as P
 
 -- | Core outputs
 data FromCore dom = FromCore
-  { _toMem  :: Signal dom (Maybe P.ToMem) -- ^ shared memory and instruction bus, output from core to memory and peripherals
-  , _toRvfi :: Signal dom Rvfi -- ^ formal verification interface output, see [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) for usage
+  { toMem  :: Signal dom (Maybe P.ToMem) -- ^ shared memory and instruction bus, output from core to memory and peripherals
+  , toRvfi :: Signal dom Rvfi -- ^ formal verification interface output, see [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) for usage
   }
-makeLenses ''FromCore
 
 -- | RISC-V Core
 core
   :: HiddenClockResetEnable dom
-  => BitVector 32               -- ^ start address
+  => P.PipeConfig               -- ^ pipeline configuration
   -> Signal dom (BitVector 32)  -- ^ core input, from memory/peripherals
   -> FromCore dom               -- ^ core output
-core start toCore = FromCore
-  { _toMem  = getFirst . P._toMem <$> fromPipe
-  , _toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
+core config toCore = FromCore
+  { toMem  = getFirst . P._toMem <$> fromPipe
+  , toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
   }
   where
-    fromPipe = P.pipe start $ P.ToPipe <$> rs1Data <*> rs2Data <*> toCore
+    fromPipe = P.pipe config $ P.ToPipe <$> rs1Data <*> rs2Data <*> toCore
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
     rdWrM = getFirst . P._toRd <$> fromPipe
