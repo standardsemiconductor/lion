@@ -55,23 +55,6 @@ data Op = Add
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-alu :: Op -> BitVector 32 -> BitVector 32 -> BitVector 32
-alu = \case
-  Add  -> (+)
-  Sub  -> (-)
-  Sll  -> \x y -> x `shiftL` shamt y
-  Slt  -> boolToBV ... (<) `on` sign
-  Sltu -> boolToBV ... (<)
-  Xor  -> xor
-  Srl  -> \x y -> x `shiftR` shamt y
-  Sra  -> \x y -> pack $ sign x `shiftR` shamt y
-  Or   -> (.|.)
-  And  -> (.&.)
-  where
-    shamt = unpack . resize . slice d4 d0
-    sign = unpack :: BitVector 32 -> Signed 32
-    (...) = (.).(.)
-
 -- | Branch operation
 data Branch = Beq
             | Bne
@@ -82,6 +65,7 @@ data Branch = Beq
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | branch calculation
 branch :: Branch -> BitVector 32 -> BitVector 32 -> Bool
 branch = \case
   Beq  -> not ... (/=)

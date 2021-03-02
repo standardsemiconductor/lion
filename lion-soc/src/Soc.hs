@@ -15,7 +15,7 @@ import Data.Maybe ( fromMaybe )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
-import Lion.Core (FromCore(..), defaultPipeConfig, ToMem(DataMem, InstrMem), core)
+import Lion.Core
 
 ---------
 -- RGB --
@@ -67,7 +67,7 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
 lion = rgb $ toMem fromCore
   where
-    fromCore = core defaultPipeConfig fromBios
+    fromCore = core defaultCoreConfig fromBios
     fromBios = bios $ toMem fromCore
     
 ----------------
