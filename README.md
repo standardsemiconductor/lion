@@ -6,7 +6,7 @@
 
 Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core. Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com) and is written in Haskell using [Clash](https://clash-lang.org).
 
-This repository contains three parts:
+This repository contains four parts:
   1. The Lion library: a pipelined RISC-V core.
   2. [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal): formally verify the core using [riscv-formal](https://github.com/standardsemiconductor/riscv-formal/tree/lion).
   3. [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc): a System-on-Chip demonstrating usage of the Lion core on the VELDT.
