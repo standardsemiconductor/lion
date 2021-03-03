@@ -20,7 +20,6 @@ library
     Cabal,
     clash-prelude >= 1.2.5 && < 1.4,
     lion >= 0.1 && < 0.2,
-    ice40-prim,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
     ghc-typelits-knownnat

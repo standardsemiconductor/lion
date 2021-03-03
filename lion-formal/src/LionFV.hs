@@ -11,8 +11,7 @@ module LionFV where
 import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Maybe           ( fromMaybe, isJust )
-import Ice40.Clock          ( Lattice12Mhz )
-import Lion.Core            (core, defaultCoreConfig, FromCore(..), ToMem(..) )
+import Lion.Core            (core, defaultPipeConfig, FromCore(..), ToMem(..) )
 import Lion.Rvfi            ( Rvfi )
 
 lionFV
@@ -63,15 +62,15 @@ getMask = \case
 
 {-# NOINLINE topEntity #-}
 topEntity
-  :: "clock"     ::: Clock Lattice12Mhz
-  -> "reset"     ::: Reset Lattice12Mhz
-  -> "mem_rdata" ::: Signal Lattice12Mhz (BitVector 32)
-  -> ( "mem_valid" ::: Signal Lattice12Mhz Bool
-     , "mem_instr" ::: Signal Lattice12Mhz Bool
-     , "mem_addr"  ::: Signal Lattice12Mhz (BitVector 32)
-     , "mem_wdata" ::: Signal Lattice12Mhz (BitVector 32)
-     , "mem_wstrb" ::: Signal Lattice12Mhz (BitVector 4)
-     , "rvfi"      ::: Signal Lattice12Mhz Rvfi
+  :: "clock"     ::: Clock System
+  -> "reset"     ::: Reset System
+  -> "mem_rdata" ::: Signal System (BitVector 32)
+  -> ( "mem_valid" ::: Signal System Bool
+     , "mem_instr" ::: Signal System Bool
+     , "mem_addr"  ::: Signal System (BitVector 32)
+     , "mem_wdata" ::: Signal System (BitVector 32)
+     , "mem_wstrb" ::: Signal System (BitVector 4)
+     , "rvfi"      ::: Signal System Rvfi
      )
 topEntity clk rst = exposeClockResetEnable lionFV clk rst enableGen
 makeTopEntityWithName 'topEntity "LionFV"
