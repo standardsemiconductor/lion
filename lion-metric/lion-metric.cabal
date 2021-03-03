@@ -1,14 +1,14 @@
 cabal-version: 2.4
-name: lion-metric
-version: 0.1.0.0
-synopsis: Lion Metric
-description: Core metrics on max clock frequency and device utilisation
-bug-reports: https://github.com/standardsemiconductor/lion/issues
-license: BSD-3-Clause
-author: dopamane
-maintainer: dopamane <standard.semiconductor@gmail.com>
-copyright: (c) 2021 David Cox
-category: Hardware
+name:          lion-metric
+version:       0.1.0.0
+synopsis:      Lion Metric
+description:   Yosys metrics on Lion Core synthesis
+bug-reports:   https://github.com/standardsemiconductor/lion/issues
+license:       BSD-3-Clause
+author:        dopamane
+maintainer:    dopamane <standard.semiconductor@gmail.com>
+copyright:     (c) 2021 David Cox
+category:      Hardware
 
 library
   exposed-modules: Metric
