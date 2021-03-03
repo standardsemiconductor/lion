@@ -1,0 +1,48 @@
+cabal-version: 2.4
+name: lion-metric
+version: 0.1.0.0
+synopsis: Lion Metric
+description: Core metrics on max clock frequency and device utilisation
+bug-reports: https://github.com/standardsemiconductor/lion/issues
+license: BSD-3-Clause
+author: dopamane
+maintainer: dopamane <standard.semiconductor@gmail.com>
+copyright: (c) 2021 David Cox
+category: Hardware
+
+library
+  exposed-modules: Metric
+  hs-source-dirs: src
+  default-language: Haskell2010
+  build-depends:
+    base >= 4.13 && < 4.15,
+    Cabal,
+    clash-prelude >= 1.2.5 && < 1.4,
+    lion >= 0.1 && < 0.2,
+    ghc-typelits-natnormalise,
+    ghc-typelits-extra,
+    ghc-typelits-knownnat
+  ghc-options:
+    -Wall -Werror -Wcompat
+    -haddock
+    -fplugin GHC.TypeLits.Extra.Solver
+    -fplugin GHC.TypeLits.Normalise
+    -fplugin GHC.TypeLits.KnownNat.Solver
+    -fexpose-all-unfoldings
+    -fno-worker-wrapper
+  default-extensions:
+    DataKinds
+    LambdaCase
+    NoImplicitPrelude
+    NoStarIsType
+    ViewPatterns
+    TemplateHaskell
+    TypeOperators
+
+executable metric
+  main-is: Main.hs
+  build-depends: base >= 4.13 && < 4.15
+               , clash-ghc
+               , shake
+  hs-source-dirs: app
+  default-language: Haskell2010
