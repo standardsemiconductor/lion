@@ -149,3 +149,9 @@ jobs:
       run: |
         cabal build
         cabal run
+
+    - name: Metric
+      working-directory: lion-metric
+      run: |
+        cabal build
+        cabal run 
