@@ -1,3 +1,11 @@
+{-|
+Module      : Uart
+Description : Lion Soc Uart Peripheral
+Copyright   : (c) David Cox, 2021
+License     : BSD-3-Clause
+Maintainer  : standardsemiconductor@gmail.com
+-}
+
 module Uart where
 
 import Clash.Prelude
@@ -40,4 +48,7 @@ uartM
   -> Maybe ToMem  -- ^ memory access
   -> RWS Bit Bit Uart (First (BitVector 32)) -- ^ uart monadic action
 uartM toMemM = do
-  forM_ 
+  transmit
+  receive
+  forM_ toMemM $ \case
+    InstrMem _ ->
