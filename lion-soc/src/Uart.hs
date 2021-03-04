@@ -43,12 +43,43 @@ data Uart = Uart
   deriving anyclass NFDataX
 makeLenses ''Uart 
 
+newtype Tx = Tx { unTx :: Bit }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+instance Semigroup Tx where
+  mappend = (.&.)
+
+instance Monoid Tx where
+  mempty = 1
+
+data FromUart = FromUart
+  { _tx       :: Tx
+  , _fromUart :: First (BitVector 32)
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+  deriving Semigroup via GenericSemigroup FromUart
+  deriving Monoid via GenericMonoid FromUart
+makeLenses ''FromUart
+
 uartM 
   :: BitVector 32 -- ^ uart memory address
-  -> Maybe ToMem  -- ^ memory access
-  -> RWS Bit Bit Uart (First (BitVector 32)) -- ^ uart monadic action
-uartM toMemM = do
+  -> Maybe Bus  -- ^ memory access
+  -> RWS Bit FromUart Uart () -- ^ uart monadic action
+uartM busM = do
   transmit
   receive
-  forM_ toMemM $ \case
-    InstrMem _ ->
+  forM_ busM $ \bus -> _
+
+uart
+  :: HiddenClockResetEnable dom 
+  => BitVector 32         -- ^ uart peripheral address
+  -> Signal dom Maybe Bus -- ^ soc bus
+  -> Signal dom Bit       -- ^ uart rx
+  -> Unbundled dom (Bit, First (BitVector 32)) -- ^ (uart tx, toCore)
+uart pAddr bus rx = (tx, toCore)
+  where
+    uartMealy s i = let = runRWS (uartM pAddr bus) rx mkUart
+                    in (s', o)
+  

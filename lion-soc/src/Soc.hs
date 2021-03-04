@@ -15,33 +15,19 @@ import Data.Maybe ( fromMaybe )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
-import Lion.Core (FromCore(..), defaultPipeConfig, ToMem(DataMem, InstrMem), core)
-
--- | SoC Memory/Peripheral access bus
-data SocMem = SocMem
-  { address :: BitVector 32
-  , mask    :: BitVector 4
-  , storeM  :: Maybe (BitVector 32)
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX  
-
--- | Make SocMem by forgetting whether memory access is instruction or memory.
-mkSocMem :: ToMem -> SocMem
-mkSocMem = \case
-  InstrMem addr        -> SocMem addr 0xF Nothing
-  DataMem addr msk wrM -> SocMem addr msk wrM
+import Lion.Core (FromCore(..), defaultPipeConfig, core)
+import Bus
 
 ---------
 -- RGB --
 ---------
 type Rgb = ("red" ::: Bit, "green" ::: Bit, "blue" ::: Bit)
 
-rgb :: HiddenClock dom => Signal dom (Maybe SocMem) -> Signal dom Rgb
+rgb :: HiddenClock dom => Signal dom (Maybe Bus) -> Signal dom Rgb
 rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
-      Just (SocMem 
+      Just (Bus 
               $(bitPattern "00000000000000000000000100000000")
               $(bitPattern "0011")
               (Just d)
@@ -54,11 +40,11 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
 ----------
 bios
   :: HiddenClockResetEnable dom
-  => Signal dom (Maybe SocMem)
+  => Signal dom (Maybe Bus)
   -> Signal dom (BitVector 32)
 bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
-    addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap address <$> mem
+    addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap busAddr <$> mem
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
@@ -79,7 +65,7 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
 lion = rgb fromCore
   where
-    fromCore = (fmap.fmap) mkSocMem $ toMem $ core defaultPipeConfig fromBios
+    fromCore = (fmap.fmap) mkBus $ toMem $ core defaultPipeConfig fromBios
     fromBios = bios fromCore
     
 ----------------
