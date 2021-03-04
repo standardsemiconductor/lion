@@ -35,12 +35,8 @@ data RxFsm = RxIdle
   deriving stock (Generic, Show, Eq, Enum, Bounded)
   deriving anyclass NFDataX
 
--- | increment fsm
-next :: (Eq a, Enum a, Bounded a) => a -> a
-next s | s == maxBound = minBound
-       | otherwise     = succ s
 
--- | Transmitter/Receiver status
+-- | Receiver status
 data Status = Empty | Full
   deriving stock (Generic, Show, Eq, Enum)
   deriving anyclass NFDataX
@@ -52,9 +48,9 @@ fromStatus Full  = 1
 -- | Uart state
 data Uart = Uart
   { -- transmitter state
-    _txFsm    :: TxFsm        -- ^ transmitter fsm
-  , _txStatus :: Status       -- ^ transmitter status
-  , _txBuffer :: BitVector 10 -- ^ transmitter data buffer
+  , _txIdx    :: Index 10             -- ^ buffer bit index
+  , _txBaud   :: Index 625            -- ^ baud rate counter (19200)
+  , _txBuffer :: Maybe (BitVector 10) -- ^ transmitter data buffer
     -- receiver state
   , _rxFsm    :: RxFsm       -- ^ receiver fsm
   , _rxStatus :: RxStatus    -- ^ receiver status
@@ -63,6 +59,17 @@ data Uart = Uart
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Uart 
+
+-- | Construct a Uart
+mkUart :: Uart
+mkUart = Uart
+  { -- transmitter state
+  , _txIdx    = 0
+  , _txBaud   = 0
+  , _txBuffer = Nothing
+    -- receiver state
+  , _
+  }
 
 -- | Tx wire
 newtype Tx = Tx { unTx :: Bit }
@@ -88,10 +95,44 @@ makeLenses ''FromUart
 
 -- | transmit 
 transmit :: RWS Bit FromUart Uart ()
-transmit = use 
+transmit = do
+  bufferM <- use txBuffer
+  forM_ bufferM $ \buf -> do
+    scribe tx . First . Just =<< uses txIdx (buf!)
+    ctr <- txBaud <<%= increment
+    when (ctr == maxBound) $ do
+      idx <- txIdx <<%= increment
+      when (idx == maxBound) txReset
+          
+txReset :: MonadState Uart m => m ()
+txReset = do
+  txIdx    .= 0
+  txBaud   .= 0
+  txBuffer .= Nothing
 
 receive :: RWS Bit FromUart Uart ()
-receive = _
+receive = use rxFsm >>= \case
+  RxIdle -> do
+    rxLow <- views rx (== low)
+    when rxLow $ do
+      rxCtr %= increment
+      rxFsm %= increment
+  RxStart -> do
+    rxLow    <- views rx (== low)
+    ctr      <- use rxCtr
+    baudHalf <- uses rxBaud (`shiftR` 1)
+    if ctr == baudHalf
+      then do 
+        rxCtr .= 0
+        if rxLow
+          then rxFsm %= increment
+          else rxReset
+      else rxCtr %= increment
+  RxRecv -> do
+    ctr <- use rxBaud
+    idx <- use rxIdx
+    when (ctr == maxBound) $ 
+  RxStop -> _
 
 uartM 
   :: BitVector 32 -- ^ uart memory address
@@ -107,8 +148,12 @@ uartM uartAddr busM = do
         txS <- uses txStatus fromStatus
         let status = (rxS `shiftL` 1) .|. txS
         scribe fromUart $ First $ Just $ status `shiftL` 16
-      Bus _ $(bitPattern ".010") Nothing   -> _ -- read recv byte
-      Bus _ $(bitPattern ".001") (Just wr) -> _ -- write send byte
+      Bus _ $(bitPattern ".010") Nothing -> do -- read recv byte
+        scribe fromUart . First . Just =<< use rxBuffer
+        rxReset
+      Bus _ $(bitPattern ".001") (Just wr) -> do -- write send byte
+        txReset
+        txBuffer ?= (1 :: BitVector 1) ++# slice d7 d0 wr
       _ -> return ()
 
 uart
@@ -122,3 +167,10 @@ uart pAddr bus rx = (tx, toCore)
     uartMealy s i = let = runRWS (uartM pAddr bus) rx mkUart
                     in (s', o)
 
+-------------
+-- Utility --
+-------------
+
+increment :: (Eq a, Enum a, Bounded a) => a -> a
+increment a | a == maxBound = minBound
+            | otherwise     = succ a
