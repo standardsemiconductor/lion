@@ -9,6 +9,11 @@ Maintainer  : standardsemiconductor@gmail.com
 module Uart where
 
 import Clash.Prelude
+import Bus
+import Control.Lens hiding (Index, Empty)
+import Control.Monad.RWS
+import Data.Maybe ( isJust )
+import Data.Monoid.Generic
 
 -- | uart register
 --   31 - 24 : 23 - 16 : 15 - 8 : 7 - 0
@@ -21,12 +26,14 @@ import Clash.Prelude
 --   bits 15 - 8 : receiver buffer    -- read only -- reading this byte will reset the receiver
 --   bits 7  - 0 : transmitter buffer -- write only -- writing this byte will reset the transmitter
 
--- | Transmitter finite-state machine
-data TxFsm = TxStart
-           | TxSend
-  deriving stock (Generic, Show, Eq, Enum, Bounded)
+data ToUart = ToUart
+  { _fromBus :: Maybe Bus
+  , _rx      :: Bit
+  }
+  deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-
+makeLenses ''ToUart
+  
 -- | Receiver finite-state machine
 data RxFsm = RxIdle
            | RxStart
@@ -41,19 +48,21 @@ data Status = Empty | Full
   deriving stock (Generic, Show, Eq, Enum)
   deriving anyclass NFDataX
 
-fromStatus :: Status -> BitVector n
+fromStatus :: KnownNat n => Status -> BitVector n
 fromStatus Empty = 0
 fromStatus Full  = 1
 
 -- | Uart state
 data Uart = Uart
   { -- transmitter state
-  , _txIdx    :: Index 10             -- ^ buffer bit index
-  , _txBaud   :: Index 625            -- ^ baud rate counter (19200)
+    _txIdx    :: Index 10             -- ^ buffer bit index
+  , _txBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
   , _txBuffer :: Maybe (BitVector 10) -- ^ transmitter data buffer
     -- receiver state
   , _rxFsm    :: RxFsm       -- ^ receiver fsm
-  , _rxStatus :: RxStatus    -- ^ receiver status
+  , _rxIdx    :: Index 8     -- ^ buffer index
+  , _rxBaud   :: Index 625   -- ^ baud rate counter (19200 @ 12Mhz)
+  , _rxStatus :: Status      -- ^ receiver status
   , _rxBuffer :: BitVector 8 -- ^ receiver data buffer
   }
   deriving stock (Generic, Show, Eq)
@@ -64,11 +73,15 @@ makeLenses ''Uart
 mkUart :: Uart
 mkUart = Uart
   { -- transmitter state
-  , _txIdx    = 0
+    _txIdx    = 0
   , _txBaud   = 0
   , _txBuffer = Nothing
     -- receiver state
-  , _
+  , _rxFsm    = RxIdle
+  , _rxIdx    = 0
+  , _rxBaud   = 0
+  , _rxStatus = Empty
+  , _rxBuffer = 0
   }
 
 -- | Tx wire
@@ -77,15 +90,15 @@ newtype Tx = Tx { unTx :: Bit }
   deriving anyclass NFDataX
 
 instance Semigroup Tx where
-  mappend = (.&.)
+  Tx a <> Tx b = Tx $ a .&. b
 
 instance Monoid Tx where
-  mempty = 1
+  mempty = Tx 1
 
 -- | Uart output
 data FromUart = FromUart
-  { _tx       :: Tx
-  , _fromUart :: First (BitVector 32)
+  { _tx     :: Tx
+  , _toCore :: First (BitVector 32)
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -94,11 +107,11 @@ data FromUart = FromUart
 makeLenses ''FromUart
 
 -- | transmit 
-transmit :: RWS Bit FromUart Uart ()
+transmit :: RWS ToUart FromUart Uart ()
 transmit = do
   bufferM <- use txBuffer
   forM_ bufferM $ \buf -> do
-    scribe tx . First . Just =<< uses txIdx (buf!)
+    scribe tx . Tx =<< uses txIdx (buf!)
     ctr <- txBaud <<%= increment
     when (ctr == maxBound) $ do
       idx <- txIdx <<%= increment
@@ -110,30 +123,30 @@ txReset = do
   txBaud   .= 0
   txBuffer .= Nothing
 
-receive :: RWS Bit FromUart Uart ()
+receive :: RWS ToUart FromUart Uart ()
 receive = use rxFsm >>= \case
   RxIdle -> do
     rxLow <- views rx (== low)
     when rxLow $ do
-      rxCtr %= increment
-      rxFsm %= increment
+      rxBaud %= increment
+      rxFsm  %= increment
   RxStart -> do
-    rxLow    <- views rx (== low)
-    ctr      <- use rxCtr
-    baudHalf <- uses rxBaud (`shiftR` 1)
+    rxLow <- views rx (== low)
+    ctr   <- use rxBaud
+    let baudHalf = maxBound `shiftR` 1
     if ctr == baudHalf
       then do 
-        rxCtr .= 0
+        rxBaud .= 0
         if rxLow
           then rxFsm %= increment
           else rxReset
-      else rxCtr %= increment
+      else rxBaud %= increment
   RxRecv -> do
     ctr <- rxBaud <<%= increment
     when (ctr == maxBound) $ do
       rxBit <- view rx
-      idx   <- rxIdx  <<%= increment
-      rxBuf %= replaceBit (7 - idx) rxBit
+      idx   <- rxIdx <<%= increment
+      rxBuffer %= replaceBit (7 - idx) rxBit
       when (idx == maxBound) $ rxFsm %= increment
   RxStop -> do
     ctr <- rxBaud <<%= increment
@@ -141,38 +154,52 @@ receive = use rxFsm >>= \case
       rxStatus .= Full
       rxFsm %= increment
 
+rxReset :: MonadState Uart m => m ()
+rxReset = do
+  rxIdx    .= 0
+  rxBaud   .= 0
+  rxStatus .= Empty
+  rxFsm    .= RxIdle
+
 uartM 
   :: BitVector 32 -- ^ uart memory address
-  -> Maybe Bus  -- ^ memory access
-  -> RWS Bit FromUart Uart () -- ^ uart monadic action
-uartM uartAddr busM = do
+  -> RWS ToUart FromUart Uart () -- ^ uart monadic action
+uartM uartAddr = do
   transmit
   receive
+  busM <- view fromBus
   forM_ busM $ \bus ->
     when (busAddr bus == uartAddr) $ case bus of
       Bus _ $(bitPattern ".100") Nothing -> do  -- read status byte
         rxS <- uses rxStatus fromStatus
-        txS <- uses txStatus fromStatus
+        txS <- uses txBuffer $ boolToBV . isJust 
         let status = (rxS `shiftL` 1) .|. txS
-        scribe fromUart $ First $ Just $ status `shiftL` 16
+        scribe toCore $ First $ Just $ status `shiftL` 16
       Bus _ $(bitPattern ".010") Nothing -> do -- read recv byte
-        scribe fromUart . First . Just =<< use rxBuffer
+        scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
         rxReset
       Bus _ $(bitPattern ".001") (Just wr) -> do -- write send byte
         txReset
-        txBuffer ?= (1 :: BitVector 1) ++# slice d7 d0 wr
+        txBuffer ?= (1 :: BitVector 1) ++# slice d7 d0 wr ++# (0 :: BitVector 1)
       _ -> return ()
+
+uartMealy 
+  :: BitVector 32
+  -> Uart 
+  -> ToUart
+  -> (Uart, FromUart)
+uartMealy pAddr s i = let ((), s', o) = runRWS (uartM pAddr) i s
+                      in (s', o)
 
 uart
   :: HiddenClockResetEnable dom 
-  => BitVector 32         -- ^ uart peripheral address
-  -> Signal dom Maybe Bus -- ^ soc bus
-  -> Signal dom Bit       -- ^ uart rx
+  => BitVector 32           -- ^ uart peripheral address
+  -> Signal dom (Maybe Bus) -- ^ soc bus
+  -> Signal dom Bit         -- ^ uart rx
   -> Unbundled dom (Bit, First (BitVector 32)) -- ^ (uart tx, toCore)
-uart pAddr bus rx = (tx, toCore)
+uart pAddr bus rxIn = (unTx . _tx <$> fromUart, _toCore <$> fromUart)
   where
-    uartMealy s i = let = runRWS (uartM pAddr bus) rx mkUart
-                    in (s', o)
+    fromUart = mealy (uartMealy pAddr) mkUart $ ToUart <$> bus <*> rxIn
 
 -------------
 -- Utility --
