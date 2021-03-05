@@ -129,10 +129,17 @@ receive = use rxFsm >>= \case
           else rxReset
       else rxCtr %= increment
   RxRecv -> do
-    ctr <- use rxBaud
-    idx <- use rxIdx
-    when (ctr == maxBound) $ 
-  RxStop -> _
+    ctr <- rxBaud <<%= increment
+    when (ctr == maxBound) $ do
+      rxBit <- view rx
+      idx   <- rxIdx  <<%= increment
+      rxBuf %= replaceBit (7 - idx) rxBit
+      when (idx == maxBound) $ rxFsm %= increment
+  RxStop -> do
+    ctr <- rxBaud <<%= increment
+    when (ctr == maxBound) $ do
+      rxStatus .= Full
+      rxFsm %= increment
 
 uartM 
   :: BitVector 32 -- ^ uart memory address
