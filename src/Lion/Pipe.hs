@@ -265,10 +265,10 @@ execute = do
         control.branching ?= npc
         scribeAlu Add pc 4
         meIR ?= MeRegWr rd
-    ExBranch op imm -> do
+    ExBranch op branchPC -> do
       npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
-                                      then control.branching <?= (pc + imm)
-                                      else return $ pc + 4
+                                     then control.branching <?= branchPC
+                                     else return $ pc + 4
       meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
       meIR ?= MeNop
     ExStore op imm -> do
@@ -331,7 +331,7 @@ execute = do
 -- | Decode stage
 decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
-  exIR   .= Nothing
+  exIR .= Nothing
   exRvfi .= mkRvfi
   isFirstCycle <- control.firstCycle <<.= False -- first memory output undefined
   isBranching  <- uses (control.branching) isJust
@@ -339,17 +339,18 @@ decode = do
   isExLoad     <- use $ control.exLoad
   unless (isFirstCycle || isBranching || isWbMemory || isExLoad) $ do
     mem <- view fromMem
-    case parseInstr mem of
+    pc <- use dePC
+    case parseInstr mem pc of
       Right instr -> do
         exIR ?= instr
-        exPC <~ use dePC
+        exPC .= pc
         exRvfi.rvfiInsn .= mem
         control.deLoad .= case instr of
           ExLoad _ _ _ -> True
           _ -> False
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
-      Left IllegalInstruction -> fetchPC <~ use dePC -- roll-back PC, should handle trap
+      Left IllegalInstruction -> fetchPC .= pc -- roll-back PC, should handle trap
         
 
 -- | fetch instruction
