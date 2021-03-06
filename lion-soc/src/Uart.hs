@@ -9,7 +9,7 @@ Maintainer  : standardsemiconductor@gmail.com
 module Uart where
 
 import Clash.Prelude
-import Bus
+import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
 import Data.Maybe ( isJust )
@@ -27,7 +27,7 @@ import Data.Monoid.Generic
 --   bits 7  - 0 : transmitter buffer -- write only -- writing this byte will reset the transmitter
 
 data ToUart = ToUart
-  { _fromBus :: Maybe Bus
+  { _fromBus :: Maybe B.Bus
   , _rx      :: Bit
   }
   deriving stock (Generic, Show, Eq)
@@ -41,7 +41,6 @@ data RxFsm = RxIdle
            | RxStop
   deriving stock (Generic, Show, Eq, Enum, Bounded)
   deriving anyclass NFDataX
-
 
 -- | Receiver status
 data Status = Empty | Full
@@ -161,45 +160,39 @@ rxReset = do
   rxStatus .= Empty
   rxFsm    .= RxIdle
 
-uartM 
-  :: BitVector 32 -- ^ uart memory address
-  -> RWS ToUart FromUart Uart () -- ^ uart monadic action
-uartM uartAddr = do
+uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
+uartM = do
   transmit
   receive
-  busM <- view fromBus
-  forM_ busM $ \bus ->
-    when (busAddr bus == uartAddr) $ case bus of
-      Bus _ $(bitPattern ".100") Nothing -> do  -- read status byte
-        rxS <- uses rxStatus fromStatus
-        txS <- uses txBuffer $ boolToBV . isJust 
-        let status = (rxS `shiftL` 1) .|. txS
-        scribe toCore $ First $ Just $ status `shiftL` 16
-      Bus _ $(bitPattern ".010") Nothing -> do -- read recv byte
-        scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
-        rxReset
-      Bus _ $(bitPattern ".001") (Just wr) -> do -- write send byte
-        txReset
-        txBuffer ?= (1 :: BitVector 1) ++# slice d7 d0 wr ++# (0 :: BitVector 1)
-      _ -> return ()
+  view fromBus >>= \case
+    Just (B.Uart $(bitPattern "100") Nothing) -> do  -- read status byte
+      rxS <- uses rxStatus fromStatus
+      txS <- uses txBuffer $ boolToBV . isJust 
+      let status = (rxS `shiftL` 1) .|. txS
+      scribe toCore $ First $ Just $ status `shiftL` 16
+    Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
+      scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
+      rxReset
+    Just (B.Uart $(bitPattern "001") (Just wr)) -> do -- write send byte
+      txReset
+      txBuffer ?= frame wr
+    _ -> return ()
+  where
+    frame b = (1 :: BitVector 1) ++# b ++# (0 :: BitVector 1)
 
-uartMealy 
-  :: BitVector 32
-  -> Uart 
-  -> ToUart
-  -> (Uart, FromUart)
-uartMealy pAddr s i = let ((), s', o) = runRWS (uartM pAddr) i s
-                      in (s', o)
+uartMealy :: Uart -> ToUart -> (Uart, FromUart)
+uartMealy s i = let ((), s', o) = runRWS uartM i s
+                in (s', o)
 
 uart
   :: HiddenClockResetEnable dom 
-  => BitVector 32           -- ^ uart peripheral address
-  -> Signal dom (Maybe Bus) -- ^ soc bus
+  => Signal dom (Maybe B.Bus) -- ^ soc bus
   -> Signal dom Bit         -- ^ uart rx
   -> Unbundled dom (Bit, First (BitVector 32)) -- ^ (uart tx, toCore)
-uart pAddr bus rxIn = (unTx . _tx <$> fromUart, _toCore <$> fromUart)
+uart bus rxIn = (unTx . _tx <$> fromUart, uartOut)
   where
-    fromUart = mealy (uartMealy pAddr) mkUart $ ToUart <$> bus <*> rxIn
+    uartOut = delay (First Nothing) $ _toCore <$> fromUart
+    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
 
 -------------
 -- Utility --

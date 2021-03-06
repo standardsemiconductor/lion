@@ -17,12 +17,12 @@ import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core (FromCore(..), defaultPipeConfig, core)
-import Bus
-import Uart
+import Bus  ( mkBus, Bus(Bios, Led) )
+import Uart ( uart )
 
 data FromSoc dom = FromSoc
-  { rgbOut :: "led"  ::: Signal dom Rgb
-  , txOut  :: "uart" ::: Signal dom Bit
+  { rgbOut :: "led"     ::: Signal dom Rgb
+  , txOut  :: "uart_tx" ::: Signal dom Bit
   }
 
 ---------
@@ -33,14 +33,10 @@ type Rgb = ("red" ::: Bit, "green" ::: Bit, "blue" ::: Bit)
 rgb :: HiddenClock dom => Signal dom (Maybe Bus) -> Signal dom Rgb
 rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
-    (wr, addr, en) = unbundle $ mem <&> \case
-      Just (Bus 
-              $(bitPattern "000000000000000000000001000000..")
-              $(bitPattern "0011")
-              (Just d)
-           ) -> (slice d7 d0 d, slice d11 d8 d, True)
-      _ -> (0, 0, False)
     (r, g, b, _) = led (pure 1) wr addr en (pure True)
+    (wr, addr, en) = unbundle $ mem <&> \case
+      Just (Led a d) -> (d, a, True )
+      _              -> (0, 0, False)
 
 ----------
 -- BIOS --
@@ -48,14 +44,17 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
 bios
   :: HiddenClockResetEnable dom
   => Signal dom (Maybe Bus)
-  -> Signal dom (BitVector 32)
-bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
+  -> Signal dom (First (BitVector 32))
+bios mem = mux (delay False isValid) biosOut $ pure $ First Nothing
   where
-    addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap busAddr <$> mem
+    biosOut = fmap (First . Just) $ concat4 <$> b3 <*> b2 <*> b1 <*> b0
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
     b0 = romFilePow2 "_build/bios/bios.rom0" addr
+    (addr, isValid) = unbundle $ mem <&> \case
+      Just (Bios a) -> (a, True )
+      _             -> (0,    False)
 
 concat4
   :: KnownNat n
@@ -72,25 +71,24 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
 lion rxIn = FromSoc
   { rgbOut = fromRgb
-  , txOut  = _tx <$> fromUart
+  , txOut  = tx
   }
   where
     fromBios = bios fromCore
     fromRgb  = rgb  fromCore 
-    fromUart = uart fromCore rxIn
-    fromCore = (fmap.fmap) mkBus $ toMem $ core defaultPipeConfig $ 
-      case delay Nothing (fmap busAddr <$> fromCore) of
-        $(bitPattern "000000000000000000000000........") -> fromBios
-        $(bitPattern "000000000000000000000001000000..") -> fromRgb
-        $(bitPattern "000000000000000000000001000001..") -> fromUart
-        _ -> pure 0
-      
+    (tx, fromUart) = uart fromCore rxIn
+    fromCore = fmap (mkBus =<<) $ toMem $ core defaultPipeConfig $ 
+      fmap (fromMaybe 0 . getFirst . fold (<>)) $ sequenceA $
+           fromBios
+        :> fromUart
+        :> Nil 
+
 ----------------
 -- Top Entity --
 ----------------
 {-# NOINLINE topEntity #-}
 topEntity 
-  :: "clk" ::: Clock Lattice12Mhz 
+  :: "clk"     ::: Clock Lattice12Mhz 
   -> "uart_rx" ::: Signal Lattice12Mhz Bit
   -> FromSoc Lattice12Mhz
 topEntity clk = withClockResetEnable clk latticeRst enableGen lion
