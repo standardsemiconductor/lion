@@ -8,9 +8,10 @@ Maintainer  : standardsemiconductor@gmail.com
 
 module Soc where
 
-import Clash.Prelude
+import Clash.Prelude hiding ( fold )
 import Clash.Annotations.TH
 import Data.Functor ( (<&>) )
+import Data.Foldable ( fold )
 import Data.Maybe ( fromMaybe )
 import Data.Monoid ( First(..) )
 import Ice40.Clock
@@ -54,7 +55,7 @@ bios mem = mux (delay False isValid) biosOut $ pure $ First Nothing
     b0 = romFilePow2 "_build/bios/bios.rom0" addr
     (addr, isValid) = unbundle $ mem <&> \case
       Just (Bios a) -> (a, True )
-      _             -> (0,    False)
+      _             -> (0, False)
 
 concat4
   :: KnownNat n
@@ -78,7 +79,7 @@ lion rxIn = FromSoc
     fromRgb  = rgb  fromCore 
     (tx, fromUart) = uart fromCore rxIn
     fromCore = fmap (mkBus =<<) $ toMem $ core defaultPipeConfig $ 
-      fmap (fromMaybe 0 . getFirst . fold (<>)) $ sequenceA $
+      fmap (fromMaybe 0 . getFirst . fold) $ sequenceA $
            fromBios
         :> fromUart
         :> Nil 

@@ -56,6 +56,7 @@ main = shakeArgs opts $ do
     cmd_ "nextpnr-ice40"
          "--up5k"
          "--package sg48"
+         "--opt-timing"
          "--pcf Soc.pcf"
          "--asc"
          [out]
