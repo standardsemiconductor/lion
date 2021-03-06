@@ -12,11 +12,18 @@ import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Functor ( (<&>) )
 import Data.Maybe ( fromMaybe )
+import Data.Monoid ( First(..) )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core (FromCore(..), defaultPipeConfig, core)
 import Bus
+import Uart
+
+data FromSoc dom = FromSoc
+  { rgbOut :: "led"  ::: Signal dom Rgb
+  , txOut  :: "uart" ::: Signal dom Bit
+  }
 
 ---------
 -- RGB --
@@ -28,7 +35,7 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
       Just (Bus 
-              $(bitPattern "00000000000000000000000100000000")
+              $(bitPattern "000000000000000000000001000000..")
               $(bitPattern "0011")
               (Just d)
            ) -> (slice d7 d0 d, slice d11 d8 d, True)
@@ -62,16 +69,29 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 --------------
 -- Lion SOC --
 --------------
-lion :: HiddenClockResetEnable dom => Signal dom Rgb
-lion = rgb fromCore
+lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
+lion rxIn = FromSoc
+  { rgbOut = fromRgb
+  , txOut  = _tx <$> fromUart
+  }
   where
-    fromCore = (fmap.fmap) mkBus $ toMem $ core defaultPipeConfig fromBios
     fromBios = bios fromCore
-    
+    fromRgb  = rgb  fromCore 
+    fromUart = uart fromCore rxIn
+    fromCore = (fmap.fmap) mkBus $ toMem $ core defaultPipeConfig $ 
+      case delay Nothing (fmap busAddr <$> fromCore) of
+        $(bitPattern "000000000000000000000000........") -> fromBios
+        $(bitPattern "000000000000000000000001000000..") -> fromRgb
+        $(bitPattern "000000000000000000000001000001..") -> fromUart
+        _ -> pure 0
+      
 ----------------
 -- Top Entity --
 ----------------
 {-# NOINLINE topEntity #-}
-topEntity :: "clk" ::: Clock Lattice12Mhz -> "led" ::: Signal Lattice12Mhz Rgb
+topEntity 
+  :: "clk" ::: Clock Lattice12Mhz 
+  -> "uart_rx" ::: Signal Lattice12Mhz Bit
+  -> FromSoc Lattice12Mhz
 topEntity clk = withClockResetEnable clk latticeRst enableGen lion
 makeTopEntityWithName 'topEntity "Soc"
