@@ -93,7 +93,20 @@ hardAddSub
   -> Signal dom (BitVector 32)
 hardAddSub addSub x y = out
   where
-    (out, _, _, _) = 
+    (out, _, _, _) = mac parameter input
+    input = defaultInput{ a = slice d31 d16 <$> y
+                        , b = slice d15 d0  <$> y
+                        , c = slice d31 d16 <$> x
+                        , d = slice d15 d0  <$> x
+                        , addsubtop = addSub
+                        , addsubbot = addSub
+                        }
+    parameter = defaultParameter{ mode8x8 = 1
+                                , botAddSubUpperInput = 1
+                                , topAddSubCarrySelect = 2
+                                , topAddSubUpperInput = 1
+                                }
+{- 
       macPrim 0 -- negTrigger
               0 -- aReg
               0 -- bReg
@@ -137,3 +150,4 @@ hardAddSub addSub x y = out
               0 -- accumci
               0 -- signextin
               0 -- ci
+-}
