@@ -15,7 +15,7 @@ import Clash.Annotations.TH
 import Lion.Core
 
 metric :: HiddenClockResetEnable dom => Signal dom (BitVector 32) -> Signal dom (Maybe ToMem)
-metric = toMem . core defaultPipeConfig
+metric = toMem . core defaultCoreConfig
          
 {-# NOINLINE topEntity #-}
 topEntity 
