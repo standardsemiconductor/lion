@@ -111,18 +111,18 @@ data Load = Lb
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-parseInstr :: BitVector 32 -> Either Exception ExInstr
-parseInstr i = case i of
+parseInstr :: BitVector 32 -> BitVector 32 -> Either Exception ExInstr
+parseInstr i pc = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
   $(bitPattern ".........................0010111") -> Right $ Ex Auipc rd immU -- auipc
   $(bitPattern ".........................1101111") -> Right $ Ex Jal   rd immJ -- jal
   $(bitPattern ".................000.....1100111") -> Right $ Ex Jalr  rd immI -- jalr
-  $(bitPattern ".................000.....1100011") -> Right $ ExBranch Beq  immB -- beq
-  $(bitPattern ".................001.....1100011") -> Right $ ExBranch Bne  immB -- bne
-  $(bitPattern ".................100.....1100011") -> Right $ ExBranch Blt  immB -- blt
-  $(bitPattern ".................101.....1100011") -> Right $ ExBranch Bge  immB -- bge
-  $(bitPattern ".................110.....1100011") -> Right $ ExBranch Bltu immB -- bltu
-  $(bitPattern ".................111.....1100011") -> Right $ ExBranch Bgeu immB -- bgeu
+  $(bitPattern ".................000.....1100011") -> Right $ ExBranch Beq  npcB -- beq
+  $(bitPattern ".................001.....1100011") -> Right $ ExBranch Bne  npcB -- bne
+  $(bitPattern ".................100.....1100011") -> Right $ ExBranch Blt  npcB -- blt
+  $(bitPattern ".................101.....1100011") -> Right $ ExBranch Bge  npcB -- bge
+  $(bitPattern ".................110.....1100011") -> Right $ ExBranch Bltu npcB -- bltu
+  $(bitPattern ".................111.....1100011") -> Right $ ExBranch Bgeu npcB -- bgeu
   $(bitPattern ".................000.....0000011") -> Right $ ExLoad Lb  rd immI -- lb
   $(bitPattern ".................001.....0000011") -> Right $ ExLoad Lh  rd immI -- lh
   $(bitPattern ".................010.....0000011") -> Right $ ExLoad Lw  rd immI -- lw
@@ -152,6 +152,8 @@ parseInstr i = case i of
   $(bitPattern "0000000..........111.....0110011") -> Right $ ExAlu And  rd -- and
   _ -> Left IllegalInstruction
   where
+    npcB = immB + pc
+
     rd = sliceRd i
 
     immI :: BitVector 32
