@@ -11,7 +11,7 @@ module LionFV where
 import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Maybe           ( fromMaybe, isJust )
-import Lion.Core            (core, defaultPipeConfig, FromCore(..), ToMem(..) )
+import Lion.Core            (core, defaultCoreConfig, FromCore(..), ToMem(..) )
 import Lion.Rvfi            ( Rvfi )
 
 lionFV
