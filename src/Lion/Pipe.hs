@@ -254,10 +254,10 @@ execute = do
         meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
         control.branching ?= npc
         meIR ?= MeRegWr rd (pc + 4)
-    ExBranch op npc -> do
-      meRvfi.rvfiPcWData <~ if branch op rs1Data rs2Data
-                              then control.branching <?= npc
-                              else return $ pc + 4
+    ExBranch op branchPC -> do
+      npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
+                                     then control.branching <?= branchPC
+                                     else return $ pc + 4
       meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
       meIR ?= MeNop
     ExStore op imm -> do
