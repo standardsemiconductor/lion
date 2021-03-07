@@ -16,7 +16,7 @@ To compile, synthesize, and route without programming: `cabal run`
 ### Clean
 `cabal run soc -- clean`
 
-## Metrics for iCE40 FPGA: Mar 7 2021
+## Metrics as of Mar 7 2021 for iCE40
 ### Device utilisation
 ```
 Device utilisation:
