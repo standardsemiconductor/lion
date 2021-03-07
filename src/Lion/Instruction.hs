@@ -106,7 +106,7 @@ parseInstr :: BitVector 32 -> BitVector 32 -> Either Exception ExInstr
 parseInstr i pc = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
   $(bitPattern ".........................0010111") -> Right $ Ex Auipc rd immU -- auipc
-  $(bitPattern ".........................1101111") -> Right $ Ex Jal   rd immJ -- jal
+  $(bitPattern ".........................1101111") -> Right $ Ex Jal   rd npcJ -- jal
   $(bitPattern ".................000.....1100111") -> Right $ Ex Jalr  rd immI -- jalr
   $(bitPattern ".................000.....1100011") -> Right $ ExBranch Beq  npcB -- beq
   $(bitPattern ".................001.....1100011") -> Right $ ExBranch Bne  npcB -- bne
@@ -144,6 +144,7 @@ parseInstr i pc = case i of
   _ -> Left IllegalInstruction
   where
     npcB = immB + pc
+    npcJ = immJ + pc
 
     rd = sliceRd i
 
