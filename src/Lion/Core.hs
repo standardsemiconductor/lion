@@ -65,7 +65,7 @@ core config toCore = FromCore
     aluOp = fromMaybe I.Add . getFirst . P._toAluOp <$> fromPipe
     aluInput1 = fromMaybe 0 . getFirst . P._toAluInput1 <$> fromPipe
     aluInput2 = fromMaybe 0 . getFirst . P._toAluInput2 <$> fromPipe
-    aluOutput = register 0 $ alu (aluConfig config) aluOp aluInput1 aluInput2
+    aluOutput = alu (aluConfig config) aluOp aluInput1 aluInput2
     -- reg bank connection
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe

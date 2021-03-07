@@ -67,7 +67,7 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
 lion = rgb $ toMem fromCore
   where
-    fromCore = core defaultCoreConfig{ aluConfig = Hard } fromBios
+    fromCore = core defaultCoreConfig fromBios
     fromBios = bios $ toMem fromCore
     
 ----------------
