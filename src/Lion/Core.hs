@@ -29,15 +29,12 @@ import qualified Lion.Instruction as I (Op(Add))
 
 -- | Core configuration
 data CoreConfig = CoreConfig
-  { aluConfig  :: AluConfig -- ^ alu configuration
+  { aluConfig  :: AluConfig    -- ^ alu configuration, default = Soft
   , pipeConfig :: P.PipeConfig -- ^ pipeline configuration
   }
   deriving stock (Generic, Show, Eq)
 
 -- | Default core configuration
---
---  aluConfig = Soft
---  pipeConfig { startPC = 0 }
 defaultCoreConfig :: CoreConfig
 defaultCoreConfig = CoreConfig
   { aluConfig = Soft

@@ -18,13 +18,11 @@ import Lion.Rvfi
 
 -- | Pipeline configuration
 newtype PipeConfig = PipeConfig
-  { startPC :: BitVector 32 -- ^ initial Program Counter address
+  { startPC :: BitVector 32 -- ^ initial Program Counter address, default = 0
   }
   deriving stock (Generic, Show, Eq)
 
 -- | Default pipeline configuration
---
---   startPC = 0
 defaultPipeConfig :: PipeConfig
 defaultPipeConfig = PipeConfig 0
 
