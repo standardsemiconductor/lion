@@ -21,14 +21,14 @@ When connecting the `core` to memory and peripherals, ensure single cycle latenc
 
 ## Features
 ### Current Support
-Architecture: RV32I (no FENCE, ECALL, EBREAK)
+* Architecture: RV32I (no FENCE, ECALL, EBREAK)
+* Configurable ALU adder and subtractor: use a generic (+) and (-) or SB_MAC16 hard IP
 
 ### Future Support 
 **All features will be added in a configurable manner extending the base RV32I configuration noted above**
 * Zicsr, Control and Status Register (CSR) Instructions
 * CSR registers
 * RV32IM
-* Hard IP ALU
 
 [hackage]:            <https://hackage.haskell.org/package/lion>
 [hackage-badge]:      <https://img.shields.io/hackage/v/lion.svg?color=success>

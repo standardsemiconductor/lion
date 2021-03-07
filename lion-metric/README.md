@@ -10,22 +10,22 @@ generate metrics: `cabal run`
 
 clean: `cabal run metric -- clean`
 
-## Metrics as of Mar 6 2021 for iCE40
+## Metrics as of Mar 7 2021 for iCE40
 ```
 === Metric ===
 
-   Number of wires:               2316
-   Number of wire bits:         582607
-   Number of public wires:        2316
-   Number of public wire bits:  582607
+   Number of wires:               2879
+   Number of wire bits:         657683
+   Number of public wires:        2879
+   Number of public wire bits:  657683
    Number of memories:               0
    Number of memory bits:            0
    Number of processes:              0
-   Number of cells:               3111
-     SB_CARRY                      490
-     SB_DFF                        260
-     SB_DFFE                        42
-     SB_DFFSR                        2
-     SB_LUT4                      2323
+   Number of cells:               2913
+     SB_CARRY                      369
+     SB_DFF                        289
+     SB_DFFE                        44
+     SB_DFFSR                       34
+     SB_LUT4                      2173
      SB_RAM40_4K                     4
 ```

@@ -16,20 +16,20 @@ To compile, synthesize, and route without programming: `cabal run`
 ### Clean
 `cabal run soc -- clean`
 
-## Metrics for iCE40 FPGA
+## Metrics for iCE40 FPGA: Mar 7 2021
 ### Device utilisation
 ```
 Device utilisation:
- ICESTORM_LC:  2692/ 5280    50%
+ ICESTORM_LC:  2438/ 5280    46%
 ICESTORM_RAM:     8/   30    26%
        SB_IO:     1/   96     1%
-       SB_GB:     3/    8    37%
+       SB_GB:     4/    8    50%
  SB_LEDDA_IP:     1/    1   100%
  SB_RGBA_DRV:     1/    1   100%
 ```
 ### Clock frequency
 ```
-Max frequency for clock: 13.59 MHz
+Max frequency for clock: 13.03 MHz (PASS @ 12Mhz)
 ```
 
 ## Memory Map
