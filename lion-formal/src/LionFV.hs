@@ -11,7 +11,7 @@ module LionFV where
 import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Maybe           ( fromMaybe, isJust )
-import Lion.Core            (core, defaultPipeConfig, FromCore(..), ToMem(..) )
+import Lion.Core            (core, defaultCoreConfig, FromCore(..), ToMem(..) )
 import Lion.Rvfi            ( Rvfi )
 
 lionFV
@@ -33,7 +33,7 @@ lionFV memRData =
   , toRvfi fromCore
   )
   where
-    fromCore = core defaultPipeConfig memRData
+    fromCore = core defaultCoreConfig memRData
     memValid = isJust <$> toMem fromCore
     memInstr = fromMaybe False . fmap isInstr <$> toMem fromCore
     memAddr  = maybe 0 getAddr <$> toMem fromCore

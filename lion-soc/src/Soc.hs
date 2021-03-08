@@ -78,7 +78,7 @@ lion rxIn = FromSoc
     fromBios = bios fromCore
     fromRgb  = rgb  fromCore 
     (tx, fromUart) = uart fromCore rxIn
-    fromCore = fmap (mkBus =<<) $ toMem $ core defaultPipeConfig $ 
+    fromCore = toMem $ core defaultCoreConfig $ 
       fmap (fromMaybe 0 . getFirst . fold) $ sequenceA $
            fromBios
         :> fromUart

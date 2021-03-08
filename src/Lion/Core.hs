@@ -10,8 +10,11 @@ The Lion core is a 32-bit RISC-V processor written in Haskell using [Clash](http
 
 module Lion.Core 
   ( core
+  , AluConfig(..)
   , P.PipeConfig(..)
   , P.defaultPipeConfig
+  , defaultCoreConfig
+  , CoreConfig(..)
   , FromCore(..)
   , P.ToMem(..)
   ) where
@@ -19,8 +22,24 @@ module Lion.Core
 import Clash.Prelude
 import Data.Maybe
 import Data.Monoid
+import Lion.Alu (AluConfig(..), alu)
 import Lion.Rvfi
 import qualified Lion.Pipe as P
+import qualified Lion.Instruction as I (Op(Add))
+
+-- | Core configuration
+data CoreConfig = CoreConfig
+  { aluConfig  :: AluConfig    -- ^ alu configuration, default = Soft
+  , pipeConfig :: P.PipeConfig -- ^ pipeline configuration
+  }
+  deriving stock (Generic, Show, Eq)
+
+-- | Default core configuration
+defaultCoreConfig :: CoreConfig
+defaultCoreConfig = CoreConfig
+  { aluConfig = Soft
+  , pipeConfig = P.defaultPipeConfig
+  }
 
 -- | Core outputs
 data FromCore dom = FromCore
@@ -31,7 +50,7 @@ data FromCore dom = FromCore
 -- | RISC-V Core
 core
   :: HiddenClockResetEnable dom
-  => P.PipeConfig               -- ^ pipeline configuration
+  => CoreConfig               -- ^ core configuration
   -> Signal dom (BitVector 32)  -- ^ core input, from memory/peripherals
   -> FromCore dom               -- ^ core output
 core config toCore = FromCore
@@ -39,11 +58,22 @@ core config toCore = FromCore
   , toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
   }
   where
-    fromPipe = P.pipe config $ P.ToPipe <$> rs1Data <*> rs2Data <*> toCore
+    -- alu connection
+    aluOp = fromMaybe I.Add . getFirst . P._toAluOp <$> fromPipe
+    aluInput1 = fromMaybe 0 . getFirst . P._toAluInput1 <$> fromPipe
+    aluInput2 = fromMaybe 0 . getFirst . P._toAluInput2 <$> fromPipe
+    aluOutput = alu (aluConfig config) aluOp aluInput1 aluInput2
+    -- reg bank connection
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
     rdWrM = getFirst . P._toRd <$> fromPipe
     (rs1Data, rs2Data) = regBank rs1Addr rs2Addr rdWrM
+
+    -- pipeline connection
+    fromPipe = P.pipe (pipeConfig config) $ P.ToPipe <$> rs1Data 
+                                                     <*> rs2Data 
+                                                     <*> aluOutput
+                                                     <*> toCore
 
 -- | Register bank
 regBank

@@ -21,7 +21,8 @@ source-repository head
 library
   exposed-modules: Lion.Core
                  , Lion.Rvfi
-  other-modules:   Lion.Instruction
+  other-modules:   Lion.Alu
+                 , Lion.Instruction
                  , Lion.Pipe
   hs-source-dirs: src
   default-language: Haskell2010

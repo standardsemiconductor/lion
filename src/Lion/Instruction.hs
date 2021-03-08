@@ -15,6 +15,7 @@ data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Writeback pipeline instruction
 data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
              | WbLoad Load (Unsigned 5) (BitVector 4)
              | WbStore
@@ -22,14 +23,19 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-data MeInstr = MeRegWr      (Unsigned 5) (BitVector 32)
+-- | Memory pipeline instruction
+data MeInstr = MeRegWr      (Unsigned 5)
+             | MeJump Jump  (Unsigned 5) (BitVector 32)
+             | MeBranch Bool             (BitVector 32)
              | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
              | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
              | MeNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Execute pipeline instruction
 data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
+             | ExJump   Jump   (Unsigned 5) (BitVector 32)
              | ExBranch Branch              (BitVector 32)
              | ExStore  Store               (BitVector 32)
              | ExLoad   Load   (Unsigned 5) (BitVector 32)
@@ -38,6 +44,7 @@ data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | ALU operation
 data Op = Add
         | Sub
         | Sll
@@ -51,23 +58,7 @@ data Op = Add
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-alu :: Op -> BitVector 32 -> BitVector 32 -> BitVector 32
-alu = \case
-  Add  -> (+)
-  Sub  -> (-)
-  Sll  -> \x y -> x `shiftL` shamt y
-  Slt  -> boolToBV ... (<) `on` sign
-  Sltu -> boolToBV ... (<)
-  Xor  -> xor
-  Srl  -> \x y -> x `shiftR` shamt y
-  Sra  -> \x y -> pack $ sign x `shiftR` shamt y
-  Or   -> (.|.)
-  And  -> (.&.)
-  where
-    shamt = unpack . resize . slice d4 d0
-    sign = unpack :: BitVector 32 -> Signed 32
-    (...) = (.).(.)
-
+-- | Branch operation
 data Branch = Beq
             | Bne
             | Blt
@@ -77,6 +68,7 @@ data Branch = Beq
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | branch calculation
 branch :: Branch -> BitVector 32 -> BitVector 32 -> Bool
 branch = \case
   Beq  -> not ... (/=)
@@ -92,17 +84,28 @@ branch = \case
 
 data ExOp = Lui
           | Auipc
-          | Jal
-          | Jalr
+--          | Jal
+--          | Jalr
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+data Jump = Jal | Jalr
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+jumpAddress :: Jump -> BitVector 32 -> BitVector 32
+jumpAddress = \case
+  Jal  -> id
+  Jalr -> flip clearBit 0 
+
+-- | Store operation
 data Store = Sb
            | Sh
            | Sw
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+-- | Load operation
 data Load = Lb
           | Lh
           | Lw
@@ -115,8 +118,8 @@ parseInstr :: BitVector 32 -> Either Exception ExInstr
 parseInstr i = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
   $(bitPattern ".........................0010111") -> Right $ Ex Auipc rd immU -- auipc
-  $(bitPattern ".........................1101111") -> Right $ Ex Jal   rd immJ -- jal
-  $(bitPattern ".................000.....1100111") -> Right $ Ex Jalr  rd immI -- jalr
+  $(bitPattern ".........................1101111") -> Right $ ExJump Jal  rd immJ -- jal
+  $(bitPattern ".................000.....1100111") -> Right $ ExJump Jalr rd immI -- jalr
   $(bitPattern ".................000.....1100011") -> Right $ ExBranch Beq  immB -- beq
   $(bitPattern ".................001.....1100011") -> Right $ ExBranch Bne  immB -- bne
   $(bitPattern ".................100.....1100011") -> Right $ ExBranch Blt  immB -- blt
@@ -152,6 +155,9 @@ parseInstr i = case i of
   $(bitPattern "0000000..........111.....0110011") -> Right $ ExAlu And  rd -- and
   _ -> Left IllegalInstruction
   where
+--    npcB = immB + pc
+--    npcJ = immJ + pc
+
     rd = sliceRd i
 
     immI :: BitVector 32
