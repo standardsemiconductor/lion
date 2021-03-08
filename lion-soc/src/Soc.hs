@@ -13,6 +13,7 @@ import Clash.Annotations.TH
 import Data.Functor ( (<&>) )
 import Data.Maybe ( fromMaybe )
 import Ice40.Clock
+import Ice40.Osc ( hf12Mhz )
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core
@@ -64,6 +65,7 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 --------------
 -- Lion SOC --
 --------------
+{-# NOINLINE lion #-}
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
 lion = rgb $ toMem fromCore
   where
@@ -74,6 +76,9 @@ lion = rgb $ toMem fromCore
 -- Top Entity --
 ----------------
 {-# NOINLINE topEntity #-}
-topEntity :: "clk" ::: Clock Lattice12Mhz -> "led" ::: Signal Lattice12Mhz Rgb
-topEntity clk = withClockResetEnable clk latticeRst enableGen lion
+topEntity :: "led" ::: Signal Lattice12Mhz Rgb
+topEntity = withClockResetEnable clk latticeRst enableGen lion
+  where
+    clk = hf12Mhz (pure True :: Signal System Bool)
+                  (pure True :: Signal System Bool)
 makeTopEntityWithName 'topEntity "Soc"
