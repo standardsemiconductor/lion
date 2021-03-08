@@ -223,14 +223,8 @@ memory = do
       wr <- view fromAlu
       control.meRegFwd ?= (rd, wr)
       wbIR ?= WbRegWr rd wr
-    MeJal rd pc4 -> do
-      npc <- wbRvfi.rvfiPcWData <<~ view fromAlu
-      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-      control.meBranching ?= npc
-      control.meRegFwd ?= (rd, pc4)
-      wbIR ?= WbRegWr rd pc4
-    MeJalr rd pc4 -> do
-      npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (flip clearBit 0)
+    MeJump jump rd pc4 -> do
+      npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (jumpAddress jump) -- jal: id, jalr: flip clearBit 0
       wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
       control.meBranching ?= npc
       control.meRegFwd ?= (rd, pc4)
@@ -267,44 +261,26 @@ execute = do
   rs1Data <- meRvfi.rvfiRs1Data <<~ regFwd exRs1 fromRs1 (control.meRegFwd) (control.wbRegFwd)
   rs2Data <- meRvfi.rvfiRs2Data <<~ regFwd exRs2 fromRs2 (control.meRegFwd) (control.wbRegFwd)
   withInstr exIR $ \case
-    Ex op rd imm -> do
-      meIR ?= MeRegWr rd
-      case op of
-        Lui -> do 
-          scribeAlu Add 0 imm
-          meIR ?= MeRegWr rd
-        Auipc -> do
-          scribeAlu Add pc imm
-          meIR ?= MeRegWr rd
+    Ex op rd imm -> case op of
+      Lui -> do 
+        scribeAlu Add 0 imm
+        meIR ?= MeRegWr rd
+      Auipc -> do
+        scribeAlu Add pc imm
+        meIR ?= MeRegWr rd
+    ExJump jump rd imm -> do
+      control.exBranching .= True
+      case jump of
         Jal -> do
---          meRvfi.rvfiPcWData .= imm -- note: imm = jumpPC
---          meRvfi.rvfiTrap ||= (imm .&. 0x3 /= 0)
---          scribe toMem $ First $ Just $ InstrMem imm
---          control.exBranching ?= imm
---          scribeAlu Add pc 4
-          control.exBranching .= True
           scribeAlu Add pc imm -- compute jump address with alu
-          meIR ?= MeJal rd pc4
+          meIR ?= MeJump Jal rd pc4
         Jalr -> do
---          npc <- meRvfi.rvfiPcWData <.= clearBit (rs1Data + imm) 0
---          meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
---          scribe toMem $ First $ Just $ InstrMem npc
---          control.branching ?= npc
---          scribeAlu Add pc 4
-          control.exBranching .= True
           scribeAlu Add rs1Data imm -- compute jump address with alu
-          meIR ?= MeJalr rd pc4
+          meIR ?= MeJump Jalr rd pc4
     ExBranch op imm -> do
       let isBranch = branch op rs1Data rs2Data
       when isBranch $ control.exBranching .= True
       scribeAlu Add pc imm -- compute branch address with alu
-
---      npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
---                                     then do
---                                       scribe toMem $ First $ Just $ InstrMem branchPC
---                                       control.branching <?= branchPC
---                                     else return $ pc + 4
---      meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
       meIR ?= MeBranch (branch op rs1Data rs2Data) pc4
     ExStore op imm -> do
       let addr = rs1Data + imm            -- unaligned
@@ -330,10 +306,10 @@ execute = do
          | otherwise -> do -- Lw
              meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
              meIR ?= MeLoad op rdAddr addr' 0xF
-    ExAlu    op rd     -> do -- meIR ?= MeRegWr rd (alu op rs1Data rs2Data)
+    ExAlu op rd -> do
       scribeAlu op rs1Data rs2Data
       meIR ?= MeRegWr rd
-    ExAluImm op rd imm -> do -- meIR ?= MeRegWr rd (alu op rs1Data imm)
+    ExAluImm op rd imm -> do
       scribeAlu op rs1Data imm
       meIR ?= MeRegWr rd
   where
@@ -460,7 +436,7 @@ withInstr l k = use l >>= mapM_ k
 -- *  = Stall
 -- B  = Branch
 -- 
--- Jump/Branch (Except JALR)
+-- Jump/Branch (Except JALR) -- OLD
 -- +----+-----+-----+----+----+
 -- | IF | DE  | EX  | ME | WB |
 -- +====+=====+=====+====+====+
@@ -471,7 +447,7 @@ withInstr l k = use l >>= mapM_ k
 -- | 15 |  O  | J15 | -- | -- |
 -- +----+-----+-----+----+----+
 --
--- Jalr
+-- Jump/Branch
 -- +----+------+------+------+----+
 -- | IF |  DE  |  EX  |  ME  | WB |
 -- +====+======+======+======+====+

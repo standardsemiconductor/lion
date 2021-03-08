@@ -25,8 +25,7 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
 
 -- | Memory pipeline instruction
 data MeInstr = MeRegWr      (Unsigned 5)
-             | MeJal        (Unsigned 5) (BitVector 32)
-             | MeJalr       (Unsigned 5) (BitVector 32)
+             | MeJump Jump  (Unsigned 5) (BitVector 32)
              | MeBranch Bool             (BitVector 32)
              | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
              | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
@@ -36,6 +35,7 @@ data MeInstr = MeRegWr      (Unsigned 5)
 
 -- | Execute pipeline instruction
 data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
+             | ExJump   Jump   (Unsigned 5) (BitVector 32)
              | ExBranch Branch              (BitVector 32)
              | ExStore  Store               (BitVector 32)
              | ExLoad   Load   (Unsigned 5) (BitVector 32)
@@ -84,10 +84,19 @@ branch = \case
 
 data ExOp = Lui
           | Auipc
-          | Jal
-          | Jalr
+--          | Jal
+--          | Jalr
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+
+data Jump = Jal | Jalr
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+jumpAddress :: Jump -> BitVector 32 -> BitVector 32
+jumpAddress = \case
+  Jal  -> id
+  Jalr -> flip clearBit 0 
 
 -- | Store operation
 data Store = Sb
@@ -109,8 +118,8 @@ parseInstr :: BitVector 32 -> Either Exception ExInstr
 parseInstr i = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
   $(bitPattern ".........................0010111") -> Right $ Ex Auipc rd immU -- auipc
-  $(bitPattern ".........................1101111") -> Right $ Ex Jal   rd immJ -- jal
-  $(bitPattern ".................000.....1100111") -> Right $ Ex Jalr  rd immI -- jalr
+  $(bitPattern ".........................1101111") -> Right $ ExJump Jal  rd immJ -- jal
+  $(bitPattern ".................000.....1100111") -> Right $ ExJump Jalr rd immI -- jalr
   $(bitPattern ".................000.....1100011") -> Right $ ExBranch Beq  immB -- beq
   $(bitPattern ".................001.....1100011") -> Right $ ExBranch Bne  immB -- bne
   $(bitPattern ".................100.....1100011") -> Right $ ExBranch Blt  immB -- blt
