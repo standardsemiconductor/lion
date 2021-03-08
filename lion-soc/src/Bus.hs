@@ -15,8 +15,8 @@ import Lion.Core (ToMem(..))
 -- Bus --
 ---------
 -- | SoC Memory/Peripheral access bus
-data Bus = Bios -- ^ bios access 
-             (Unsigned 8) -- ^ bios word address
+data Bus = Rom -- ^ rom access 
+             (Unsigned 8) -- ^ rom word address
          | Led -- ^ LED access 
              (BitVector 4) -- ^ LED IP Register Address
              (BitVector 8) -- ^ LED IP Register Write Data
@@ -27,26 +27,31 @@ data Bus = Bios -- ^ bios access
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
--- | forget whether memory access is instruction or data.
-forgetAccessType :: ToMem -> (BitVector 32, BitVector 4, Maybe (BitVector 32))
-forgetAccessType = \case
-  InstrMem addr        -> (addr, 0xF, Nothing)
-  DataMem addr msk wrM -> (addr, msk, wrM)
+busMap :: ToMem -> Maybe Bus
+busMap toMem = 
+      romMap  toMem 
+  <|> ledMap  toMem
+  <|> uartMap toMem
 
-mkBus :: ToMem -> Maybe Bus
-mkBus = busMap . forgetAccessType
+romMap :: ToMem -> Maybe Bus
+romMap = \case
+  InstrMem a@($(bitPattern "000000000000000000000000........")) 
+    -> Just $ Rom $ wordAddr a
+  DataMem  a@($(bitPattern "000000000000000000000000........")) _ Nothing 
+    -> Just $ Rom $ wordAddr a
+  _ -> Nothing
+  where
+    wordAddr :: BitVector 32 -> Unsigned 8
+    wordAddr addr = unpack $ slice d7 d0 $ addr `shiftR` 2
 
-busMap :: (BitVector 32, BitVector 4, Maybe (BitVector 32)) -> Maybe Bus
-busMap (addr, msk, wrM) = case addr of
-  $(bitPattern "000000000000000000000000........") -> -- bios
-    let wordAddr = unpack $ slice d7 d0 $ addr `shiftR` 2
-    in Just $ Bios wordAddr
-  $(bitPattern "000000000000000000000001000000..") -> case (msk, wrM) of -- led
-    ( $(bitPattern "..11"), Just d ) -> Just $ Led (slice d11 d8 d) (slice d7 d0 d)
-    _ -> Nothing
-  $(bitPattern "000000000000000000000001000001..") -> -- uart
+ledMap :: ToMem -> Maybe Bus
+ledMap = \case
+  DataMem $(bitPattern "000000000000000000000001000000..") $(bitPattern "..11") (Just d) ->
+    Just $ Led (slice d11 d8 d) (slice d7 d0 d)
+  _ -> Nothing
+
+uartMap :: ToMem -> Maybe Bus
+uartMap = \case
+  DataMem $(bitPattern "000000000000000000000001000001..") msk wrM ->
     Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
---    ( $(bitPattern ".100"), Nothing) -> Just $ Uart UartStatus
---    ( $(bitPattern ".010"), Nothing) -> Just $ Uart UartRead
---    ( $(bitPattern ".001"), Just d)  -> Just $ Uart $ UartWrite $ slice d7 d0 d
   _ -> Nothing

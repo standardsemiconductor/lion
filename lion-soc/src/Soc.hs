@@ -17,8 +17,8 @@ import Data.Monoid ( First(..) )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
-import Lion.Core (FromCore(..), defaultPipeConfig, core)
-import Bus  ( mkBus, Bus(Bios, Led) )
+import Lion.Core (FromCore(..), defaultCoreConfig, core)
+import Bus  ( busMap, Bus(Rom, Led) )
 import Uart ( uart )
 
 data FromSoc dom = FromSoc
@@ -40,22 +40,22 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
       _              -> (0, 0, False)
 
 ----------
--- BIOS --
+-- ROM --
 ----------
 bios
   :: HiddenClockResetEnable dom
   => Signal dom (Maybe Bus)
   -> Signal dom (First (BitVector 32))
-bios mem = mux (delay False isValid) biosOut $ pure $ First Nothing
+bios mem = mux (delay False isValid) romOut $ pure $ First Nothing
   where
-    biosOut = fmap (First . Just) $ concat4 <$> b3 <*> b2 <*> b1 <*> b0
+    romOut = fmap (First . Just) $ concat4 <$> b3 <*> b2 <*> b1 <*> b0
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
     b0 = romFilePow2 "_build/bios/bios.rom0" addr
     (addr, isValid) = unbundle $ mem <&> \case
-      Just (Bios a) -> (a, True )
-      _             -> (0, False)
+      Just (Rom a) -> (a, True )
+      _            -> (0, False)
 
 concat4
   :: KnownNat n
@@ -78,7 +78,7 @@ lion rxIn = FromSoc
     fromBios = bios fromCore
     fromRgb  = rgb  fromCore 
     (tx, fromUart) = uart fromCore rxIn
-    fromCore = toMem $ core defaultCoreConfig $ 
+    fromCore = fmap (busMap =<<) $ toMem $ core defaultCoreConfig $ 
       fmap (fromMaybe 0 . getFirst . fold) $ sequenceA $
            fromBios
         :> fromUart
