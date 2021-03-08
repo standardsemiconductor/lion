@@ -173,21 +173,15 @@ rxReset = do
 
 uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
-  transmit
-  receive
   view fromBus >>= \case
     Just (B.Uart $(bitPattern "100") Nothing) -> do  -- read status byte
       rxS <- uses rxStatus fromStatus
       txS <- uses txBuffer $ boolToBV . isJust 
       let status = (rxS `shiftL` 1) .|. txS
       scribe toCore $ First $ Just $ status `shiftL` 16
---    Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
---      scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
---      rxReset
---    Just (B.Uart $(bitPattern "001") (Just wr)) -> do -- write send byte
---      txReset
---      txBuffer ?= frame wr
     _ -> return ()
+  transmit
+  receive
 
 uartMealy :: Uart -> ToUart -> (Uart, FromUart)
 uartMealy s i = let ((), s', o) = runRWS uartM i s
@@ -200,8 +194,8 @@ uart
   -> Unbundled dom (Bit, First (BitVector 32)) -- ^ (uart tx, toCore)
 uart bus rxIn = (txOut', uartOut)
   where
-    uartOut = delay (First Nothing) $ _toCore <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn'
+    uartOut = _toCore <$> fromUart
+    fromUart = mealy uartMealy mkUart $ ToUart <$> delay Nothing bus <*> rxIn'
     rxIn' = register 1 $ register 1 rxIn
     txOut' = register 1 $ register 1 $ unTx . _tx <$> fromUart
 
