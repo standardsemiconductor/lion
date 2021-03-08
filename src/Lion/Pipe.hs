@@ -67,14 +67,15 @@ data FromPipe = FromPipe
 makeLenses ''FromPipe
 
 data Control = Control
-  { _firstCycle :: Bool                             -- ^ First cycle True, then always False
-  , _branching  :: Maybe (BitVector 32)             -- ^ execute stage branch
-  , _deLoad     :: Bool                             -- ^ decode stage load
-  , _exLoad     :: Bool                             -- ^ execute stage load
-  , _meMemory   :: Bool                             -- ^ memory stage load/store
-  , _wbMemory   :: Bool                             -- ^ writeback stage load/store
-  , _meRegFwd   :: Maybe (Unsigned 5, BitVector 32) -- ^ memory stage register forwarding
-  , _wbRegFwd   :: Maybe (Unsigned 5, BitVector 32) -- ^ writeback stage register forwading
+  { _firstCycle  :: Bool                             -- ^ First cycle True, then always False
+  , _exBranching :: Bool                             -- ^ execute stage branch/jump
+  , _meBranching :: Maybe (BitVector 32)             -- ^ memory stage branch/jump
+  , _deLoad      :: Bool                             -- ^ decode stage load
+  , _exLoad      :: Bool                             -- ^ execute stage load
+  , _meMemory    :: Bool                             -- ^ memory stage load/store
+  , _wbMemory    :: Bool                             -- ^ writeback stage load/store
+  , _meRegFwd    :: Maybe (Unsigned 5, BitVector 32) -- ^ memory stage register forwarding
+  , _wbRegFwd    :: Maybe (Unsigned 5, BitVector 32) -- ^ writeback stage register forwading
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -82,14 +83,15 @@ makeLenses ''Control
 
 mkControl :: Control
 mkControl = Control 
-  { _firstCycle = True   
-  , _branching  = Nothing
-  , _deLoad     = False
-  , _exLoad     = False
-  , _meMemory   = False
-  , _wbMemory   = False
-  , _meRegFwd   = Nothing
-  , _wbRegFwd   = Nothing
+  { _firstCycle  = True   
+  , _exBranching = False
+  , _meBranching = Nothing
+  , _deLoad      = False
+  , _exLoad      = False
+  , _meMemory    = False
+  , _wbMemory    = False
+  , _meRegFwd    = Nothing
+  , _wbRegFwd    = Nothing
   }
 
 data Pipe = Pipe
@@ -162,13 +164,14 @@ pipe config = mealy pipeMealy (mkPipe config)
 -- | reset control signals (except first cycle)
 resetControl :: MonadState Pipe m => m ()
 resetControl = do
-  control.branching .= Nothing
-  control.deLoad    .= False
-  control.exLoad    .= False
-  control.meMemory  .= False
-  control.wbMemory  .= False
-  control.meRegFwd  .= Nothing
-  control.wbRegFwd  .= Nothing
+  control.exBranching .= False
+  control.meBranching .= Nothing
+  control.deLoad      .= False
+  control.exLoad      .= False
+  control.meMemory    .= False
+  control.wbMemory    .= False
+  control.meRegFwd    .= Nothing
+  control.wbRegFwd    .= Nothing
 
 -- | Monadic pipeline
 pipeM :: RWS ToPipe FromPipe Pipe ()
@@ -215,11 +218,31 @@ memory = do
   wbIR   .= Nothing
   wbRvfi <~ use meRvfi
   withInstr meIR $ \case
+    MeNop -> wbIR ?= WbNop
     MeRegWr rd -> do
       wr <- view fromAlu
       control.meRegFwd ?= (rd, wr)
       wbIR ?= WbRegWr rd wr
-    MeNop -> wbIR ?= WbNop
+    MeJal rd pc4 -> do
+      npc <- wbRvfi.rvfiPcWData <<~ view fromAlu
+      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      control.meBranching ?= npc
+      control.meRegFwd ?= (rd, pc4)
+      wbIR ?= WbRegWr rd pc4
+    MeJalr rd pc4 -> do
+      npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (flip clearBit 0)
+      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      control.meBranching ?= npc
+      control.meRegFwd ?= (rd, pc4)
+      wbIR ?= WbRegWr rd pc4
+    MeBranch isBranch pc4 -> do
+      npc <- wbRvfi.rvfiPcWData <<~ if isBranch
+                                      then do
+                                        branchPC <- view fromAlu
+                                        control.meBranching <?= branchPC
+                                      else return pc4
+      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      wbIR ?= WbNop
     MeStore addr mask value -> do
       control.meMemory .= True
       scribe toMem $ First $ Just $ DataMem addr mask $ Just value
@@ -239,32 +262,50 @@ execute :: RWS ToPipe FromPipe Pipe ()
 execute = do
   meIR .= Nothing
   meRvfi <~ use exRvfi
-  pc <- meRvfi.rvfiPcRData <<~ use exPC
-  meRvfi.rvfiPcWData .= pc + 4
+  pc  <- meRvfi.rvfiPcRData <<~ use exPC
+  pc4 <- meRvfi.rvfiPcWData <.= pc + 4
   rs1Data <- meRvfi.rvfiRs1Data <<~ regFwd exRs1 fromRs1 (control.meRegFwd) (control.wbRegFwd)
   rs2Data <- meRvfi.rvfiRs2Data <<~ regFwd exRs2 fromRs2 (control.meRegFwd) (control.wbRegFwd)
   withInstr exIR $ \case
     Ex op rd imm -> do
       meIR ?= MeRegWr rd
       case op of
-        Lui   -> scribeAlu Add 0 imm
-        Auipc -> scribeAlu Add pc imm
+        Lui -> do 
+          scribeAlu Add 0 imm
+          meIR ?= MeRegWr rd
+        Auipc -> do
+          scribeAlu Add pc imm
+          meIR ?= MeRegWr rd
         Jal -> do
-          meRvfi.rvfiPcWData .= imm -- note: imm = jumpPC
-          meRvfi.rvfiTrap ||= (imm .&. 0x3 /= 0)
-          control.branching ?= imm
-          scribeAlu Add pc 4
+--          meRvfi.rvfiPcWData .= imm -- note: imm = jumpPC
+--          meRvfi.rvfiTrap ||= (imm .&. 0x3 /= 0)
+--          scribe toMem $ First $ Just $ InstrMem imm
+--          control.exBranching ?= imm
+--          scribeAlu Add pc 4
+          control.exBranching .= True
+          scribeAlu Add pc imm -- compute jump address with alu
+          meIR ?= MeJal rd pc4
         Jalr -> do
-          npc <- meRvfi.rvfiPcWData <.= clearBit (rs1Data + imm) 0
-          meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-          control.branching ?= npc
-          scribeAlu Add pc 4
-    ExBranch op branchPC -> do
-      npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
-                                     then control.branching <?= branchPC
-                                     else return $ pc + 4
-      meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-      meIR ?= MeNop
+--          npc <- meRvfi.rvfiPcWData <.= clearBit (rs1Data + imm) 0
+--          meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+--          scribe toMem $ First $ Just $ InstrMem npc
+--          control.branching ?= npc
+--          scribeAlu Add pc 4
+          control.exBranching .= True
+          scribeAlu Add rs1Data imm -- compute jump address with alu
+          meIR ?= MeJalr rd pc4
+    ExBranch op imm -> do
+      let isBranch = branch op rs1Data rs2Data
+      when isBranch $ control.exBranching .= True
+      scribeAlu Add pc imm -- compute branch address with alu
+
+--      npc <- meRvfi.rvfiPcWData <<~ if branch op rs1Data rs2Data
+--                                     then do
+--                                       scribe toMem $ First $ Just $ InstrMem branchPC
+--                                       control.branching <?= branchPC
+--                                     else return $ pc + 4
+--      meRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      meIR ?= MeBranch (branch op rs1Data rs2Data) pc4
     ExStore op imm -> do
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
@@ -327,14 +368,15 @@ decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exIR .= Nothing
   exRvfi .= mkRvfi
-  isFirstCycle <- control.firstCycle <<.= False -- first memory output undefined
-  isBranching  <- uses (control.branching) isJust
-  isWbMemory   <- use $ control.wbMemory
-  isExLoad     <- use $ control.exLoad
-  unless (isFirstCycle || isBranching || isWbMemory || isExLoad) $ do
+  isFirstCycle  <- control.firstCycle <<.= False -- first memory output undefined
+  isMeBranching <- uses (control.meBranching) isJust
+  isWbMemory    <- use $ control.wbMemory
+  isExLoad      <- use $ control.exLoad
+  isExBranching <- use $ control.exBranching
+  unless (isFirstCycle || isMeBranching || isWbMemory || isExLoad || isExBranching) $ do
     mem <- view fromMem
     pc <- use dePC
-    case parseInstr mem pc of
+    case parseInstr mem of
       Right instr -> do
         exIR ?= instr
         exPC .= pc
@@ -346,16 +388,14 @@ decode = do
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
       Left IllegalInstruction -> fetchPC .= pc -- roll-back PC, should handle trap
         
-
 -- | fetch instruction
---   stalled when instruction in memory stage needs bus  
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
-  use (control.branching) >>= mapM_ (assign fetchPC)
-  scribe toMem . First . Just . InstrMem =<< dePC <<~ use fetchPC
+  use (control.meBranching) >>= mapM_ (assign fetchPC)
+  scribe toMem . First . Just . InstrMem =<< use fetchPC
   isMeMemory <- use $ control.meMemory
   isDeLoad   <- use $ control.deLoad
-  unless (isMeMemory || isDeLoad) $ fetchPC += 4  
+  unless (isMeMemory || isDeLoad) $ dePC <~ fetchPC <<+= 4  
 
 -------------
 -- Utility --
@@ -413,13 +453,14 @@ withInstr l k = use l >>= mapM_ k
 -- | Hazards Note
 --
 -- Key:
--- J = Jump
--- O = Bubble
--- S = Store
--- * = Stall
--- B = Branch
+-- J  = JAL
+-- JR = JALR
+-- O  = Bubble
+-- S  = Store
+-- *  = Stall
+-- B  = Branch
 -- 
--- Jump/Branch
+-- Jump/Branch (Except JALR)
 -- +----+-----+-----+----+----+
 -- | IF | DE  | EX  | ME | WB |
 -- +====+=====+=====+====+====+
@@ -429,6 +470,19 @@ withInstr l k = use l >>= mapM_ k
 -- +----+-----+-----+----+----+
 -- | 15 |  O  | J15 | -- | -- |
 -- +----+-----+-----+----+----+
+--
+-- Jalr
+-- +----+------+------+------+----+
+-- | IF |  DE  |  EX  |  ME  | WB |
+-- +====+======+======+======+====+
+-- | 4  | ---- | ---- | ---- | -- |
+-- +----+------+------+------+----+
+-- | 8  | JR20 | ---- | ---- | -- |
+-- +----+------+------+------+----+
+-- | 12 |  O   | JR20 | ---- | -- |
+-- +----+------+------+------+----+
+-- | 20 |  O   |  O   | JR20 | -- |
+-- +----+------+------+------+----+
 --
 -- Store
 -- +-------+------+------+------+----+
