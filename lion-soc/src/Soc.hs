@@ -28,7 +28,7 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
       Just (DataMem 
-              $(bitPattern "00000000000000000000000100000000")
+              $(bitPattern "000000000000000000000000000000..")
               $(bitPattern "0011")
               (Just d)
            ) -> (slice d7 d0 d, slice d11 d8 d, True)
@@ -69,7 +69,7 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
 lion = rgb $ toMem fromCore
   where
-    fromCore = core defaultCoreConfig fromBios
+    fromCore = core defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 }} fromBios
     fromBios = bios $ toMem fromCore
     
 ----------------
