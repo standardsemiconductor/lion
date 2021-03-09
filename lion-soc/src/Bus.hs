@@ -27,13 +27,14 @@ data Bus = Rom -- ^ rom access
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+{-
 busMap :: ToMem -> Maybe Bus
 busMap toMem = 
       romMap  toMem 
   <|> ledMap  toMem
   <|> uartMap toMem
-
-romMap :: ToMem -> Maybe Bus
+-}
+romMap :: ToMem -> Maybe (Unsigned 8)
 romMap = \case
   InstrMem a@($(bitPattern "000000000000000000000000........")) 
     -> Just $ Rom $ wordAddr a

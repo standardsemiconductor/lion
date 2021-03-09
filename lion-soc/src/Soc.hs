@@ -8,17 +8,14 @@ Maintainer  : standardsemiconductor@gmail.com
 
 module Soc where
 
-import Clash.Prelude hiding ( fold )
+import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Functor ( (<&>) )
-import Data.Foldable ( fold )
-import Data.Maybe ( fromMaybe )
-import Data.Monoid ( First(..) )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core (FromCore(..), defaultCoreConfig, core)
-import Bus  ( busMap, Bus(Rom, Led) )
+import Bus  ( busMap, Bus(Rom, Uart, Led) )
 import Uart ( uart )
 
 data FromSoc dom = FromSoc
@@ -45,17 +42,16 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
 bios
   :: HiddenClockResetEnable dom
   => Signal dom (Maybe Bus)
-  -> Signal dom (First (BitVector 32))
-bios mem = mux (delay False isValid) romOut $ pure $ First Nothing
+  -> Signal dom (BitVector 32)
+bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
-    romOut = fmap (First . Just) $ concat4 <$> b3 <*> b2 <*> b1 <*> b0
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
     b0 = romFilePow2 "_build/bios/bios.rom0" addr
-    (addr, isValid) = unbundle $ mem <&> \case
-      Just (Rom a) -> (a, True )
-      _            -> (0, False)
+    addr = mem <&> \case
+      Just (Rom a) -> a
+      _            -> 0
 
 concat4
   :: KnownNat n
@@ -75,14 +71,19 @@ lion rxIn = FromSoc
   , txOut  = tx
   }
   where
-    fromBios = bios fromCore
-    fromRgb  = rgb  fromCore 
+    fromBios       = bios fromCore
+    fromRgb        = rgb  fromCore 
     (tx, fromUart) = uart fromCore rxIn
-    fromCore = fmap (busMap =<<) $ toMem $ core defaultCoreConfig $ 
-      fmap (fromMaybe 0 . getFirst . fold) $ sequenceA $
-           fromBios
-        :> fromUart
-        :> Nil 
+    fromCore' = register Nothing fromCore 
+    fromCore = fmap (busMap =<<) $ toMem $ core defaultCoreConfig $
+      busMapIn <$> fromCore' <*> fromBios <*> fromUart
+ 
+
+busMapIn :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
+busMapIn busM fromRom fromUart = case busM of
+  Just (Rom _)    -> fromRom
+  Just (Uart _ _) -> fromUart
+  _               -> 0
 
 ----------------
 -- Top Entity --

@@ -12,7 +12,7 @@ import Clash.Prelude
 import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
-import Data.Maybe ( isJust )
+import Data.Maybe ( isJust, fromMaybe )
 import Data.Monoid.Generic
 
 -- | uart register
@@ -38,7 +38,6 @@ makeLenses ''ToUart
 data RxFsm = RxIdle
            | RxStart
            | RxRecv
-           | RxStop
   deriving stock (Generic, Show, Eq, Enum, Bounded)
   deriving anyclass NFDataX
 
@@ -47,9 +46,8 @@ data Status = Empty | Full
   deriving stock (Generic, Show, Eq, Enum)
   deriving anyclass NFDataX
 
-fromStatus :: KnownNat n => Status -> BitVector n
-fromStatus Empty = 0
-fromStatus Full  = 1
+fromStatus :: KnownNat n => Status -> BitVector (n + 1)
+fromStatus = boolToBV . (== Full)
 
 -- | Uart state
 data Uart = Uart
@@ -114,9 +112,10 @@ transmit = view fromBus >>= \case
   _ -> do
     bufferM <- use txBuffer
     forM_ bufferM $ \buf -> do
-      scribe tx . Tx =<< uses txIdx (buf!)
+      scribe tx $ Tx $ buf!(0 :: Index 10)
       ctr <- txBaud <<%= increment
       when (ctr == maxBound) $ do
+        txBuffer %= fmap (`shiftR` 1)
         idx <- txIdx <<%= increment
         when (idx == maxBound) txReset
   where
@@ -129,40 +128,33 @@ txReset = do
   txBuffer .= Nothing
 
 receive :: RWS ToUart FromUart Uart ()
-receive = view fromBus >>= \case
-  Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
-    scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
-    rxReset
-  _ -> do
-    use rxFsm >>= \case
-      RxIdle -> do
-        rxLow <- views rx (== low)
-        when rxLow $ do
+receive = do
+  rxIn <- view rx
+  view fromBus >>= \case
+    Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
+      scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
+      rxReset
+    _ -> use rxFsm >>= \case
+      RxIdle -> 
+        when (rxIn == low) $ do
           rxBaud %= increment
           rxFsm  %= increment
       RxStart -> do
-        rxLow <- views rx (== low)
-        ctr   <- use rxBaud
+        ctr <- rxBaud <<%= increment
         let baudHalf = maxBound `shiftR` 1
-        if ctr == baudHalf
-          then do 
-            rxBaud .= 0
-            if rxLow
-              then rxFsm %= increment
-              else rxReset
-          else rxBaud %= increment
+        when (ctr == baudHalf) $ do 
+          rxBaud .= 0
+          if rxIn == low
+            then rxFsm %= increment
+            else rxReset
       RxRecv -> do
         ctr <- rxBaud <<%= increment
         when (ctr == maxBound) $ do
-          rxBit <- view rx
-          idx   <- rxIdx <<%= increment
-          rxBuffer %= replaceBit (7 - idx) rxBit
-          when (idx == maxBound) $ rxFsm %= increment
-      RxStop -> do
-        ctr <- rxBaud <<%= increment
-        when (ctr == maxBound) $ do
-          rxStatus .= Full
-          rxFsm %= increment
+          idx <- rxIdx <<%= increment
+          rxBuffer %= replaceBit (7 - idx) rxIn
+          when (idx == maxBound) $ do
+            rxStatus .= Full
+            rxFsm %= increment
 
 rxReset :: MonadState Uart m => m ()
 rxReset = do
@@ -184,25 +176,25 @@ uartM = do
   receive
 
 uartMealy :: Uart -> ToUart -> (Uart, FromUart)
-uartMealy s i = let ((), s', o) = runRWS uartM i s
-                in (s', o)
+uartMealy s i = (s', o)
+  where 
+    (_, s', o) = runRWS uartM i s
 
 uart
   :: HiddenClockResetEnable dom 
   => Signal dom (Maybe B.Bus) -- ^ soc bus
   -> Signal dom Bit         -- ^ uart rx
-  -> Unbundled dom (Bit, First (BitVector 32)) -- ^ (uart tx, toCore)
-uart bus rxIn = (txOut', uartOut)
+  -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
+uart bus rxIn = (txOut, uartOut)
   where
-    uartOut = _toCore <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> delay Nothing bus <*> rxIn'
+    uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
+    txOut = unTx . _tx <$> fromUart
+    fromUart = mealy uartMealy mkUart $ ToUart <$> register Nothing bus <*> rxIn'
     rxIn' = register 1 $ register 1 rxIn
-    txOut' = register 1 $ register 1 $ unTx . _tx <$> fromUart
 
 -------------
 -- Utility --
 -------------
-
 increment :: (Eq a, Enum a, Bounded a) => a -> a
 increment a | a == maxBound = minBound
             | otherwise     = succ a
