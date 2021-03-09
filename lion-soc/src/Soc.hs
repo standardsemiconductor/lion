@@ -14,7 +14,7 @@ import Data.Functor ( (<&>) )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
-import Lion.Core (FromCore(..), ToMem(InstrMem), defaultCoreConfig, core)
+import Lion.Core
 import Bus  ( busMapIn, busMapOut, Bus(Rom, Led))
 import Uart ( uart )
 
@@ -72,11 +72,12 @@ lion rxIn = FromSoc
   , txOut  = tx
   }
   where
+    config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
     fromBios       = bios      fromBus
     fromRgb        = rgb       fromBus 
     (tx, fromUart) = uart rxIn fromBus
     fromBus = (busMapIn =<<) <$> fromCore
-    fromCore = toMem $ core defaultCoreConfig $
+    fromCore = toMem $ core config $
       busMapOut <$> register (Just (InstrMem 0)) fromCore -- without Just InstrMem 0, yosys fails with bad init values
                 <*> fromBios 
                 <*> fromUart

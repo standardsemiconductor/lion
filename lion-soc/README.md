@@ -35,8 +35,9 @@ Max frequency for clock: 13.48 MHz (PASS @ 12Mhz)
 ## Memory Map
 | Peripheral | Start Address | End Address |
 |------------|---------------|-------------|
-| Bios       |  0x00000000   | 0x000000FF  |
-| Led        |  0x00000100   | 0x00000100  |
+| Led        |  0x00000000   | 0x00000000  |
+| Uart       |  0x00000004   | 0x00000004  |
+| Rom        |  0x00000400   | 0x000007FF  |
 
 ## Peripherals
 ### Led

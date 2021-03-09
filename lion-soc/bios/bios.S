@@ -1,4 +1,4 @@
-    .equ LED_BASE, 0x100
+    .equ LED_BASE, 0x00000000
     .equ CR0     , 0x8
     .equ BR      , 0x9
     .equ ONR     , 0xA
@@ -7,7 +7,7 @@
     .equ BCFR    , 0x6
     .equ PWRR    , 0x1
 
-    .equ UART_BASE, 0x104
+    .equ UART_BASE, 0x00000004
 
     .section .text
     .globl _start
