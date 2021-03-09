@@ -6,4 +6,3 @@ set_io led_red   39
 set_io uart_tx 17
 set_io uart_rx 15
 
-set_io clk 35

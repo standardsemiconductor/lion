@@ -12,6 +12,7 @@ import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Functor ( (<&>) )
 import Ice40.Clock
+import Ice40.Osc ( hf12Mhz )
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core
@@ -87,8 +88,10 @@ lion rxIn = FromSoc
 ----------------
 {-# NOINLINE topEntity #-}
 topEntity 
-  :: "clk"     ::: Clock Lattice12Mhz 
-  -> "uart_rx" ::: Signal Lattice12Mhz Bit
+  :: "uart_rx" ::: Signal Lattice12Mhz Bit
   -> FromSoc Lattice12Mhz
-topEntity clk = withClockResetEnable clk latticeRst enableGen lion
+topEntity = withClockResetEnable clk latticeRst enableGen lion
+  where
+    clk = hf12Mhz (pure True :: Signal System Bool)
+                  (pure True :: Signal System Bool)
 makeTopEntityWithName 'topEntity "Soc"

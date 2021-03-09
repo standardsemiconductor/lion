@@ -20,16 +20,16 @@ To compile, synthesize, and route without programming: `cabal run`
 ### Device utilisation
 ```
 Device utilisation:
- ICESTORM_LC:  2346/ 5280    44%
-ICESTORM_RAM:     8/   30    26%
-       SB_IO:     1/   96     1%
-       SB_GB:     5/    8    62%
- SB_LEDDA_IP:     1/    1   100%
- SB_RGBA_DRV:     1/    1   100%
+   ICESTORM_LC:  2300/ 5280    43%
+  ICESTORM_RAM:     8/   30    26%
+         SB_GB:     5/    8    62%
+ICESTORM_HFOSC:     1/    1   100%
+   SB_LEDDA_IP:     1/    1   100%
+   SB_RGBA_DRV:     1/    1   100%
 ```
 ### Clock frequency
 ```
-Max frequency for clock: 13.48 MHz (PASS @ 12Mhz)
+Max frequency for clock: 13.30 MHz (PASS @ 12Mhz)
 ```
 
 ## Memory Map
