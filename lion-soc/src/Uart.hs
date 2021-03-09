@@ -51,7 +51,8 @@ fromStatus = boolToBV . (== Full)
 
 -- | Uart state
 data Uart = Uart
-  { -- transmitter state
+  { _bus'      :: Maybe B.Bus -- ^ delayed bus
+  , -- transmitter state
     _txIdx    :: Index 10             -- ^ buffer bit index
   , _txBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
   , _txBuffer :: Maybe (BitVector 10) -- ^ transmitter data buffer
@@ -69,7 +70,8 @@ makeLenses ''Uart
 -- | Construct a Uart
 mkUart :: Uart
 mkUart = Uart
-  { -- transmitter state
+  { _bus' = Nothing
+  , -- transmitter state
     _txIdx    = 0
   , _txBaud   = 0
   , _txBuffer = Nothing
@@ -105,7 +107,7 @@ makeLenses ''FromUart
 
 -- | transmit 
 transmit :: RWS ToUart FromUart Uart ()
-transmit = view fromBus >>= \case
+transmit = use bus' >>= \case
   Just (B.Uart $(bitPattern "001") (Just wr)) -> do -- write send byte
     txReset
     txBuffer ?= frame wr
@@ -130,7 +132,7 @@ txReset = do
 receive :: RWS ToUart FromUart Uart ()
 receive = do
   rxIn <- view rx
-  view fromBus >>= \case
+  use bus' >>= \case
     Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
       scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
       rxReset
@@ -165,7 +167,7 @@ rxReset = do
 
 uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
-  view fromBus >>= \case
+  use bus' >>= \case
     Just (B.Uart $(bitPattern "100") Nothing) -> do  -- read status byte
       rxS <- uses rxStatus fromStatus
       txS <- uses txBuffer $ boolToBV . isJust 
@@ -174,6 +176,7 @@ uartM = do
     _ -> return ()
   transmit
   receive
+  bus' <~ view fromBus
 
 uartMealy :: Uart -> ToUart -> (Uart, FromUart)
 uartMealy s i = (s', o)
@@ -182,15 +185,14 @@ uartMealy s i = (s', o)
 
 uart
   :: HiddenClockResetEnable dom 
-  => Signal dom (Maybe B.Bus) -- ^ soc bus
-  -> Signal dom Bit         -- ^ uart rx
+  => Signal dom Bit         -- ^ uart rx
+  -> Signal dom (Maybe B.Bus) -- ^ soc bus 
   -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
-uart bus rxIn = (txOut, uartOut)
+uart rxIn bus = (txOut, uartOut)
   where
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
     txOut = unTx . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> register Nothing bus <*> rxIn'
-    rxIn' = register 1 $ register 1 rxIn
+    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
 
 -------------
 -- Utility --

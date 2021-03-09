@@ -27,14 +27,7 @@ data Bus = Rom -- ^ rom access
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-{-
-busMap :: ToMem -> Maybe Bus
-busMap toMem = 
-      romMap  toMem 
-  <|> ledMap  toMem
-  <|> uartMap toMem
--}
-romMap :: ToMem -> Maybe (Unsigned 8)
+romMap :: ToMem -> Maybe Bus
 romMap = \case
   InstrMem a@($(bitPattern "000000000000000000000000........")) 
     -> Just $ Rom $ wordAddr a
@@ -56,3 +49,14 @@ uartMap = \case
   DataMem $(bitPattern "000000000000000000000001000001..") msk wrM ->
     Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
   _ -> Nothing
+
+getAddress :: ToMem -> BitVector 32
+getAddress = \case
+  InstrMem a     -> a
+  DataMem  a _ _ -> a
+
+busMap :: Maybe ToMem -> BitVector 32 -> BitVector 32 -> BitVector 32
+busMap toMem fromBios fromUart = case getAddress <$> toMem of
+  Just $(bitPattern "000000000000000000000000........") -> fromBios
+  Just $(bitPattern "000000000000000000000001000001..") -> fromUart
+  _ -> 0

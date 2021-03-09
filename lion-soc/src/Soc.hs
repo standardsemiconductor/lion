@@ -14,8 +14,8 @@ import Data.Functor ( (<&>) )
 import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
-import Lion.Core (FromCore(..), defaultCoreConfig, core)
-import Bus  ( busMap, Bus(Rom, Uart, Led) )
+import Lion.Core (FromCore(..), ToMem(InstrMem), defaultCoreConfig, core)
+import Bus  ( busMap, Bus(Rom, Led), ledMap, uartMap, romMap )
 import Uart ( uart )
 
 data FromSoc dom = FromSoc
@@ -65,25 +65,20 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 --------------
 -- Lion SOC --
 --------------
+{-# NOINLINE lion #-}
 lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
 lion rxIn = FromSoc
   { rgbOut = fromRgb
   , txOut  = tx
   }
   where
-    fromBios       = bios fromCore
-    fromRgb        = rgb  fromCore 
-    (tx, fromUart) = uart fromCore rxIn
-    fromCore' = register Nothing fromCore 
-    fromCore = fmap (busMap =<<) $ toMem $ core defaultCoreConfig $
-      busMapIn <$> fromCore' <*> fromBios <*> fromUart
- 
-
-busMapIn :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
-busMapIn busM fromRom fromUart = case busM of
-  Just (Rom _)    -> fromRom
-  Just (Uart _ _) -> fromUart
-  _               -> 0
+    fromBios       = bios      $ (romMap  =<<) <$> fromCore
+    fromRgb        = rgb       $ (ledMap  =<<) <$> fromCore 
+    (tx, fromUart) = uart rxIn $ (uartMap =<<) <$> fromCore
+    fromCore = toMem $ core defaultCoreConfig $
+      busMap <$> register (Just (InstrMem 0)) fromCore -- without Just InstrMem 0, yosys fails with bad init values
+             <*> fromBios 
+             <*> fromUart
 
 ----------------
 -- Top Entity --
