@@ -22,8 +22,7 @@ data Bus = Rom -- ^ rom access
              (BitVector 8) -- ^ LED IP Register Write Data
          | Uart -- ^ UART access 
              (BitVector 3)         -- ^ UART mask
-             (Maybe (BitVector 8)) -- ^ UART write value
-             
+             (Maybe (BitVector 8)) -- ^ UART write value             
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -55,8 +54,22 @@ getAddress = \case
   InstrMem a     -> a
   DataMem  a _ _ -> a
 
-busMap :: Maybe ToMem -> BitVector 32 -> BitVector 32 -> BitVector 32
-busMap toMem fromBios fromUart = case getAddress <$> toMem of
+{-
+isDataMem :: ToMem -> Bool
+isDataMem = \case
+  InstrMem _     -> False
+  Datamem  _ _ _ -> True
+-}
+
+busMapIn :: ToMem -> Maybe Bus
+busMapIn toMem = case getAddress toMem of
+  $(bitPattern "000000000000000000000000........") -> romMap toMem -- rom
+  $(bitPattern "000000000000000000000001000000..") -> ledMap toMem -- led
+  $(bitPattern "000000000000000000000001000001..") -> uartMap toMem -- uart
+  _ -> Nothing
+
+busMapOut :: Maybe ToMem -> BitVector 32 -> BitVector 32 -> BitVector 32
+busMapOut toMem fromBios fromUart = case getAddress <$> toMem of
   Just $(bitPattern "000000000000000000000000........") -> fromBios
   Just $(bitPattern "000000000000000000000001000001..") -> fromUart
   _ -> 0

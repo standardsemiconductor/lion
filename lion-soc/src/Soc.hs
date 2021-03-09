@@ -15,7 +15,7 @@ import Ice40.Clock
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core (FromCore(..), ToMem(InstrMem), defaultCoreConfig, core)
-import Bus  ( busMap, Bus(Rom, Led), ledMap, uartMap, romMap )
+import Bus  ( busMapIn, busMapOut, Bus(Rom, Led))
 import Uart ( uart )
 
 data FromSoc dom = FromSoc
@@ -72,13 +72,14 @@ lion rxIn = FromSoc
   , txOut  = tx
   }
   where
-    fromBios       = bios      $ (romMap  =<<) <$> fromCore
-    fromRgb        = rgb       $ (ledMap  =<<) <$> fromCore 
-    (tx, fromUart) = uart rxIn $ (uartMap =<<) <$> fromCore
+    fromBios       = bios      fromBus
+    fromRgb        = rgb       fromBus 
+    (tx, fromUart) = uart rxIn fromBus
+    fromBus = (busMapIn =<<) <$> fromCore
     fromCore = toMem $ core defaultCoreConfig $
-      busMap <$> register (Just (InstrMem 0)) fromCore -- without Just InstrMem 0, yosys fails with bad init values
-             <*> fromBios 
-             <*> fromUart
+      busMapOut <$> register (Just (InstrMem 0)) fromCore -- without Just InstrMem 0, yosys fails with bad init values
+                <*> fromBios 
+                <*> fromUart
 
 ----------------
 -- Top Entity --
