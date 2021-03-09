@@ -34,15 +34,16 @@ romMap = \case
     wordAddr :: BitVector 32 -> Unsigned 8
     wordAddr addr = unpack $ slice d7 d0 $ addr `shiftR` 2
 
+uartMap :: ToMem -> Maybe Bus
+uartMap = \case
+  DataMem _ msk wrM -> Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
+  _ -> Nothing
+
 ledMap :: ToMem -> Maybe Bus
 ledMap = \case
   DataMem _ $(bitPattern "..11") (Just d) -> Just $ Led (slice d11 d8 d) (slice d7 d0 d)
   _ -> Nothing
 
-uartMap :: ToMem -> Maybe Bus
-uartMap = \case
-  DataMem _ msk wrM -> Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
-  _ -> Nothing
 
 getAddress :: ToMem -> BitVector 32
 getAddress = \case
