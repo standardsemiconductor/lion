@@ -38,6 +38,7 @@ makeLenses ''ToUart
 data RxFsm = RxIdle
            | RxStart
            | RxRecv
+           | RxStop
   deriving stock (Generic, Show, Eq, Enum, Bounded)
   deriving anyclass NFDataX
 
@@ -154,9 +155,13 @@ receive = do
         when (ctr == maxBound) $ do
           idx <- rxIdx <<%= increment
           rxBuffer %= replaceBit (7 - idx) rxIn
-          when (idx == maxBound) $ do
-            rxStatus .= Full
+          when (idx == maxBound) $ 
             rxFsm %= increment
+      RxStop -> do
+        ctr <- rxBaud <<%= increment
+        when (ctr == maxBound) $ do
+          rxStatus .= Full
+          rxFsm %= increment
 
 rxReset :: MonadState Uart m => m ()
 rxReset = do
@@ -192,7 +197,8 @@ uart rxIn bus = (txOut, uartOut)
   where
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
     txOut = unTx . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
+    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn'
+    rxIn' = register 1 $ register 1 rxIn -- double flop rx input
 
 -------------
 -- Utility --
