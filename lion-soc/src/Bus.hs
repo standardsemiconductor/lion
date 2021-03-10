@@ -44,7 +44,6 @@ ledMap = \case
   DataMem _ $(bitPattern "..11") (Just d) -> Just $ Led (slice d11 d8 d) (slice d7 d0 d)
   _ -> Nothing
 
-
 getAddress :: ToMem -> BitVector 32
 getAddress = \case
   InstrMem a     -> a
