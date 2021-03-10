@@ -11,27 +11,28 @@ module Soc where
 import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Functor ( (<&>) )
-import Data.Maybe ( fromMaybe )
 import Ice40.Clock
 import Ice40.Osc ( hf12Mhz )
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core
+import Bus
 
 ---------
 -- RGB --
 ---------
 type Rgb = ("red" ::: Bit, "green" ::: Bit, "blue" ::: Bit)
 
-rgb :: HiddenClock dom => Signal dom (Maybe ToMem) -> Signal dom Rgb
+rgb :: HiddenClock dom => Signal dom (Maybe Bus) -> Signal dom Rgb
 rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
-      Just (DataMem 
-              $(bitPattern "000000000000000000000000000000..")
-              $(bitPattern "0011")
-              (Just d)
-           ) -> (slice d7 d0 d, slice d11 d8 d, True)
+      Just (Led a d) -> (d, a, True)
+--      Just (DataMem 
+--              $(bitPattern "000000000000000000000000000000..")
+--              $(bitPattern "0011")
+--              (Just d)
+--           ) -> (slice d7 d0 d, slice d11 d8 d, True)
       _ -> (0, 0, False)
     (r, g, b, _) = led (pure 1) wr addr en (pure True)
 
@@ -40,18 +41,18 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
 ----------
 bios
   :: HiddenClockResetEnable dom
-  => Signal dom (Maybe ToMem)
+  => Signal dom (Maybe Bus)
   -> Signal dom (BitVector 32)
 bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
-    addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap getAddr <$> mem
+--    addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap getAddr <$> mem
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
     b0 = romFilePow2 "_build/bios/bios.rom0" addr
-    getAddr = \case
-      InstrMem a    -> a
-      DataMem a _ _ -> a
+    addr = mem <&> \case
+      Just (Rom a) -> a
+      _            -> 0
 
 concat4
   :: KnownNat n
@@ -67,10 +68,13 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 --------------
 {-# NOINLINE lion #-}
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
-lion = rgb $ toMem fromCore
+lion = rgb busIn -- rgb $ toMem fromCore
   where
-    fromCore = core defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 }} fromBios
-    fromBios = bios $ toMem fromCore
+    fromBios = bios busIn
+    busIn = fmap (busMapIn =<<) $ toMem $ core defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 }} $
+      busMapOut <$> register Nothing busIn
+                <*> fromBios
+
     
 ----------------
 -- Top Entity --
