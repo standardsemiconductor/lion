@@ -154,7 +154,7 @@ receive = do
         ctr <- rxBaud <<%= increment
         when (ctr == maxBound) $ do
           idx <- rxIdx <<%= increment
-          rxBuffer %= replaceBit (7 - idx) rxIn
+          rxBuffer %= replaceBit idx rxIn
           when (idx == maxBound) $ 
             rxFsm %= increment
       RxStop -> do
