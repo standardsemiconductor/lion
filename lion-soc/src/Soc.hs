@@ -17,7 +17,7 @@ import Ice40.Rgb
 import Ice40.Led
 import Lion.Core
 import Bus  ( busMapIn, busMapOut, Bus(Rom, Led))
---import Uart ( uart )
+import Uart ( uart )
 
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
@@ -68,20 +68,19 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 --------------
 {-# NOINLINE lion #-}
 lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
-lion _{-rxIn-} = FromSoc
+lion rxIn = FromSoc
   { rgbOut = fromRgb
   , txOut  = pure 1 -- tx
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
-    fromBios       = bios      fromBus
-    fromRgb        = rgb       fromBus 
---    (tx, fromUart) = uart rxIn fromBus
-    fromBus = (busMapIn =<<) <$> fromCore
-    fromCore = toMem $ core config $
-      busMapOut <$> register (Just (InstrMem 0)) fromCore -- without Just InstrMem 0, yosys fails with bad init values
+    fromBios       = bios      busIn
+    fromRgb        = rgb       busIn
+    (tx, fromUart) = uart rxIn busIn
+    busIn = fmap (busMapIn =<<) $ toMem $ core config $
+      busMapOut <$> register Nothing busIn
                 <*> fromBios 
---                <*> fromUart
+                <*> fromUart
 
 ----------------
 -- Top Entity --
