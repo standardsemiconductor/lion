@@ -20,9 +20,9 @@ data Bus = Rom -- ^ rom access
          | Led -- ^ LED access 
              (BitVector 4) -- ^ LED IP Register Address
              (BitVector 8) -- ^ LED IP Register Write Data
-         | Uart -- ^ UART access 
-             (BitVector 3)         -- ^ UART mask
-             (Maybe (BitVector 8)) -- ^ UART write value             
+--         | Uart -- ^ UART access 
+--             (BitVector 3)         -- ^ UART mask
+--             (Maybe (BitVector 8)) -- ^ UART write value             
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -34,10 +34,12 @@ romMap = \case
     wordAddr :: BitVector 32 -> Unsigned 8
     wordAddr addr = unpack $ slice d7 d0 $ addr `shiftR` 2
 
+{-
 uartMap :: ToMem -> Maybe Bus
 uartMap = \case
   DataMem _ msk wrM -> Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
   _ -> Nothing
+-}
 
 ledMap :: ToMem -> Maybe Bus
 ledMap = \case
@@ -51,12 +53,16 @@ getAddress = \case
 
 busMapIn :: ToMem -> Maybe Bus
 busMapIn toMem = case getAddress toMem of
-  $(bitPattern ".....................1..........") -> romMap  toMem -- rom
-  $(bitPattern ".............................1..") -> uartMap toMem -- uart
+  addr | bitToBool (addr!(10 :: Index 32)) -> romMap toMem
+--  $(bitPattern ".....................1..........") -> romMap  toMem -- rom
+--  $(bitPattern ".............................1..") -> uartMap toMem -- uart
   _                                                -> ledMap  toMem -- led
 
-busMapOut :: Maybe ToMem -> BitVector 32 -> BitVector 32 -> BitVector 32
-busMapOut toMem fromBios fromUart = case getAddress <$> toMem of
-  Just $(bitPattern ".....................1..........") -> fromBios
-  Just $(bitPattern ".............................1..") -> fromUart
+--busMapOut :: Maybe ToMem -> BitVector 32 -> BitVector 32 -> BitVector 32
+--busMapOut toMem fromBios fromUart = case getAddress <$> toMem of
+busMapOut :: Maybe ToMem -> BitVector 32 -> BitVector 32
+busMapOut toMem fromBios = case getAddress <$> toMem of
+  Just addr | bitToBool (addr!(10 :: Index 32)) -> fromBios
+--  Just $(bitPattern ".....................1..........") -> fromBios
+--  Just $(bitPattern ".............................1..") -> fromUart
   _ -> 0
