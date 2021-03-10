@@ -16,11 +16,11 @@ To compile, synthesize, and route without programming: `cabal run`
 ### Clean
 `cabal run soc -- clean`
 
-## Metrics as of Mar 8 2021 for iCE40
+## Metrics as of Mar 9 2021 for iCE40
 ### Device utilisation
 ```
 Device utilisation:
-   ICESTORM_LC:  2300/ 5280    43%
+   ICESTORM_LC:  2383/ 5280    45%
   ICESTORM_RAM:     8/   30    26%
          SB_GB:     5/    8    62%
 ICESTORM_HFOSC:     1/    1   100%
@@ -29,7 +29,7 @@ ICESTORM_HFOSC:     1/    1   100%
 ```
 ### Clock frequency
 ```
-Max frequency for clock: 13.30 MHz (PASS @ 12Mhz)
+Max frequency for clock: 13.68 MHz (PASS @ 12Mhz)
 ```
 
 ## Memory Map

@@ -1,5 +1,5 @@
 {-|
-Module : Bus
+Module      : Bus
 Description : Lion SoC Bus and Memory Map
 Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
@@ -36,12 +36,9 @@ busMapIn toMem = case getAddress toMem of
   _ -> ledMap toMem
 
 busMapOut :: Maybe Bus -> BitVector 32 -> BitVector 32
-busMapOut _ fromBios = fromBios
-{-
 busMapOut busOut fromBios = case busOut of
-  Just (Rom _) -> fromBios
-  _            -> 0
--}
+  _ -> fromBios
+
 -------------
 -- Utility --
 -------------
