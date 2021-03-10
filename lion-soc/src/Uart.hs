@@ -7,7 +7,7 @@ Maintainer  : standardsemiconductor@gmail.com
 -}
 
 module Uart where
-{-
+
 import Clash.Prelude
 import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
@@ -200,4 +200,3 @@ uart rxIn bus = (txOut, uartOut)
 increment :: (Eq a, Enum a, Bounded a) => a -> a
 increment a | a == maxBound = minBound
             | otherwise     = succ a
--}

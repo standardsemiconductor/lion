@@ -51,7 +51,7 @@ busMapIn toMem = case getAddress toMem of
 busMapOut :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromBios fromUart = case busOut of
   Just (Uart _ _) -> fromUart
-  _ -> fromBios
+  _               -> fromBios
 
 -------------
 -- Utility --

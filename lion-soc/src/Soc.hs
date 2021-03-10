@@ -70,7 +70,7 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
 lion rxIn = FromSoc
   { rgbOut = fromRgb
-  , txOut  = pure 1 -- tx
+  , txOut  = tx
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
