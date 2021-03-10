@@ -28,12 +28,7 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (wr, addr, en) = unbundle $ mem <&> \case
       Just (Led a d) -> (d, a, True)
---      Just (DataMem 
---              $(bitPattern "000000000000000000000000000000..")
---              $(bitPattern "0011")
---              (Just d)
---           ) -> (slice d7 d0 d, slice d11 d8 d, True)
-      _ -> (0, 0, False)
+      _              -> (0, 0, False)
     (r, g, b, _) = led (pure 1) wr addr en (pure True)
 
 ----------
@@ -45,7 +40,6 @@ bios
   -> Signal dom (BitVector 32)
 bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
---    addr = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap getAddr <$> mem
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
@@ -68,13 +62,14 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 --------------
 {-# NOINLINE lion #-}
 lion :: HiddenClockResetEnable dom => Signal dom Rgb
-lion = rgb busIn -- rgb $ toMem fromCore
+lion = fromRgb
   where
+    config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 }}
+    fromRgb  = rgb  busIn
     fromBios = bios busIn
-    busIn = fmap (busMapIn =<<) $ toMem $ core defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 }} $
+    busIn = fmap (busMapIn =<<) $ toMem $ core config $
       busMapOut <$> register Nothing busIn
                 <*> fromBios
-
     
 ----------------
 -- Top Entity --
