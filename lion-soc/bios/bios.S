@@ -1,33 +1,40 @@
     .equ LED_BASE, 0x0
     .equ CR0     , 0x8
-#    .equ BR      , 0x9
-#    .equ ONR     , 0xA
-#    .equ OFR     , 0xB
-#    .equ BCRR    , 0x5
-#    .equ BCFR    , 0x6
     .equ PWRR    , 0x1
 
-#    .equ UART_BASE, 0x4
+    .equ UART_BASE, 0x4
 
     .section .text
     .globl _start
 
 _start:
+    jal  get_char
     jal  set_led_red
+#    la   a0, info
+#    jal  put_str
 halt: 
     j halt
 
-#put_str:
-#    li   a1, UART_BASE # set UART_BASE pointer
-#1:  lbu  a2, (a0)      # load str byte
-#    beqz a2, 3f        # if zero, end of string, ret
-#    sb   a2, (a1)      # transmit command
-#2:  lbu  a2, 0x2(a1)   # read status
-#    andi a2, a2, 0x1   # mask transmitter status
-#    bnez a2, 2b        # wait until transmitter empty
-#    addi a0, a0, 0x1   # increment str pointer
-#    j    1b
-#3:  ret 
+get_char:
+    li   a0, UART_BASE # set UART_BASE pointer
+1:  lbu  a1, 0x2(a0)   # read status register
+    andi a1, a1, 0x2   # mask receiver status
+    beqz a1, 1b        # wait until receiver full
+    lbu  a1, 0x1(a0)   # read receiver buffer
+    mv   a0, a1        # return data in a0
+    ret
+
+put_str:
+    li   a1, UART_BASE # set UART_BASE pointer
+1:  lbu  a2, (a0)      # load str byte
+    beqz a2, 3f        # if zero, end of string, ret
+    sb   a2, (a1)      # transmit command
+2:  lbu  a2, 0x2(a1)   # read status
+    andi a2, a2, 0x1   # mask transmitter status
+    bnez a2, 2b        # wait until transmitter empty
+    addi a0, a0, 0x1   # increment str pointer
+    j    1b
+3:  ret 
 
 set_led_red:
     li   a1, LED_BASE
@@ -46,8 +53,8 @@ set_led_red:
 
     ret
 
-#    .section .rodata
-#    .align 4
+    .section .rodata
+    .align 4
 
-#info:
-#    .string "Standard Semiconductor (c) 2021"
+info:
+    .string "Standard Semiconductor (c) 2021"
