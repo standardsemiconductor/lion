@@ -5,7 +5,6 @@ Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}
-
 module Bus where
 
 import Clash.Prelude
@@ -50,8 +49,8 @@ busMapIn toMem = case getAddress toMem of
 
 busMapOut :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromBios fromUart = case busOut of
-  Just (Uart _ _) -> fromUart
-  _               -> fromBios
+  Just (Rom _) -> fromBios
+  _            -> fromUart
 
 -------------
 -- Utility --
