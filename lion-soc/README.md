@@ -20,8 +20,9 @@ To compile, synthesize, and route without programming: `cabal run`
 ### Device utilisation
 ```
 Device utilisation:
-   ICESTORM_LC:  2383/ 5280    45%
+   ICESTORM_LC:  2562/ 5280    48%
   ICESTORM_RAM:     8/   30    26%
+         SB_IO:     2/   96     2%
          SB_GB:     5/    8    62%
 ICESTORM_HFOSC:     1/    1   100%
    SB_LEDDA_IP:     1/    1   100%
@@ -29,7 +30,7 @@ ICESTORM_HFOSC:     1/    1   100%
 ```
 ### Clock frequency
 ```
-Max frequency for clock: 13.68 MHz (PASS @ 12Mhz)
+Max frequency for clock: 12.93 MHz (PASS @ 12Mhz)
 ```
 
 ## Memory Map
@@ -43,6 +44,22 @@ Max frequency for clock: 13.68 MHz (PASS @ 12Mhz)
 ### Led
 | Byte 3   | Byte 2   | Byte 1           | Byte 0        |
 |----------|----------|------------------|---------------|
-| reserved | reserved | Register Address | Register Data |
+| Reserved | Reserved | Register Address | Register Data |
 
 See [Appendix D of the iCE40 LED Driver Usage Guide](https://github.com/standardsemiconductor/VELDT-info/blob/master/ICE40LEDDriverUsageGuide.pdf) for information on LED control bus addressable registers and register field descriptions.
+
+### UART
+| Byte 3   | Byte 2 | Byte 1    | Byte 0    |
+|----------|--------|-----------|-----------|
+| Reserved | Status | RX Buffer | TX Buffer | 
+
+Status Byte:
+```
+76543210
+......**
+      ||__Transmitter Status: 0 = Empty (Idle), 1 = Full (Busy)
+      |___Receiver Status:    0 = Empty, 1 = Full
+```
+
+Reading the RX Buffer resets the UART receiver.
+Writing the TX Buffer resets the UART transmitter.
