@@ -1,15 +1,19 @@
 
 import System.Hardware.Serialport
 import System.IO
-import Control.Monad ( forever )
+import Control.Concurrent ( forkIO )
+import Control.Monad      ( forever )
 
 main :: IO ()
 main = hWithSerial "/dev/ttyUSB0" serialPortSettings $ \hndl -> do
   hSetBuffering stdin NoBuffering
   hSetBuffering stdout NoBuffering
-  forever $ echo hndl
+  forkIO $ readUart hndl
+  writeUart hndl
   where
-    echo hndl = do
+    readUart hndl = forever $ do
+      putChar =<< hGetChar hndl
+    writeUart hndl = forever $ do
       hPutChar hndl =<< getChar
 
 serialPortSettings :: SerialPortSettings
