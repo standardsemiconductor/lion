@@ -14,6 +14,9 @@ _start:
     jal  put_str
     la   a0, copyright
     jal  put_str
+1:  jal  get_char
+    jal  put_char
+    j    1b
 halt: 
     j halt
 
@@ -24,6 +27,14 @@ get_char:
     beqz a1, 1b        # wait until receiver full
     lbu  a1, 0x1(a0)   # read receiver buffer
     mv   a0, a1        # return data in a0
+    ret
+
+put_char:
+    li   a1, UART_BASE # set UART_BASE pointer
+1:  lbu  a2, 0x2(a1)   # read status
+    andi a2, a2, 0x1   # mask transmitter status
+    bnez a2, 1b        # wait until transmitter empty
+    sb   a0, (a1)      # transmit byte
     ret
 
 put_str:
@@ -59,7 +70,7 @@ set_led_red:
     .align 4
 
 name:
-    .string "   __   _             ____     _____\n\r  / /  (_)__  ___    / __/__  / ___/\n\r / /__/ / _ \\/ _ \\  _\\ \\/ _ \\/ /__  \n\r/____/_/\\___/_//_/ /___/\\___/\\___/  \n\r"
+    .string "\n\r   __   _             ____     _____\n\r  / /  (_)__  ___    / __/__  / ___/\n\r / /__/ / _ \\/ _ \\  _\\ \\/ _ \\/ /__  \n\r/____/_/\\___/_//_/ /___/\\___/\\___/  \n\r"
 
 copyright:
-    .string "Standard Semiconductor (c) 2021"
+    .string "\n\rStandard Semiconductor (c) 2021\n\r\n\r"
