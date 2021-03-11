@@ -11,15 +11,16 @@ System-On-Chip using Lion and targeting the [VELDT FPGA development board](https
 1. Ensure the VELDT is ON and in the FLASH mode.
 2. `cabal run soc -- prog` 
 3. Cycle power switch, set mode switch to FPGA.
-4. `cabal run com` to open serial port, then press any key to display the Lion Soc name:
+4. `cabal run com` to open serial port, then press any key to display the Lion SoC name:
 ```
    __   _             ____     _____
   / /  (_)__  ___    / __/__  / ___/
  / /__/ / _ \/ _ \  _\ \/ _ \/ /__  
 /____/_/\___/_//_/ /___/\___/\___/  
+
 Standard Semiconductor (c) 2021
 ```
-To compile, synthesize, and route Lion Soc without programming: `cabal run soc`
+To compile, synthesize, and route Lion SoC without programming: `cabal run soc`
 
 ### Clean
 `cabal run soc -- clean`
@@ -70,4 +71,5 @@ Status Byte:
 ```
 
 Reading the RX Buffer resets the UART receiver.
+
 Writing the TX Buffer resets the UART transmitter.
