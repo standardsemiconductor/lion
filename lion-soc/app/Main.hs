@@ -121,10 +121,12 @@ buildRom :: Int -> Action ()
 buildRom i = do
   bs <- liftIO $ BS.readFile "_build/bios/bios.bin"
   let len = BS.length bs
-  when (len <= 1024) $ do
-    let bs' = zip (cycle [0,1,2,3]) $ BS.unpack $ bs `BS.append` BS.replicate (4*256 - len) 0
-        rom = unlines $ map (asBits.snd) $ filter ((== i).fst) bs'
-    liftIO $ writeFile ("_build/bios/bios" <.> ("rom" ++ show i)) rom
+  if len <= 1024
+    then do
+      let bs' = zip (cycle [0,1,2,3]) $ BS.unpack $ bs `BS.append` BS.replicate (4*256 - len) 0
+          rom = unlines $ map (asBits.snd) $ filter ((== i).fst) bs'
+      liftIO $ writeFile ("_build/bios/bios" <.> ("rom" ++ show i)) rom
+    else error $ "bios too large for rom: length = " ++ show len
   where
     asBits :: Word8 -> String
     asBits = printf "%08b" 
