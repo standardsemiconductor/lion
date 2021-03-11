@@ -11,7 +11,7 @@ System-On-Chip using Lion and targeting the [VELDT FPGA development board](https
 1. Ensure the VELDT is ON and in the FLASH mode.
 2. `cabal run soc -- prog` 
 3. Cycle power switch, set mode switch to FPGA.
-4. `cabal run com` to open serial port, then press any key to display the Lion SoC name:
+4. `cabal run com` to open serial port, then press any key to display the Lion SoC name. The Lion Soc will echo any further input. Press <kbd>Ctrl-c</kbd> to end the program.
 ```
    __   _             ____     _____
   / /  (_)__  ___    / __/__  / ___/
