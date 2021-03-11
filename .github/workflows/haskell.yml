@@ -149,7 +149,7 @@ jobs:
       working-directory: lion-soc
       run: |
         cabal build
-        cabal run
+        cabal run soc
 
     - name: Metric
       working-directory: lion-metric
