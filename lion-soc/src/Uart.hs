@@ -62,7 +62,7 @@ data Uart = Uart
   , _rxIdx    :: Index 8     -- ^ buffer index
   , _rxBaud   :: Index 625   -- ^ baud rate counter (19200 @ 12Mhz)
   , _rxStatus :: Status      -- ^ receiver status
-  , _rxBuffer :: BitVector 8 -- ^ receiver data buffer
+  , _rxBuffer :: Vec 8 Bit -- ^ receiver data buffer
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -81,7 +81,7 @@ mkUart = Uart
   , _rxIdx    = 0
   , _rxBaud   = 0
   , _rxStatus = Empty
-  , _rxBuffer = 0
+  , _rxBuffer = repeat 0
   }
 
 -- | Tx wire
@@ -135,7 +135,7 @@ receive = do
   rxIn <- view rx
   use bus' >>= \case
     Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
-      scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend)
+      scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend.v2bv)
       rxReset
     _ -> use rxFsm >>= \case
       RxIdle -> 
@@ -146,7 +146,9 @@ receive = do
         ctr <- rxBaud <<%= increment
         let baudHalf = maxBound `shiftR` 1
         when (ctr == baudHalf) $ do 
+          rxIdx .= 0
           rxBaud .= 0
+          rxBuffer .= repeat 0
           if rxIn == low
             then rxFsm %= increment
             else rxReset
@@ -154,7 +156,7 @@ receive = do
         ctr <- rxBaud <<%= increment
         when (ctr == maxBound) $ do
           idx <- rxIdx <<%= increment
-          rxBuffer %= replaceBit idx rxIn
+          rxBuffer %= (rxIn +>>)
           when (idx == maxBound) $ 
             rxFsm %= increment
       RxStop -> do
@@ -197,8 +199,8 @@ uart rxIn bus = (txOut, uartOut)
   where
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
     txOut = unTx . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn'
-    rxIn' = register 1 $ register 1 rxIn -- double flop rx input
+    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
+--    rxIn' = register 1 $ register 1 rxIn -- double flop rx input
 
 -------------
 -- Utility --
