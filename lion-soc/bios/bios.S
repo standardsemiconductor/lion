@@ -10,8 +10,10 @@
 _start:
     jal  get_char
     jal  set_led_red
-#    la   a0, info
-#    jal  put_str
+    la   a0, name
+    jal  put_str
+    la   a0, copyright
+    jal  put_str
 halt: 
     j halt
 
@@ -26,15 +28,15 @@ get_char:
 
 put_str:
     li   a1, UART_BASE # set UART_BASE pointer
-1:  lbu  a2, (a0)      # load str byte
-    beqz a2, 3f        # if zero, end of string, ret
-    sb   a2, (a1)      # transmit command
-2:  lbu  a2, 0x2(a1)   # read status
+1:  lbu  a2, 0x2(a1)   # read status
     andi a2, a2, 0x1   # mask transmitter status
-    bnez a2, 2b        # wait until transmitter empty
+    bnez a2, 1b        # wait until transmitter empty
+    lbu  a2, (a0)      # load str byte
+    beqz a2, 2f        # if zero, end of string, ret
+    sb   a2, (a1)      # transmit byte
     addi a0, a0, 0x1   # increment str pointer
     j    1b
-3:  ret 
+2:  ret 
 
 set_led_red:
     li   a1, LED_BASE
@@ -56,5 +58,8 @@ set_led_red:
     .section .rodata
     .align 4
 
-info:
+name:
+    .string "   __   _             ____     _____\n\r  / /  (_)__  ___    / __/__  / ___/\n\r / /__/ / _ \\/ _ \\  _\\ \\/ _ \\/ /__  \n\r/____/_/\\___/_//_/ /___/\\___/\\___/  \n\r"
+
+copyright:
     .string "Standard Semiconductor (c) 2021"
