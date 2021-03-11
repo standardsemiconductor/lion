@@ -10,13 +10,21 @@ System-On-Chip using Lion and targeting the [VELDT FPGA development board](https
 ## Usage
 1. Ensure the VELDT is ON and in the FLASH mode.
 2. `cabal run soc -- prog` 
-
-To compile, synthesize, and route without programming: `cabal run`
+3. Cycle power switch, set mode switch to FPGA.
+4. `cabal run com` to open serial port, then press any key to display the Lion Soc name:
+```
+   __   _             ____     _____
+  / /  (_)__  ___    / __/__  / ___/
+ / /__/ / _ \/ _ \  _\ \/ _ \/ /__  
+/____/_/\___/_//_/ /___/\___/\___/  
+Standard Semiconductor (c) 2021
+```
+To compile, synthesize, and route Lion Soc without programming: `cabal run soc`
 
 ### Clean
 `cabal run soc -- clean`
 
-## Metrics as of Mar 9 2021 for iCE40
+## Metrics as of Mar 10 2021 for iCE40
 ### Device utilisation
 ```
 Device utilisation:
