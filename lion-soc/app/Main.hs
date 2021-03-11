@@ -39,6 +39,13 @@ main = shakeArgs opts $ do
     need ["_build/Soc.bin"]
     cmd_ "iceprog" "_build/Soc.bin"
 
+  phony "bios" $ do
+    need [ "_build/bios/bios.rom0"
+         , "_build/bios/bios.rom1"
+         , "_build/bios/bios.rom2"
+         , "_build/bios/bios.rom3"
+         ]
+
   -- yosys synthesis
   "_build/Soc.json" %> \out -> do
     putInfo "Synthesizing Soc"
@@ -114,7 +121,7 @@ buildRom :: Int -> Action ()
 buildRom i = do
   bs <- liftIO $ BS.readFile "_build/bios/bios.bin"
   let len = BS.length bs
-  when (len <= 256) $ do
+  when (len <= 1024) $ do
     let bs' = zip (cycle [0,1,2,3]) $ BS.unpack $ bs `BS.append` BS.replicate (4*256 - len) 0
         rom = unlines $ map (asBits.snd) $ filter ((== i).fst) bs'
     liftIO $ writeFile ("_build/bios/bios" <.> ("rom" ++ show i)) rom
