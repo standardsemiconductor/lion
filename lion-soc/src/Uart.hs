@@ -199,7 +199,6 @@ uartMealy s i = (s', o)
   where 
     (_, s', o) = runRWS uartM i s
 
-{-# NOINLINE uart #-}
 uart
   :: HiddenClockResetEnable dom 
   => Signal dom Bit

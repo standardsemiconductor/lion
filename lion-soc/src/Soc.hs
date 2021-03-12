@@ -23,7 +23,6 @@ import Spram ( spram )
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
   , txOut  :: "uart_tx" ::: Signal dom Bit
---  , rxPin  :: "uart_rx" ::: Signal dom Bit
   }
 
 ---------
@@ -73,19 +72,18 @@ lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
 lion rx = FromSoc
   { rgbOut = fromRgb
   , txOut  = tx
---  , rxPin  = rx
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
     fromSpram      = spram   busIn
     fromBios       = bios    busIn
     fromRgb        = rgb     busIn
-    (tx, fromUart) = uart rx $ register Nothing busIn
+    (tx, fromUart) = uart rx busIn
     busIn = fmap (busMapIn =<<) $ toMem $ core config $
       busMapOut <$> register Nothing busIn
                 <*> fromSpram
                 <*> fromBios 
-                <*> fromUart
+                <*> register 0 fromUart
 
 ----------------
 -- Top Entity --
