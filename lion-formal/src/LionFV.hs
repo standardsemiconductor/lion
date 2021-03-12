@@ -11,7 +11,8 @@ module LionFV where
 import Clash.Prelude
 import Clash.Annotations.TH
 import Data.Maybe           ( fromMaybe, isJust )
-import Lion.Core            (core, defaultCoreConfig, FromCore(..), ToMem(..) )
+import Lion.Core            (core, defaultCoreConfig, FromCore(..)
+                            , ToMem(..), MemoryAccess(InstrMem) )
 import Lion.Rvfi            ( Rvfi )
 
 lionFV
@@ -36,29 +37,12 @@ lionFV memRData =
     fromCore = core defaultCoreConfig memRData
     memValid = isJust <$> toMem fromCore
     memInstr = fromMaybe False . fmap isInstr <$> toMem fromCore
-    memAddr  = maybe 0 getAddr <$> toMem fromCore
-    memWData = fromMaybe 0 . (getData =<<) <$> toMem fromCore
-    memWStrb = fromMaybe 0 . fmap getMask <$> toMem fromCore
+    memAddr  = maybe 0 memAddress <$> toMem fromCore
+    memWData = fromMaybe 0 . (memWrite =<<) <$> toMem fromCore
+    memWStrb = fromMaybe 0 . fmap memByteMask <$> toMem fromCore
 
 isInstr :: ToMem -> Bool
-isInstr = \case
-  InstrMem _    -> True
-  DataMem _ _ _ -> False
-
-getAddr :: ToMem -> BitVector 32
-getAddr = \case
-  InstrMem a     -> a
-  DataMem  a _ _ -> a
-
-getData :: ToMem -> Maybe (BitVector 32)
-getData = \case
-  InstrMem _     -> Nothing
-  DataMem  _ _ d -> d
-
-getMask :: ToMem -> BitVector 4
-getMask = \case
-  InstrMem _     -> 0xF
-  DataMem  _ m _ -> m
+isInstr = (== InstrMem) . memAccess
 
 {-# NOINLINE topEntity #-}
 topEntity
