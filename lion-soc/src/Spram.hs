@@ -9,20 +9,23 @@ Maintainer  : standardsemiconductor@gmail.com
 module Spram where
 
 import Clash.Prelude
-import Data.Functor ( (<&>) )
 import Ice40.Spram
-import Bus          ( Bus(Spram) )
+import Bus          ( ToSpram(..) )
 
 spram 
   :: HiddenClockResetEnable dom 
-  => Signal dom (Maybe Bus) 
+  => Signal dom ToSpram 
   -> Signal dom (BitVector 32)
-spram busInM = ram32k32 address dataIn maskWrEn wrEn
+spram toSpram = ram32k32 (spramAddress     <$> toSpram) 
+                         (spramData        <$> toSpram)
+                         (spramMask        <$> toSpram)
+                         (spramWriteEnable <$> toSpram)
+{-
   where
     (address, dataIn, maskWrEn, wrEn) = unbundle $ busInM <&> \case
       Just (Spram a dIn mskWrEn en) -> (a, dIn, mskWrEn, en)
       _ -> (0, 0, 0, 0)
-
+-}
 ram32k32
   :: HiddenClockResetEnable dom
   => Signal dom (BitVector 15) -- address

@@ -28,7 +28,7 @@ import Data.Monoid.Generic
 --   bits 7  - 0 : transmitter buffer -- write only -- writing this byte will reset the transmitter
 
 data ToUart = ToUart
-  { _fromBus :: Maybe B.Bus
+  { _fromBus :: B.ToUart
   , _rx      :: Bit
   }
   deriving stock (Generic, Show, Eq)
@@ -112,7 +112,7 @@ makeLenses ''FromUart
 -- | transmit 
 transmit :: RWS ToUart FromUart Uart ()
 transmit = view fromBus >>= \case -- use bus' >>= \case
-  Just (B.Uart $(bitPattern "001") (Just wr)) -> do -- write send byte
+  B.ToUart $(bitPattern "001") (Just wr) -> do -- write send byte
     txReset
     txBuffer ?= frame wr
   _ -> do
@@ -138,7 +138,7 @@ receive = do
 --  rxIn <- view rx
 --  use bus' >>= \case
   view fromBus >>= \case
-    Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
+    B.ToUart $(bitPattern "010") Nothing -> do -- read recv byte
       scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend.v2bv)
       rxReset
     _ -> do
@@ -183,7 +183,7 @@ uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
   view fromBus >>= \case
 --  use bus' >>= \case
-    Just (B.Uart $(bitPattern "100") Nothing) -> do  -- read status byte
+    B.ToUart $(bitPattern "100") Nothing -> do  -- read status byte
       rxS <- uses rxStatus fromStatus
       txS <- uses txBuffer $ boolToBV . isJust 
       let status = (rxS `shiftL` 1) .|. txS
@@ -202,7 +202,7 @@ uartMealy s i = (s', o)
 uart
   :: HiddenClockResetEnable dom 
   => Signal dom Bit
-  -> Signal dom (Maybe B.Bus)          -- ^ soc bus 
+  -> Signal dom B.ToUart          -- ^ soc bus 
   -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
 uart rxIn bus = (txOut, uartOut)
   where

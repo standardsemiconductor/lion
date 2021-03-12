@@ -8,11 +8,13 @@ Maintainer  : standardsemiconductor@gmail.com
 module Bus where
 
 import Clash.Prelude
+import Data.Maybe ( fromMaybe )
 import Lion.Core (ToMem(..), MemoryAccess(..))
 
 ---------
 -- Bus --
 ---------
+{-
 -- | SoC Memory/Peripheral access bus
 data Bus = Rom                     -- ^ rom access 
              (Unsigned 8)          -- ^ rom word address
@@ -29,30 +31,66 @@ data Bus = Rom                     -- ^ rom access
              Bit                   -- ^ write enable
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+-}
 
-spramMap :: BitVector 32 -> BitVector 4 -> Maybe (BitVector 32) -> Maybe Bus
-spramMap addr mask wrM = Just $ Spram wordAddr dIn mskWrEn wrEn
+romMap :: Maybe ToMem -> Unsigned 8
+romMap = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap memAddress 
+
+data ToLed = ToLed 
+  { ledAddress :: BitVector 4 
+  , ledWrite   :: BitVector 8
+  , ledEnable  :: Bool
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+ledMap :: Maybe ToMem -> ToLed
+ledMap = \case
+  Just (ToMem _ 0 $(bitPattern "..11") (Just d)) 
+    -> ToLed (slice d11 d8 d) (slice d7 d0 d) True
+  _ -> ToLed 0 0 False 
+
+data ToUart = ToUart
+  { uartMask :: BitVector 3
+  , uartWrite :: Maybe (BitVector 8)
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+uartMap :: Maybe ToMem -> ToUart
+uartMap = \case
+  Just (ToMem DataMem 0x4 mask wrM) -> ToUart (slice d2 d0 mask) $ slice d7 d0 <$> wrM
+  _ -> ToUart 0x4 Nothing -- read status default
+
+data ToSpram = ToSpram
+  { spramAddress     :: BitVector 15
+  , spramData        :: BitVector 32
+  , spramMask        :: BitVector 8
+  , spramWriteEnable :: Bit
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+spramMap :: Maybe ToMem -> ToSpram
+spramMap = \case
+  Just (ToMem _ addr@($(bitPattern "000000000000001.................")) mask wrM) 
+    -> let wordAddr = slice d14 d0 $ addr `shiftR` 2
+           (dIn, mskWrEn, wrEn) = case wrM of
+             Just d  -> (d, expandMask mask, 1)
+             Nothing -> (0, 0, 0)
+       in ToSpram wordAddr dIn mskWrEn wrEn
+  _ -> ToSpram 0 0 0 0
   where
-    wordAddr = slice d14 d0 $ addr `shiftR` 2
-    (dIn, mskWrEn, wrEn) = case wrM of
-      Just d  -> (d, expandMask mask, 1)
-      Nothing -> (0, 0, 0)
+    -- convert byte mask (4 bits) to nybble mask (8 bits)
+    expandMask :: (KnownNat n, KnownNat m) => BitVector n -> BitVector (m * n)
+    expandMask = concatBitVector# . map expandBit . bv2v
       where
-        -- convert byte mask (4 bits) to nybble mask (8 bits)
-        expandMask :: (KnownNat n, KnownNat m) => BitVector n -> BitVector (m * n)
-        expandMask = concatBitVector# . map expandBit . bv2v
-          where
-            expandBit b
-              | b == high = maxBound
-              | otherwise = 0
+        expandBit b
+          | b == high = maxBound
+          | otherwise = 0
 
-romAddress :: BitVector 32 -> Unsigned 8
-romAddress a = unpack $ slice d7 d0 $ a `shiftR` 2
 
-ledMap :: BitVector 32 -> Bus
-ledMap wr = Led (slice d11 d8 wr) (slice d7 d0 wr)
-
-busMapIn :: ToMem -> Maybe Bus
+--busMapIn :: ToMem -> Maybe Bus
 
 {-
 busMapIn (ToMem acc addr mask wrM)
@@ -62,7 +100,7 @@ busMapIn (ToMem acc addr mask wrM)
   | mask .&. 0x3 /= 0             = ledMap <$> wrM
   | otherwise = Nothing
 -}
-
+{-
 busMapIn = \case
   ToMem _ addr@($(bitPattern "..............1.................")) mask wrM -- spram
     -> spramMap addr mask wrM
@@ -73,6 +111,7 @@ busMapIn = \case
   ToMem _ _ $(bitPattern "..11") (Just wr) 
     -> Just $ ledMap wr
   _ -> Nothing
+-}
 {-
 
   where
@@ -80,16 +119,20 @@ busMapIn = \case
     checkBit n = bitToBool $ addr ! n
 -}
 busMapOut 
-  :: Maybe Bus 
+  :: Maybe ToMem 
   -> BitVector 32  -- from spram
   -> BitVector 32  -- from bios
   -> BitVector 32  -- from uart
   -> BitVector 32
-busMapOut busOut fromSpram fromBios fromUart = case busOut of
+busMapOut mem fromSpram fromBios fromUart = case memAddress <$> mem of
+  Just $(bitPattern "..............1.................") -> fromSpram
+  Just $(bitPattern ".....................1..........") -> fromBios
+  _ -> fromUart
+{-
   Just (Spram _ _ _ _) -> fromSpram
   Just (Rom _)         -> fromBios
   _                    -> fromUart
-
+-}
 -------------
 -- Utility --
 -------------
