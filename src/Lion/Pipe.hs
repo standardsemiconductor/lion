@@ -37,9 +37,41 @@ data ToPipe = ToPipe
   deriving anyclass NFDataX
 makeLenses ''ToPipe
 
+-- | Memory access - Lion has a shared instruction/memory bus
+data MemoryAccess = InstrMem -- ^ instruction access
+                  | DataMem  -- ^ data access
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
 -- | Memory bus
---
---   Lion has a shared instruction/memory bus
+data ToMem = ToMem
+  { memAccess   :: MemoryAccess         -- ^ memory access type
+  , memAddress  :: BitVector 32         -- ^ memory address
+  , memByteMask :: BitVector 4          -- ^ memory byte mask
+  , memWrite    :: Maybe (BitVector 32) -- ^ read=Nothing write=Just wr
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+-- | Construct instruction memory access
+instrMem :: BitVector 32 -> ToMem
+instrMem addr = ToMem
+  { memAccess   = InstrMem
+  , memAddress  = addr
+  , memByteMask = 0xF
+  , memWrite    = Nothing
+  }
+
+-- | Construct data memory access
+dataMem :: BitVector 32 -> BitVector 4 -> Maybe (BitVector 32) -> ToMem
+dataMem addr mask wrM = ToMem
+  { memAccess   = DataMem
+  , memAddress  = addr
+  , memByteMask = mask
+  , memWrite    = wrM
+  }
+
+{-
 data ToMem = InstrMem         -- ^ instruction read
                (BitVector 32) -- ^ instruction address
            | DataMem                  -- ^ data access
@@ -48,7 +80,7 @@ data ToMem = InstrMem         -- ^ instruction read
                (Maybe (BitVector 32)) -- ^ read=Nothing write=(Just wr)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-
+-}
 -- | Pipeline outputs
 data FromPipe = FromPipe
   { _toMem       :: First ToMem
@@ -239,14 +271,14 @@ memory = do
       wbIR ?= WbNop
     MeStore addr mask value -> do
       control.meMemory .= True
-      scribe toMem $ First $ Just $ DataMem addr mask $ Just value
+      scribe toMem $ First $ Just $ dataMem addr mask $ Just value
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemWMask .= mask
       wbRvfi.rvfiMemWData .= value
       wbIR ?= WbStore
     MeLoad op rdAddr addr mask -> do
       control.meMemory .= True
-      scribe toMem $ First $ Just $ DataMem addr mask Nothing
+      scribe toMem $ First $ Just $ dataMem addr mask Nothing
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemRMask .= mask
       wbIR ?= WbLoad op rdAddr mask
@@ -368,7 +400,7 @@ decode = do
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
   use (control.meBranching) >>= mapM_ (assign fetchPC)
-  scribe toMem . First . Just . InstrMem =<< use fetchPC
+  scribe toMem . First . Just . instrMem =<< use fetchPC
   isMeMemory <- use $ control.meMemory
   isDeLoad   <- use $ control.deLoad
   unless (isMeMemory || isDeLoad) $ dePC <~ fetchPC <<+= 4  
