@@ -14,6 +14,7 @@ import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
 import Data.Maybe ( isJust, fromMaybe )
 import Data.Monoid.Generic
+import Ice40.IO
 
 -- | uart register
 --   31 - 24 : 23 - 16 : 15 - 8 : 7 - 0
@@ -52,8 +53,9 @@ fromStatus = boolToBV . (== Full)
 
 -- | Uart state
 data Uart = Uart
-  { _bus'      :: Maybe B.Bus -- ^ delayed bus
-  , -- transmitter state
+  { -- _bus'      :: Maybe B.Bus -- ^ delayed bus
+--  , _rx'       :: Bit         -- ^ delayed rx 
+--  , -- transmitter state
     _txIdx    :: Index 10             -- ^ buffer bit index
   , _txBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
   , _txBuffer :: Maybe (BitVector 10) -- ^ transmitter data buffer
@@ -71,8 +73,9 @@ makeLenses ''Uart
 -- | Construct a Uart
 mkUart :: Uart
 mkUart = Uart
-  { _bus' = Nothing
-  , -- transmitter state
+  { -- _bus' = Nothing -- delayed bus input
+--  , _rx'  = 1       -- delayed rx input
+--  , -- transmitter state
     _txIdx    = 0
   , _txBaud   = 0
   , _txBuffer = Nothing
@@ -108,7 +111,7 @@ makeLenses ''FromUart
 
 -- | transmit 
 transmit :: RWS ToUart FromUart Uart ()
-transmit = use bus' >>= \case
+transmit = view fromBus >>= \case -- use bus' >>= \case
   Just (B.Uart $(bitPattern "001") (Just wr)) -> do -- write send byte
     txReset
     txBuffer ?= frame wr
@@ -132,38 +135,42 @@ txReset = do
 
 receive :: RWS ToUart FromUart Uart ()
 receive = do
-  rxIn <- view rx
-  use bus' >>= \case
+--  rxIn <- view rx
+--  use bus' >>= \case
+  view fromBus >>= \case
     Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
       scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend.v2bv)
       rxReset
-    _ -> use rxFsm >>= \case
-      RxIdle -> 
-        when (rxIn == low) $ do
-          rxBaud %= increment
-          rxFsm  %= increment
-      RxStart -> do
-        ctr <- rxBaud <<%= increment
-        let baudHalf = maxBound `shiftR` 1
-        when (ctr == baudHalf) $ do 
-          rxIdx .= 0
-          rxBaud .= 0
-          rxBuffer .= repeat 0
-          if rxIn == low
-            then rxFsm %= increment
-            else rxReset
-      RxRecv -> do
-        ctr <- rxBaud <<%= increment
-        when (ctr == maxBound) $ do
-          idx <- rxIdx <<%= increment
-          rxBuffer %= (rxIn +>>)
-          when (idx == maxBound) $ 
+    _ -> do
+--      rxIn <- use rx'
+      rxIn <- view rx
+      use rxFsm >>= \case
+        RxIdle -> 
+          when (rxIn == low) $ do
+            rxBaud %= increment
+            rxFsm  %= increment
+        RxStart -> do
+          ctr <- rxBaud <<%= increment
+          let baudHalf = maxBound `shiftR` 1
+          when (ctr == baudHalf) $ do 
+--            rxIdx .= 0
+            rxBaud .= 0
+--            rxBuffer .= repeat 0
+            if rxIn == low
+              then rxFsm %= increment
+              else rxReset
+        RxRecv -> do
+          ctr <- rxBaud <<%= increment
+          when (ctr == maxBound) $ do
+            idx <- rxIdx <<%= increment
+            rxBuffer %= (rxIn +>>)
+            when (idx == maxBound) $ 
+              rxFsm %= increment
+        RxStop -> do
+          ctr <- rxBaud <<%= increment
+          when (ctr == maxBound) $ do
+            rxStatus .= Full
             rxFsm %= increment
-      RxStop -> do
-        ctr <- rxBaud <<%= increment
-        when (ctr == maxBound) $ do
-          rxStatus .= Full
-          rxFsm %= increment
 
 rxReset :: MonadState Uart m => m ()
 rxReset = do
@@ -174,7 +181,8 @@ rxReset = do
 
 uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
-  use bus' >>= \case
+  view fromBus >>= \case
+--  use bus' >>= \case
     Just (B.Uart $(bitPattern "100") Nothing) -> do  -- read status byte
       rxS <- uses rxStatus fromStatus
       txS <- uses txBuffer $ boolToBV . isJust 
@@ -183,7 +191,8 @@ uartM = do
     _ -> return ()
   transmit
   receive
-  bus' <~ view fromBus
+--  bus' <~ view fromBus
+--  rx'  <~ view rx
 
 uartMealy :: Uart -> ToUart -> (Uart, FromUart)
 uartMealy s i = (s', o)
@@ -192,15 +201,40 @@ uartMealy s i = (s', o)
 
 uart
   :: HiddenClockResetEnable dom 
-  => Signal dom Bit         -- ^ uart rx
-  -> Signal dom (Maybe B.Bus) -- ^ soc bus 
-  -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
-uart rxIn bus = (txOut, uartOut)
+  => Signal dom (Maybe B.Bus)          -- ^ soc bus 
+  -> Unbundled dom (Bit, Bit, BitVector 32) -- ^ (uart tx, uart rx, toCore)
+uart bus = (txPin, rxPin, uartOut)
   where
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
-    txOut = unTx . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
---    rxIn' = register 1 $ register 1 rxIn -- double flop rx input
+    txOut = register 1 $ unTx . _tx <$> fromUart
+    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> register 1 rxIn
+    (txPin, _, _) = io PinInput
+                       PinOutputRegistered
+                       1
+                       0
+                       SBLVCMOS
+                       0
+                       1
+                       hasClock
+                       hasClock
+                       1
+                       txOut
+                       0
+    (rxPin, _, rxIn) = io PinInputRegistered
+                          PinNoOutput
+                          1 -- pull up, maybe want 1? check bank
+                          0 -- neg trigger
+                          SBLVCMOS
+                          0 -- latch input value
+                          1 -- clock enable
+                          hasClock -- input clk
+                          hasClock -- output clk
+                          0 -- output enable
+                          0 -- dOut0
+                          0 -- dOut1
+ 
+ 
+--    rxIn' = register 1 rxIn
 
 -------------
 -- Utility --
