@@ -16,8 +16,9 @@ import Ice40.Osc ( hf12Mhz )
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core
-import Bus  ( busMapIn, busMapOut, Bus(Rom, Led))
-import Uart ( uart )
+import Bus   ( busMapIn, busMapOut, Bus(Rom, Led))
+import Uart  ( uart )
+import Spram ( spram )
 
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
@@ -74,6 +75,7 @@ lion rxIn = FromSoc
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
+    fromSpram      = spram     busIn
     fromBios       = bios      busIn
     fromRgb        = rgb       busIn
     (tx, fromUart) = uart rxIn busIn
@@ -81,6 +83,7 @@ lion rxIn = FromSoc
       busMapOut <$> register Nothing busIn
                 <*> fromBios 
                 <*> fromUart
+                <*> fromSpram
 
 ----------------
 -- Top Entity --
