@@ -17,7 +17,7 @@ library
   build-depends:
     base >= 4.13 && < 4.15,
     Cabal,
-    clash-prelude >= 1.2.5 && < 1.4,
+    clash-prelude >= 1.4 && < 1.5,
     lion >= 0.1 && < 0.2,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,

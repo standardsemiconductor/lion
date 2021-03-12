@@ -14,7 +14,7 @@ buildDir' :: FilePath -> FilePath
 buildDir' = (buildDir </>)
 
 verilog :: FilePath
-verilog = "_build/verilog/Metric/Metric"
+verilog = "_build/Metric.topEntity"
 
 main :: IO ()
 main = shakeArgs opts $  do
@@ -30,7 +30,7 @@ main = shakeArgs opts $  do
     need [verilog </> metricTop <.> "v"]
     cmd_ "yosys"
          "-p"
-         ["synth_ice40 -top " ++ metricTop ++ " -json " ++ out ++ " -retime -abc2"]
+         ["synth_ice40 -top " ++ metricTop ++ " -json " ++ out ++ " -abc2"]
          [verilog </> "*.v"]
 
   -- compile Metric
