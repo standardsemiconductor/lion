@@ -17,6 +17,7 @@ module Lion.Core
   , CoreConfig(..)
   , FromCore(..)
   , P.ToMem(..)
+  , P.MemoryAccess(..)
   ) where
 
 import Clash.Prelude
