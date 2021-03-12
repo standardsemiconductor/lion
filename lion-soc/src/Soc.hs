@@ -23,7 +23,7 @@ import Spram ( spram )
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
   , txOut  :: "uart_tx" ::: Signal dom Bit
-  , rxPin  :: "uart_rx" ::: Signal dom Bit
+--  , rxPin  :: "uart_rx" ::: Signal dom Bit
   }
 
 ---------
@@ -69,29 +69,29 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 -- Lion SOC --
 --------------
 {-# NOINLINE lion #-}
-lion :: HiddenClockResetEnable dom => FromSoc dom
-lion = FromSoc
+lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
+lion rx = FromSoc
   { rgbOut = fromRgb
   , txOut  = tx
-  , rxPin  = rx
+--  , rxPin  = rx
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
-    fromSpram      = spram     busIn
-    fromBios       = bios      busIn
-    fromRgb        = rgb       busIn
-    (tx, rx, fromUart) = uart busIn
+    fromSpram      = spram   busIn
+    fromBios       = bios    busIn
+    fromRgb        = rgb     busIn
+    (tx, fromUart) = uart rx $ register Nothing busIn
     busIn = fmap (busMapIn =<<) $ toMem $ core config $
       busMapOut <$> register Nothing busIn
                 <*> fromSpram
                 <*> fromBios 
-                <*> register 0 fromUart
+                <*> fromUart
 
 ----------------
 -- Top Entity --
 ----------------
 {-# NOINLINE topEntity #-}
-topEntity :: FromSoc Lattice12Mhz
+topEntity :: "uart_rx" ::: Signal Lattice12Mhz Bit -> FromSoc Lattice12Mhz
 topEntity = withClockResetEnable clk latticeRst enableGen lion
   where
     clk = hf12Mhz (pure True :: Signal System Bool)

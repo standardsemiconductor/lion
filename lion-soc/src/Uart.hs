@@ -14,7 +14,7 @@ import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
 import Data.Maybe ( isJust, fromMaybe )
 import Data.Monoid.Generic
-import Ice40.IO
+-- import Ice40.IO
 
 -- | uart register
 --   31 - 24 : 23 - 16 : 15 - 8 : 7 - 0
@@ -199,42 +199,17 @@ uartMealy s i = (s', o)
   where 
     (_, s', o) = runRWS uartM i s
 
+{-# NOINLINE uart #-}
 uart
   :: HiddenClockResetEnable dom 
-  => Signal dom (Maybe B.Bus)          -- ^ soc bus 
-  -> Unbundled dom (Bit, Bit, BitVector 32) -- ^ (uart tx, uart rx, toCore)
-uart bus = (txPin, rxPin, uartOut)
+  => Signal dom Bit
+  -> Signal dom (Maybe B.Bus)          -- ^ soc bus 
+  -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
+uart rxIn bus = (txOut, uartOut)
   where
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
-    txOut = register 1 $ unTx . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> register 1 rxIn
-    (txPin, _, _) = io PinInput
-                       PinOutputRegistered
-                       1
-                       0
-                       SBLVCMOS
-                       0
-                       1
-                       hasClock
-                       hasClock
-                       1
-                       txOut
-                       0
-    (rxPin, _, rxIn) = io PinInputRegistered
-                          PinNoOutput
-                          1 -- pull up, maybe want 1? check bank
-                          0 -- neg trigger
-                          SBLVCMOS
-                          0 -- latch input value
-                          1 -- clock enable
-                          hasClock -- input clk
-                          hasClock -- output clk
-                          0 -- output enable
-                          0 -- dOut0
-                          0 -- dOut1
- 
- 
---    rxIn' = register 1 rxIn
+    txOut = unTx . _tx <$> fromUart
+    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
 
 -------------
 -- Utility --
