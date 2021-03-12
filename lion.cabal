@@ -32,8 +32,8 @@ library
     generic-monoid >= 0.1 && < 0.2,
     mtl,
     lens,
-    ice40-prim >= 0.2 && < 0.3,
-    clash-prelude >= 1.2.5 && < 1.4,
+    ice40-prim >= 0.3 && < 0.4,
+    clash-prelude >= 1.2.5 && < 1.5,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
     ghc-typelits-knownnat
