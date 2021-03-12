@@ -81,9 +81,9 @@ lion rxIn = FromSoc
     (tx, fromUart) = uart rxIn busIn
     busIn = fmap (busMapIn =<<) $ toMem $ core config $
       busMapOut <$> register Nothing busIn
+                <*> fromSpram
                 <*> fromBios 
                 <*> fromUart
-                <*> fromSpram
 
 ----------------
 -- Top Entity --

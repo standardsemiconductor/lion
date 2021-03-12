@@ -63,23 +63,32 @@ ledMap = \case
   _ -> Nothing
 
 busMapIn :: ToMem -> Maybe Bus
+busMapIn toMem
+  | checkBit 17 = spramMap toMem
+  | checkBit 10 = romMap   toMem
+  | checkBit  2 = uartMap  toMem
+  | otherwise   = ledMap toMem
+{-
 busMapIn toMem = case getAddress toMem of
   $(bitPattern "..............1.................") -> spramMap toMem -- spram
   $(bitPattern ".....................1..........") -> romMap   toMem -- rom
   $(bitPattern ".............................1..") -> uartMap  toMem -- uart
   _ -> ledMap toMem
+-}
+  where
+    checkBit :: Index 32 -> Bool
+    checkBit n = bitToBool $ getAddress toMem ! n
 
 busMapOut 
   :: Maybe Bus 
+  -> BitVector 32  -- from spram
   -> BitVector 32  -- from bios
   -> BitVector 32  -- from uart
-  -> BitVector 32  -- from spram
   -> BitVector 32
-busMapOut busOut fromBios fromUart fromSpram = case busOut of
-  Just (Rom _)    -> fromBios
-  Just (Uart _ _) -> fromUart
-  _               -> fromSpram
-
+busMapOut busOut fromSpram fromBios fromUart = case busOut of
+  Just (Spram _ _ _ _) -> fromSpram
+  Just (Rom _)         -> fromBios
+  _                    -> fromUart
 
 -------------
 -- Utility --

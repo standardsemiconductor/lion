@@ -11,7 +11,7 @@ module Spram where
 import Clash.Prelude
 import Data.Functor ( (<&>) )
 import Ice40.Spram
-import Bus ( Bus(Spram) )
+import Bus          ( Bus(Spram) )
 
 spram 
   :: HiddenClockResetEnable dom 
@@ -34,7 +34,7 @@ ram32k32 address dataIn maskWrEn wrEn = (++#) <$> dataOutH <*> dataOutL
   where
     dataOutH = ram32k16 address dataInH maskWrEnH wrEn
     dataOutL = ram32k16 address dataInL maskWrEnL wrEn
-    (dataInH, dataInL) = unbundle $ split <$> dataIn
+    (dataInH, dataInL)     = unbundle $ split <$> dataIn
     (maskWrEnH, maskWrEnL) = unbundle $ split <$> maskWrEn
 
 ram32k16
