@@ -51,3 +51,58 @@ biwoIO = (biwo, bi)
                        0
                        0
                        0
+
+bowiIO :: HiddenClock dom => Signal dom Bit -> Signal dom Bit -> Signal dom Bit
+bowiIO boe boe = bowi
+  where
+    (bowi, _, _) = io
+                     PinInput
+                     PinOutputTristate
+                     0 -- pullup
+                     0 -- negTrigger
+                     SBLVCMOS
+                     0 -- latchInputValue
+                     0 -- clock enable
+                     hasClock
+                     hasClock
+                     boe -- output enable
+                     bo  -- dOut0
+                     0
+
+wckIO :: HiddenClock dom => Signal dom Bit -> Signal dom Bit -> Signal dom Bit
+wckIO wckoe wcko = wck
+  where
+    (wck, _, _) = io PinInput
+                     PinOutputTristate
+                     1 -- pullUp
+                     0 -- negTrigger
+                     SBLVCMOS
+                     0 -- latchInputValue
+                     0 -- clock enable
+                     hasClock
+                     hasClock
+                     wckoe
+                     wcko
+                     0
+
+csIO 
+  :: HiddenClock dom 
+  => Signal dom (BitVector 4) 
+  -> Signal dom (BitVector 4) 
+  -> Signal dom Bit
+csIO bcsnoe bcsno = cs
+  where
+    (cs, _, _) = io PinInput
+                    PinOutputTristate
+                    1 -- pullUp
+                    0 -- negTrigger
+                    SBLVCMOS
+                    0 -- latch input value
+                    0 -- clock enable
+                    hasClock
+                    hasClock
+                    ((!(3 :: Index 4)) <$> bcsnoe) -- output enable
+                    ((!(3 :: Index 4)) <$> bcsno)  -- dOut0
+                    0 -- dOut1
+                
+                     
