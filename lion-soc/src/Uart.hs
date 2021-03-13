@@ -54,7 +54,6 @@ fromStatus = boolToBV . (== Full)
 -- | Uart state
 data Uart = Uart
   { -- _bus'      :: Maybe B.Bus -- ^ delayed bus
---  , _rx'       :: Bit         -- ^ delayed rx 
 --  , -- transmitter state
     _txIdx    :: Index 10             -- ^ buffer bit index
   , _txBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
@@ -74,7 +73,6 @@ makeLenses ''Uart
 mkUart :: Uart
 mkUart = Uart
   { -- _bus' = Nothing -- delayed bus input
---  , _rx'  = 1       -- delayed rx input
 --  , -- transmitter state
     _txIdx    = 0
   , _txBaud   = 0
@@ -192,7 +190,6 @@ uartM = do
   transmit
   receive
 --  bus' <~ view fromBus
---  rx'  <~ view rx
 
 uartMealy :: Uart -> ToUart -> (Uart, FromUart)
 uartMealy s i = (s', o)
@@ -207,8 +204,9 @@ uart
 uart rxIn bus = (txOut, uartOut)
   where
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
-    txOut = unTx . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
+    txOut = register 1 $ register 1 $ unTx . _tx <$> fromUart
+    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn'
+    rxIn' = register 1 $ register 1 rxIn
 
 -------------
 -- Utility --
