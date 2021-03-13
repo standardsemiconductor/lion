@@ -62,6 +62,7 @@ main = shakeArgs opts $ do
     need ["_build/Soc.json", "Soc.pcf"]
     cmd_ "nextpnr-ice40"
          "--up5k"
+         "--opt-timing"
          "--package sg48"
          "--pcf Soc.pcf"
          "--asc"
