@@ -8,7 +8,7 @@ Maintainer  : standardsemiconductor@gmail.com
 module Bus where
 
 import Clash.Prelude
-import Lion.Core (ToMem(..))
+import Lion.Core (ToMem(..), MemoryAccess(..))
 
 ---------
 -- Bus --
@@ -26,23 +26,23 @@ data Bus = Rom -- ^ rom access
   deriving anyclass NFDataX
 
 romMap :: ToMem -> Maybe Bus
-romMap = Just . Rom . wordAddr . getAddress
+romMap = Just . Rom . wordAddr . memAddress
   where
     wordAddr :: BitVector 32 -> Unsigned 8
     wordAddr a = unpack $ slice d7 d0 $ a `shiftR` 2
 
 uartMap :: ToMem -> Maybe Bus
 uartMap = \case
-  DataMem _ msk wrM -> Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
+  ToMem DataMem _ msk wrM -> Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
   _ -> Nothing
 
 ledMap :: ToMem -> Maybe Bus
 ledMap = \case
-  DataMem _ $(bitPattern "..11") (Just d) -> Just $ Led (slice d11 d8 d) (slice d7 d0 d)
+  ToMem DataMem _ $(bitPattern "..11") (Just d) -> Just $ Led (slice d11 d8 d) (slice d7 d0 d)
   _ -> Nothing
 
 busMapIn :: ToMem -> Maybe Bus
-busMapIn toMem = case getAddress toMem of
+busMapIn toMem = case memAddress toMem of
   $(bitPattern ".....................1..........") -> romMap  toMem -- rom
   $(bitPattern ".............................1..") -> uartMap toMem -- uart
   _ -> ledMap toMem
@@ -51,13 +51,4 @@ busMapOut :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromBios fromUart = case busOut of
   Just (Rom _) -> fromBios
   _            -> fromUart
-
--------------
--- Utility --
--------------
-
-getAddress :: ToMem -> BitVector 32
-getAddress = \case
-  InstrMem a     -> a
-  DataMem  a _ _ -> a
 

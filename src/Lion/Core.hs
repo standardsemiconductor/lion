@@ -16,6 +16,7 @@ module Lion.Core
   , defaultCoreConfig
   , CoreConfig(..)
   , FromCore(..)
+  , P.MemoryAccess(..)
   , P.ToMem(..)
   ) where
 
