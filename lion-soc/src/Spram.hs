@@ -10,7 +10,7 @@ module Spram where
 
 import Clash.Prelude
 import Ice40.Spram
-import Bus          ( ToSpram(..) )
+import Bus ( ToSpram(..) )
 
 spram 
   :: HiddenClockResetEnable dom 
@@ -20,12 +20,7 @@ spram toSpram = ram32k32 (spramAddress     <$> toSpram)
                          (spramData        <$> toSpram)
                          (spramMask        <$> toSpram)
                          (spramWriteEnable <$> toSpram)
-{-
-  where
-    (address, dataIn, maskWrEn, wrEn) = unbundle $ busInM <&> \case
-      Just (Spram a dIn mskWrEn en) -> (a, dIn, mskWrEn, en)
-      _ -> (0, 0, 0, 0)
--}
+
 ram32k32
   :: HiddenClockResetEnable dom
   => Signal dom (BitVector 15) -- address
