@@ -75,12 +75,12 @@ lion rx = FromSoc
     fromSpram      = spram   $ spramMap <$> fromCore
     fromBios       = bios    $ romMap   <$> fromCore
     fromRgb        = rgb     $ ledMap   <$> fromCore
-    (tx, fromUart) = uart rx $ uartMap  <$> fromCore
+    (tx, fromUart) = uart rx $ uartMap  <$> register Nothing fromCore
     fromCore = toMem $ core config $
       busMapOut <$> register Nothing fromCore
                 <*> fromSpram
                 <*> fromBios 
-                <*> register 0 fromUart
+                <*> fromUart
 
 ----------------
 -- Top Entity --
