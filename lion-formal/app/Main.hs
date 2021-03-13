@@ -15,7 +15,7 @@ buildDir' :: FilePath -> FilePath
 buildDir' = (buildDir </>)
 
 verilog :: String -> FilePath
-verilog top = "_build/verilog" </> top </> top
+verilog top = "_build" </> top <.> "topEntity"
 
 main :: IO ()
 main = shakeArgs opts $ do
