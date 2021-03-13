@@ -50,7 +50,7 @@ ledMap = \case
   _ -> ToLed 0 0 False 
 
 data ToUart = ToUart
-  { uartMask :: BitVector 3
+  { uartMask  :: BitVector 3
   , uartWrite :: Maybe (BitVector 8)
   }
   deriving stock (Generic, Show, Eq)

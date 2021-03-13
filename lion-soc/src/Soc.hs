@@ -74,13 +74,13 @@ lion rx = FromSoc
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
     fromSpram      = spram   $ spramMap <$> fromCore
     fromBios       = bios    $ romMap   <$> fromCore
-    fromRgb        = rgb     $ ledMap   <$> fromCore
-    (tx, fromUart) = uart rx $ uartMap  <$> register Nothing fromCore
+    fromRgb        = rgb     $ ledMap   <$> register Nothing fromCore
+    (tx, fromUart) = uart rx $ uartMap  <$> fromCore
     fromCore = toMem $ core config $
       busMapOut <$> register Nothing fromCore
                 <*> fromSpram
                 <*> fromBios 
-                <*> fromUart
+                <*> register 0 fromUart
 
 ----------------
 -- Top Entity --
