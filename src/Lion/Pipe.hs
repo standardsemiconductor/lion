@@ -54,7 +54,9 @@ data ToMem = ToMem
   deriving anyclass NFDataX
 
 -- | Construct instruction memory access
-instrMem :: BitVector 32 -> ToMem
+instrMem 
+  :: BitVector 32 -- ^ instruction address
+  -> ToMem
 instrMem addr = ToMem
   { memAccess   = InstrMem
   , memAddress  = addr
@@ -63,7 +65,11 @@ instrMem addr = ToMem
   }
 
 -- | Construct data memory access
-dataMem :: BitVector 32 -> BitVector 4 -> Maybe (BitVector 32) -> ToMem
+dataMem 
+  :: BitVector 32         -- ^ memory address
+  -> BitVector 4          -- ^ byte mask
+  -> Maybe (BitVector 32) -- ^ write
+  -> ToMem
 dataMem addr mask wrM = ToMem
   { memAccess   = DataMem
   , memAddress  = addr
@@ -71,16 +77,6 @@ dataMem addr mask wrM = ToMem
   , memWrite    = wrM
   }
 
-{-
-data ToMem = InstrMem         -- ^ instruction read
-               (BitVector 32) -- ^ instruction address
-           | DataMem                  -- ^ data access
-               (BitVector 32)         -- ^ data address
-               (BitVector 4)          -- ^ data byte mask
-               (Maybe (BitVector 32)) -- ^ read=Nothing write=(Just wr)
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
--}
 -- | Pipeline outputs
 data FromPipe = FromPipe
   { _toMem       :: First ToMem

@@ -10,11 +10,11 @@ The Lion core is a 32-bit RISC-V processor written in Haskell using [Clash](http
 
 module Lion.Core 
   ( core
+  , defaultCoreConfig
+  , P.defaultPipeConfig
+  , CoreConfig(..)
   , AluConfig(..)
   , P.PipeConfig(..)
-  , P.defaultPipeConfig
-  , defaultCoreConfig
-  , CoreConfig(..)
   , FromCore(..)
   , P.ToMem(..)
   , P.MemoryAccess(..)

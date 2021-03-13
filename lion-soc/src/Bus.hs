@@ -8,7 +8,6 @@ Maintainer  : standardsemiconductor@gmail.com
 module Bus where
 
 import Clash.Prelude
-import Data.Maybe ( fromMaybe )
 import Lion.Core (ToMem(..), MemoryAccess(..))
 
 ---------
@@ -34,7 +33,7 @@ data Bus = Rom                     -- ^ rom access
 -}
 
 romMap :: Maybe ToMem -> Unsigned 8
-romMap = unpack . slice d7 d0 . (`shiftR` 2) . fromMaybe 0 . fmap memAddress 
+romMap = unpack . slice d7 d0 . (`shiftR` 2) . maybe 0 memAddress 
 
 data ToLed = ToLed 
   { ledAddress :: BitVector 4 
@@ -142,3 +141,4 @@ getAddress = \case
   InstrMem a     -> a
   DataMem  a _ _ -> a
 -}
+

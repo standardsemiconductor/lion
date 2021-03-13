@@ -36,10 +36,10 @@ lionFV memRData =
   where
     fromCore = core defaultCoreConfig memRData
     memValid = isJust <$> toMem fromCore
-    memInstr = fromMaybe False . fmap isInstr <$> toMem fromCore
+    memInstr = maybe False isInstr <$> toMem fromCore
     memAddr  = maybe 0 memAddress <$> toMem fromCore
     memWData = fromMaybe 0 . (memWrite =<<) <$> toMem fromCore
-    memWStrb = fromMaybe 0 . fmap memByteMask <$> toMem fromCore
+    memWStrb = maybe 0 memByteMask <$> toMem fromCore
 
 isInstr :: ToMem -> Bool
 isInstr = (== InstrMem) . memAccess

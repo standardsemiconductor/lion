@@ -47,7 +47,7 @@ jobs:
         repository: YosysHQ/nextpnr
         ref: master
         path: nextpnr
-        submodules: recursive
+        submodules: true
 
     - name: Install nextpnr
       working-directory: nextpnr
@@ -144,15 +144,18 @@ jobs:
       run: |
         cabal build
         cabal run
+        cabal run formal -- clean
 
     - name: SoC
       working-directory: lion-soc
       run: |
         cabal build
         cabal run soc
+        cabal run soc -- clean
 
     - name: Metric
       working-directory: lion-metric
       run: |
         cabal build
         cabal run 
+        cabal run metric -- clean
