@@ -145,6 +145,7 @@ jobs:
         cabal build
         cabal run
         cabal run formal -- clean
+        cabal clean
 
     - name: SoC
       working-directory: lion-soc
@@ -152,6 +153,7 @@ jobs:
         cabal build
         cabal run soc
         cabal run soc -- clean
+        cabal clean
 
     - name: Metric
       working-directory: lion-metric
@@ -159,3 +161,4 @@ jobs:
         cabal build
         cabal run 
         cabal run metric -- clean
+        cabal clean
