@@ -14,15 +14,21 @@ jobs:
     runs-on: ${{ matrix.os }} 
     strategy:
       matrix:
-        ghc: ['8.8.4', '8.10.4']
-        cabal: ['3.2.0.0', '3.4.0.0']
+        ghc: ['8.8', '8.10']
+        cabal: ['3.2', '3.4']
         os: [ubuntu-20.04]
     name: ${{ matrix.os }} GHC ${{ matrix.ghc }} Cabal ${{ matrix.cabal }}
     steps:
     - name: Checkout
       uses: actions/checkout@v2
       with:
-        submodules: recursive
+        submodules: true
+
+    - name: Setup Haskell
+      uses: haskell/actions/setup@v1
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
 
     - name: Install icestorm prerequisites
       run: |
@@ -114,23 +120,17 @@ jobs:
         sudo make
         echo "$HOME/opt/riscv/bin" >> $GITHUB_PATH
 
-    - name: Setup Haskell
-      uses: haskell/actions/setup@v1
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: ${{ matrix.cabal }}
-
-    - name: Cache
-      uses: actions/cache@v1
-      env:
-        cache-name: cache-cabal
-      with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
+#    - name: Cache
+#      uses: actions/cache@v1
+#      env:
+#        cache-name: cache-cabal
+#      with:
+#        path: ~/.cabal
+#        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+#        restore-keys: |
+#          ${{ runner.os }}-build-${{ env.cache-name }}-
+#          ${{ runner.os }}-build-
+#          ${{ runner.os }}-
 
     - name: Install dependencies
       run: |
