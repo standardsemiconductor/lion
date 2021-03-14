@@ -14,44 +14,44 @@ import Lion.Core (ToMem(..), MemoryAccess(..))
 -- Bus --
 ---------
 -- | SoC Memory/Peripheral access bus
-data Bus = Rom -- ^ rom access 
-             (Unsigned 8) -- ^ rom word address
-         | Led -- ^ LED access 
+data Bus = Rom            -- ^ ROM access 
+             (Unsigned 8) -- ^ ROM word address
+         | Led             -- ^ LED access 
              (BitVector 4) -- ^ LED IP Register Address
              (BitVector 8) -- ^ LED IP Register Write Data
-         | Uart -- ^ UART access 
+         | Uart                    -- ^ UART access 
              (BitVector 3)         -- ^ UART mask
              (Maybe (BitVector 8)) -- ^ UART write value             
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-romMap :: ToMem -> Maybe Bus
-romMap = Just . Rom . wordAddr . memAddress
+romMap :: ToMem -> Bus
+romMap = Rom . wordAddr . memAddress
   where
     wordAddr :: BitVector 32 -> Unsigned 8
     wordAddr a = unpack $ slice d7 d0 $ a `shiftR` 2
 
-uartMap :: ToMem -> Maybe Bus
-uartMap = \case
-  ToMem DataMem _ msk wrM -> Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
-  _ -> Nothing
+uartMap :: ToMem -> Bus
+uartMap (ToMem _ _ msk wrM) = Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
 
-ledMap :: ToMem -> Maybe Bus
+ledMap :: ToMem -> Bus
 ledMap = \case
-  ToMem DataMem _ $(bitPattern "..11") (Just d) -> Just $ Led (slice d11 d8 d) (slice d7 d0 d)
-  _ -> Nothing
+  ToMem _ _ $(bitPattern "..11") (Just d) -> Led (slice d11 d8 d) (slice d7 d0 d)
+  _ -> Rom 0
 
-busMapIn :: ToMem -> Maybe Bus
-busMapIn toMem
-  | checkRegion 10 = romMap  toMem
-  | checkRegion  2 = uartMap toMem
-  | otherwise      = ledMap  toMem
+busMapIn :: Maybe ToMem -> Bus
+busMapIn Nothing = Rom 0
+busMapIn (Just toMem)
+  | checkRegion 10              = romMap  toMem
+  | checkRegion  2 && isDataMem = uartMap toMem
+  |                   isDataMem = ledMap  toMem
+  | otherwise                   = Rom 0
   where
-    checkRegion :: Int -> Bool
-    checkRegion n =  bitToBool $ lsb $ memAddress toMem `shiftR` n
+    isDataMem = memAccess toMem == DataMem
+    checkRegion n = bitToBool $ lsb $ memAddress toMem `shiftR` n
 
-busMapOut :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
+busMapOut :: Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromBios fromUart = case busOut of
-  Just (Rom _) -> fromBios
-  _            -> fromUart
+  (Rom _) -> fromBios
+  _       -> fromUart
 

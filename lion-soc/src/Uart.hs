@@ -27,7 +27,7 @@ import Data.Monoid.Generic
 --   bits 7  - 0 : transmitter buffer -- write only -- writing this byte will reset the transmitter
 
 data ToUart = ToUart
-  { _fromBus :: Maybe B.Bus
+  { _fromBus :: B.Bus
   , _rx      :: Bit
   }
   deriving stock (Generic, Show, Eq)
@@ -52,7 +52,7 @@ fromStatus = boolToBV . (== Full)
 
 -- | Uart state
 data Uart = Uart
-  { _bus'     :: Maybe B.Bus -- ^ delayed bus
+  { _bus'     :: B.Bus -- ^ delayed bus
   , -- transmitter state
     _txIdx    :: Index 10             -- ^ buffer bit index
   , _txBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
@@ -71,7 +71,7 @@ makeLenses ''Uart
 -- | Construct a Uart
 mkUart :: Uart
 mkUart = Uart
-  { _bus' = Nothing
+  { _bus' = B.Rom 0 -- default bus
   , -- transmitter state
     _txIdx    = 0
   , _txBaud   = 0
@@ -109,7 +109,7 @@ makeLenses ''FromUart
 -- | transmit 
 transmit :: RWS ToUart FromUart Uart ()
 transmit = use bus' >>= \case
-  Just (B.Uart $(bitPattern "001") (Just wr)) -> do -- write send byte
+  B.Uart $(bitPattern "001") (Just wr) -> do -- write send byte
     txReset
     txBuffer ?= frame wr
   _ -> do
@@ -134,7 +134,7 @@ receive :: RWS ToUart FromUart Uart ()
 receive = do
   rxIn <- view rx
   use bus' >>= \case
-    Just (B.Uart $(bitPattern "010") Nothing) -> do -- read recv byte
+    B.Uart $(bitPattern "010") Nothing -> do -- read recv byte
       scribe toCore . First . Just =<< uses rxBuffer ((`shiftL` 8).zeroExtend.v2bv)
       rxReset
     _ -> use rxFsm >>= \case
@@ -173,7 +173,7 @@ rxReset = do
 uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
   use bus' >>= \case
-    Just (B.Uart $(bitPattern "100") Nothing) -> do  -- read status byte
+    B.Uart $(bitPattern "100") Nothing -> do  -- read status byte
       rxS <- uses rxStatus fromStatus
       txS <- uses txBuffer $ boolToBV . isJust 
       let status = (rxS `shiftL` 1) .|. txS
@@ -190,8 +190,8 @@ uartMealy s i = (s', o)
 
 uart
   :: HiddenClockResetEnable dom 
-  => Signal dom Bit         -- ^ uart rx
-  -> Signal dom (Maybe B.Bus) -- ^ soc bus 
+  => Signal dom Bit                    -- ^ uart rx
+  -> Signal dom B.Bus                  -- ^ soc bus 
   -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
 uart rxIn bus = (txOut, uartOut)
   where
