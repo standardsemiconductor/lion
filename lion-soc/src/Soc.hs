@@ -10,12 +10,13 @@ module Soc where
 
 import Clash.Prelude
 import Clash.Annotations.TH
+import Data.Functor ( (<&>) )
 import Ice40.Clock
 import Ice40.Osc ( hf12Mhz )
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core
-import Bus   ( busMapOut, ToLed(..), ledMap, romMap, uartMap, spramMap)
+import Bus   ( busMapIn, busMapOut, Bus(Rom, Led) )
 import Uart  ( uart )
 import Spram ( spram )
 
@@ -44,7 +45,7 @@ bios
   :: HiddenClockResetEnable dom
   => Signal dom Bus
   -> Signal dom (BitVector 32)
-bios addr = concat4 <$> b3 <*> b2 <*> b1 <*> b0
+bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
@@ -77,7 +78,7 @@ lion rx = FromSoc
     fromSpram      = spram busIn
     fromBios       = bios      busIn
     fromRgb        = rgb $ register (Rom 0) busIn
-    (tx, fromUart) = uart rxIn busIn
+    (tx, fromUart) = uart rx busIn
     busIn = fmap busMapIn $ toMem $ core config $ 
       busMapOut <$> register (Rom 0) busIn
                 <*> fromSpram

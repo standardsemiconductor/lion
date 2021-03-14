@@ -158,6 +158,11 @@ receive = do
           rxBuffer %= (rxIn +>>)
           when (idx == maxBound) $ 
             rxFsm %= increment
+      RxStop -> do
+        ctr <- rxBaud <<%= increment
+        when (ctr == maxBound) $ do
+          rxStatus .= Full
+          rxFsm %= increment
 
 rxReset :: MonadState Uart m => m ()
 rxReset = do
@@ -177,7 +182,7 @@ uartM = do
     _ -> return ()
   transmit
   receive
---  bus' <~ view fromBus
+  bus' <~ view fromBus
 
 uartMealy :: Uart -> ToUart -> (Uart, FromUart)
 uartMealy s i = (s', o)
