@@ -174,7 +174,7 @@ rxReset = do
 uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
   use bus' >>= \case
-    B.Uart $(bitPattern "100") Nothing -> do  -- read status byte
+    ToMem _ _ $(bitPattern "0100") _ -> do  -- read status byte
       rxS <- uses rxStatus fromStatus
       txS <- uses txBuffer $ boolToBV . isJust 
       let status = (rxS `shiftL` 1) .|. txS
@@ -192,13 +192,13 @@ uartMealy s i = (s', o)
 uart
   :: HiddenClockResetEnable dom 
   => Signal dom Bit                    -- ^ uart rx
-  -> Signal dom B.Bus                  -- ^ soc bus 
+  -> Signal dom ToMem                  -- ^ soc bus 
   -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
-uart rxIn bus = (txOut, uartOut)
+uart rxIn mem = (txOut, uartOut)
   where
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
     txOut = unTx . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
+    fromUart = mealy uartMealy mkUart $ ToUart <$> mem <*> rxIn
 
 -------------
 -- Utility --
