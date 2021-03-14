@@ -52,7 +52,7 @@ fromStatus = boolToBV . (== Full)
 
 -- | Uart state
 data Uart = Uart
-  { _bus'      :: Maybe B.Bus -- ^ delayed bus
+  { _bus'     :: Maybe B.Bus -- ^ delayed bus
   , -- transmitter state
     _txIdx    :: Index 10             -- ^ buffer bit index
   , _txBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
@@ -146,9 +146,7 @@ receive = do
         ctr <- rxBaud <<%= increment
         let baudHalf = maxBound `shiftR` 1
         when (ctr == baudHalf) $ do 
-          rxIdx .= 0
           rxBaud .= 0
-          rxBuffer .= repeat 0
           if rxIn == low
             then rxFsm %= increment
             else rxReset
@@ -200,7 +198,6 @@ uart rxIn bus = (txOut, uartOut)
     uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
     txOut = unTx . _tx <$> fromUart
     fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
---    rxIn' = register 1 $ register 1 rxIn -- double flop rx input
 
 -------------
 -- Utility --
