@@ -42,10 +42,13 @@ ledMap = \case
   _ -> Nothing
 
 busMapIn :: ToMem -> Maybe Bus
-busMapIn toMem = case memAddress toMem of
-  $(bitPattern ".....................1..........") -> romMap  toMem -- rom
-  $(bitPattern ".............................1..") -> uartMap toMem -- uart
-  _ -> ledMap toMem
+busMapIn toMem
+  | checkRegion 10 = romMap  toMem
+  | checkRegion  2 = uartMap toMem
+  | otherwise      = ledMap  toMem
+  where
+    checkRegion :: Int -> Bool
+    checkRegion n =  bitToBool $ lsb $ memAddress toMem `shiftR` n
 
 busMapOut :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromBios fromUart = case busOut of
