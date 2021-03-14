@@ -12,14 +12,22 @@ import Clash.Prelude
 import Ice40.Spi
 import Bus ( Bus (Flash) )
 
+data SpiIO = SpiIO ("biwo" ::: Bit)
+                   ("bowi" ::: Bit)
+                   ("wck"  ::: Bit)
+                   ("cs"   ::: Bit)
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
 flash
   :: HiddenClock dom
   => Signal dom (Maybe Bus)
-  -> Signal dom (BitVector 32)
-flash busIn = _
+  -> Unbundled dom (SpiIO, BitVector 32)
+flash busIn = (spiIO, fromFlash)
   where
     fromSb = sysBus toSb
    
+    spiIO = SpiIO <$> biwo <*> bowi <*> wck <*> cs
     (biwo, bi) = biwoIO
     bowi       = bowiIO boe    bo
     wck        = wckIO  wckoe  wcko
@@ -35,6 +43,9 @@ flash busIn = _
             (pure 0)
             (pure 0)
             (pure 0)
+
+sysBus :: Signal dom (Maybe Bus) -> Unbundled (FromSb, BitVector 32)
+sysBus = _
 
 biwoIO :: HiddenClock dom => Unbundled dom (Bit, Bit)
 biwoIO = (biwo, bi)
