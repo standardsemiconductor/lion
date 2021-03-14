@@ -22,8 +22,7 @@ When connecting the `core` to memory and peripherals, ensure single cycle latenc
 ## Clone the repository
 1. `git clone https://github.com/standardsemiconductor/lion.git`
 2. `cd lion`
-3. `git submodule init`
-4. `git submodule update`
+3. `git submodule update --init`
 
 ## Features
 ### Current Support

@@ -13,72 +13,29 @@ import Lion.Core (ToMem(..), MemoryAccess(..))
 ---------
 -- Bus --
 ---------
-{-
 -- | SoC Memory/Peripheral access bus
-data Bus = Rom                     -- ^ rom access 
-             (Unsigned 8)          -- ^ rom word address
-         | Led                     -- ^ LED access 
-             (BitVector 4)         -- ^ LED IP Register Address
-             (BitVector 8)         -- ^ LED IP Register Write Data
+data Bus = Rom            -- ^ ROM access 
+             (Unsigned 8) -- ^ ROM word address
+         | Led             -- ^ LED access 
+             (BitVector 4) -- ^ LED IP Register Address
+             (BitVector 8) -- ^ LED IP Register Write Data
          | Uart                    -- ^ UART access 
              (BitVector 3)         -- ^ UART mask
              (Maybe (BitVector 8)) -- ^ UART write value             
-         | Spram                   -- ^ Single-port RAM access
-             (BitVector 15)        -- ^ address
-             (BitVector 32)        -- ^ dataIn
-             (BitVector 8)         -- ^ mask write enable
-             Bit                   -- ^ write enable
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
--}
-
-romMap :: Maybe ToMem -> Unsigned 8
-romMap = unpack . slice d7 d0 . (`shiftR` 2) . maybe 0 memAddress 
-
-data ToLed = ToLed 
-  { ledAddress :: BitVector 4 
-  , ledWrite   :: BitVector 8
-  , ledEnable  :: Bool
-  }
+         | Spram            -- ^ SPRAM access
+             (BitVector 15) -- ^ SPRAM address
+             (BitVector 32) -- ^ SPRAM dataIn
+             (BitVector 8)  -- ^ SPRAM mask write enable
+             Bit            -- ^ SPRAM write enable
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-ledMap :: Maybe ToMem -> ToLed
-ledMap = \case
-  Just (ToMem _ 0 $(bitPattern "..11") (Just d)) 
-    -> ToLed (slice d11 d8 d) (slice d7 d0 d) True
-  _ -> ToLed 0 0 False 
-
-data ToUart = ToUart
-  { uartMask  :: BitVector 3
-  , uartWrite :: Maybe (BitVector 8)
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
-
-uartMap :: Maybe ToMem -> ToUart
-uartMap = \case
-  Just (ToMem DataMem 0x4 mask wrM) -> ToUart (slice d2 d0 mask) $ slice d7 d0 <$> wrM
-  _ -> ToUart 0x4 Nothing -- read status default
-
-data ToSpram = ToSpram
-  { spramAddress     :: BitVector 15
-  , spramData        :: BitVector 32
-  , spramMask        :: BitVector 8
-  , spramWriteEnable :: Bit
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
-
-spramMap :: Maybe ToMem -> ToSpram
-spramMap = \case
-  Just (ToMem _ addr@($(bitPattern "000000000000001.................")) mask wrM) 
-    -> let wordAddr = slice d14 d0 $ addr `shiftR` 2
-           (dIn, mskWrEn, wrEn) = case wrM of
-             Just d  -> (d, expandMask mask, 1)
-             Nothing -> (0, 0, 0)
-       in ToSpram wordAddr dIn mskWrEn wrEn
-  _ -> ToSpram 0 0 0 0
+spramMap :: ToMem -> Bus
+spramMap (ToMem _ addr mask wrM) = let wordAddr = slice d14 d0 $ addr `shiftR` 2
+                                       (dIn, mskWrEn, wrEn) = case wrM of
+                                         Just d  -> (d, expandMask mask, 1)
+                                         Nothing -> (0, 0, 0)
+                                   in Spram wordAddr dIn mskWrEn wrEn
   where
     -- convert byte mask (4 bits) to nybble mask (8 bits)
     expandMask :: (KnownNat n, KnownNat m) => BitVector n -> BitVector (m * n)
@@ -88,57 +45,36 @@ spramMap = \case
           | b == high = maxBound
           | otherwise = 0
 
-
---busMapIn :: ToMem -> Maybe Bus
-
-{-
-busMapIn (ToMem acc addr mask wrM)
-  | checkBit 17                   = spramMap addr mask wrM
-  | checkBit 10                   = Just $ Rom $ romAddress addr
-  | checkBit  2 && acc == DataMem = Just $ Uart (slice d2 d0 mask) $ slice d7 d0 <$> wrM
-  | mask .&. 0x3 /= 0             = ledMap <$> wrM
-  | otherwise = Nothing
--}
-{-
-busMapIn = \case
-  ToMem _ addr@($(bitPattern "..............1.................")) mask wrM -- spram
-    -> spramMap addr mask wrM
-  ToMem _ addr@($(bitPattern ".....................1..........")) _ _ -- rom
-    -> Just $ Rom $ romAddress addr
-  ToMem DataMem $(bitPattern ".............................1..") mask wrM -- uart
-    -> Just $ Uart (slice d2 d0 mask) $ slice d7 d0 <$> wrM
-  ToMem _ _ $(bitPattern "..11") (Just wr) 
-    -> Just $ ledMap wr
-  _ -> Nothing
--}
-{-
-
+romMap :: ToMem -> Bus
+romMap = Rom . wordAddr . memAddress
   where
-    checkBit :: Index 32 -> Bool
-    checkBit n = bitToBool $ addr ! n
--}
-busMapOut 
-  :: Maybe ToMem 
-  -> BitVector 32  -- from spram
-  -> BitVector 32  -- from bios
-  -> BitVector 32  -- from uart
-  -> BitVector 32
-busMapOut mem fromSpram fromBios fromUart = case memAddress <$> mem of
-  Just $(bitPattern "..............1.................") -> fromSpram
-  Just $(bitPattern ".....................1..........") -> fromBios
-  _ -> fromUart
-{-
-  Just (Spram _ _ _ _) -> fromSpram
-  Just (Rom _)         -> fromBios
-  _                    -> fromUart
--}
--------------
--- Utility --
--------------
-{-
-getAddress :: ToMem -> BitVector 32
-getAddress = \case
-  InstrMem a     -> a
-  DataMem  a _ _ -> a
--}
+    wordAddr :: BitVector 32 -> Unsigned 8
+    wordAddr a = unpack $ slice d7 d0 $ a `shiftR` 2
+
+uartMap :: ToMem -> Bus
+uartMap (ToMem _ _ msk wrM) = Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
+
+ledMap :: ToMem -> Bus
+ledMap = \case
+  ToMem _ _ $(bitPattern "..11") (Just d) -> Led (slice d11 d8 d) (slice d7 d0 d)
+  _ -> Rom 0
+
+busMapIn :: Maybe ToMem -> Bus
+busMapIn Nothing = Rom 0
+busMapIn (Just toMem)
+  | checkRegion 17              = spramMap toMem
+  | checkRegion 10              = romMap   toMem
+  | checkRegion  2 && isDataMem = uartMap  toMem
+  |                   isDataMem = ledMap   toMem
+  | otherwise                   = Rom 0
+  where
+    isDataMem = memAccess toMem == DataMem
+    checkRegion n = bitToBool $ lsb $ memAddress toMem `shiftR` n
+
+busMapOut :: Bus -> BitVector 32 -> BitVector 32 -> BitVector 32 -> BitVector 32
+busMapOut busOut fromSpram fromBios fromUart = case busOut of
+  (Spram _ _ _ _) -> fromSpram
+  (Rom _)       -> fromBios
+  _             -> fromUart
+
 

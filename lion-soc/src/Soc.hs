@@ -29,21 +29,20 @@ data FromSoc dom = FromSoc
 ---------
 type Rgb = ("red" ::: Bit, "green" ::: Bit, "blue" ::: Bit)
 
-rgb :: HiddenClock dom => Signal dom ToLed -> Signal dom Rgb
-rgb toLed = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
+rgb :: HiddenClock dom => Signal dom Bus -> Signal dom Rgb
+rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
-    (r, g, b, _) = led (pure 1) 
-                       (ledWrite   <$> toLed) 
-                       (ledAddress <$> toLed) 
-                       (ledEnable  <$> toLed) 
-                       (pure True)
+    (r, g, b, _) = led (pure 1) wr addr en (pure True)
+    (wr, addr, en) = unbundle $ mem <&> \case
+      Led a d -> (d, a, True )
+      _              -> (0, 0, False)
 
 ----------
 -- ROM --
 ----------
 bios
   :: HiddenClockResetEnable dom
-  => Signal dom (Unsigned 8)
+  => Signal dom Bus
   -> Signal dom (BitVector 32)
 bios addr = concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
@@ -51,6 +50,9 @@ bios addr = concat4 <$> b3 <*> b2 <*> b1 <*> b0
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
     b0 = romFilePow2 "_build/bios/bios.rom0" addr
+    addr = mem <&> \case
+      (Rom a) -> a
+      _       -> 0
 
 concat4
   :: KnownNat n
@@ -72,12 +74,12 @@ lion rx = FromSoc
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
-    fromSpram      = spram   $ spramMap <$> fromCore
-    fromBios       = bios    $ romMap   <$> fromCore
-    fromRgb        = rgb     $ ledMap   <$> register Nothing fromCore
-    (tx, fromUart) = uart rx $ uartMap  <$> register Nothing fromCore
-    fromCore = toMem $ core config $
-      busMapOut <$> register (Just (ToMem InstrMem 0 0 Nothing)) fromCore
+    fromSpram      = spram busIn
+    fromBios       = bios      busIn
+    fromRgb        = rgb $ register (Rom 0) busIn
+    (tx, fromUart) = uart rxIn busIn
+    busIn = fmap busMapIn $ toMem $ core config $ 
+      busMapOut <$> register (Rom 0) busIn
                 <*> fromSpram
                 <*> fromBios 
                 <*> fromUart
