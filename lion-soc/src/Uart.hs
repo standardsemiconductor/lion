@@ -84,20 +84,9 @@ mkUart = Uart
   , _rxBuffer = repeat 0
   }
 
--- | Tx wire
-newtype Tx = Tx { unTx :: Bit }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
-
-instance Semigroup Tx where
-  Tx a <> Tx b = Tx $ a .&. b
-
-instance Monoid Tx where
-  mempty = Tx 1
-
 -- | Uart output
 data FromUart = FromUart
-  { _tx     :: Tx
+  { _tx     :: First Bit
   , _toCore :: First (BitVector 32)
   }
   deriving stock (Generic, Show, Eq)
@@ -114,8 +103,8 @@ transmit = use bus' >>= \case
     txBuffer ?= frame wr
   _ -> do
     bufferM <- use txBuffer
-    forM_ bufferM $ \buf -> do
-      scribe tx $ Tx $ buf!(0 :: Index 10)
+    scribe tx $ First $ lsb <$> bufferM
+    forM_ bufferM $ const $ do
       ctr <- txBaud <<%= increment
       when (ctr == maxBound) $ do
         txBuffer %= fmap (`shiftR` 1)
@@ -195,8 +184,8 @@ uart
   -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
 uart rxIn bus = (txOut, uartOut)
   where
-    uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
-    txOut = unTx . _tx <$> fromUart
+    uartOut  = fromMaybe 0 . getFirst . _toCore  <$> fromUart
+    txOut    = fromMaybe 1 . getFirst . _tx <$> fromUart
     fromUart = mealy uartMealy mkUart $ ToUart <$> bus <*> rxIn
 
 -------------
