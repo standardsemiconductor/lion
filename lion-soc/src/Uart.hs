@@ -99,7 +99,8 @@ makeLenses ''FromUart
 transmit :: RWS ToUart FromUart Uart ()
 transmit = use bus' >>= \case
   B.Uart $(bitPattern "001") (Just wr) -> do -- write send byte
-    txReset
+    txIdx    .= 0
+    txBaud   .= 0
     txBuffer ?= frame wr
   _ -> do
     bufferM <- use txBuffer
@@ -109,15 +110,9 @@ transmit = use bus' >>= \case
       when (ctr == maxBound) $ do
         txBuffer %= fmap (`shiftR` 1)
         idx <- txIdx <<%= increment
-        when (idx == maxBound) txReset
+        when (idx == maxBound) $ txBuffer .= Nothing
   where
     frame b = (1 :: BitVector 1) ++# b ++# (0 :: BitVector 1)
-          
-txReset :: MonadState Uart m => m ()
-txReset = do
-  txIdx    .= 0
-  txBaud   .= 0
-  txBuffer .= Nothing
 
 receive :: RWS ToUart FromUart Uart ()
 receive = do
