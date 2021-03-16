@@ -84,8 +84,6 @@ branch = \case
 
 data ExOp = Lui
           | Auipc
---          | Jal
---          | Jalr
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
