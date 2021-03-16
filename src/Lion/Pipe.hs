@@ -386,8 +386,8 @@ decode = do
         exPC .= pc
         exRvfi.rvfiInsn .= mem
         control.deLoad .= case instr of
-          ExLoad _ _ _ -> True
-          _ -> False
+          ExLoad{} -> True
+          _        -> False
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
       Left IllegalInstruction -> fetchPC .= pc -- roll-back PC, should handle trap
