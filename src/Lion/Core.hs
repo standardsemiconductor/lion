@@ -52,6 +52,7 @@ data FromCore dom = FromCore
 core
   :: HiddenClockResetEnable dom
   => NFDataX b
+  => Generic b
   => P.PipeBranch b
   => CoreConfig b               -- ^ core configuration
   -> Signal dom (BitVector 32)  -- ^ core input, from memory/peripherals

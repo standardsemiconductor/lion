@@ -204,6 +204,7 @@ pipe
   :: HiddenClockResetEnable dom
   => PipeBranch b
   => NFDataX b
+  => Generic b
   => PipeConfig b
   -> Signal dom ToPipe
   -> Signal dom FromPipe

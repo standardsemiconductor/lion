@@ -73,7 +73,12 @@ lion rxIn = FromSoc
   , txOut  = tx
   }
   where
-    config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
+    config = defaultCoreConfig
+      { pipeConfig = defaultPipeConfig
+          { startPC = 0x400 
+          , branchConfig = BranchConfigMe
+          } 
+      }
     fromBios       = bios      busIn
     fromRgb        = rgb $ register (Rom 0) busIn
     (tx, fromUart) = uart rxIn busIn
