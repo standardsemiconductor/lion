@@ -35,7 +35,7 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
     (r, g, b, _) = led (pure 1) wr addr en (pure True)
     (wr, addr, en) = unbundle $ mem <&> \case
       Led a d -> (d, a, True )
-      _              -> (0, 0, False)
+      _       -> (0, 0, False)
 
 ----------
 -- ROM --
