@@ -14,15 +14,17 @@ import Clash.Prelude
 import Clash.Annotations.TH
 import Lion.Core
 
-metric :: HiddenClockResetEnable dom => Signal dom (BitVector 32) -> Signal dom (Maybe ToMem)
+metric 
+  :: HiddenClockResetEnable dom 
+  => Signal dom (BitVector 32) 
+  -> Signal dom (Maybe ToMem)
 metric = toMem . core defaultCoreConfig
          
 {-# NOINLINE topEntity #-}
 topEntity 
   :: "clk"     ::: Clock System 
+  -> "rst"     ::: Reset System
   -> "fromMem" ::: Signal System (BitVector 32)
   -> "toMem"   ::: Signal System (Maybe ToMem) 
-topEntity clk = withClockResetEnable clk rst enableGen metric
-  where
-    rst = unsafeFromHighPolarity $ pure False
+topEntity clk rst = withClockResetEnable clk rst enableGen metric
 makeTopEntityWithName 'topEntity "Metric"
