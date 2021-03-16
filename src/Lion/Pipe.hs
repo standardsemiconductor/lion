@@ -13,18 +13,39 @@ import Control.Lens hiding ( op )
 import Control.Monad.RWS
 import Data.Maybe ( isJust )
 import Data.Monoid.Generic
+-- import Lion.Config
 import Lion.Instruction
 import Lion.Rvfi
 
+{-
+data BranchConfig = BranchConfigAluMe -- ^ branching occurs in memory stage, branch address is computed with ALU
+                  | BranchConfigMe -- ^ branching occurs in memory stage, branch address is computed without ALU
+--                  | BranchConfigEx -- ^ branching occurs in execute stage, branch address is computed in decode stage
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+-}
+-- data BranchConfig = BranchConfigAlu | BranchConfigNoAlu
+
 -- | Pipeline configuration
-newtype PipeConfig = PipeConfig
-  { startPC :: BitVector 32 -- ^ initial Program Counter address, default = 0
+data PipeConfig branchConfig = PipeConfig
+  { startPC      :: BitVector 32 -- ^ initial Program Counter address
+--  , branchConfig :: branch -- ^ branching configuration
   }
   deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
 
 -- | Default pipeline configuration
-defaultPipeConfig :: PipeConfig
-defaultPipeConfig = PipeConfig 0
+-- 
+-- defaultPipeConfig :: PipeConfig MeBranchAlu
+-- defaultPipeConfig = PipeConfig
+--   { startPC      = 0
+--   , branchConfig = BranchConfigAluMe
+--   }
+defaultPipeConfig :: PipeConfig b
+defaultPipeConfig = PipeConfig 
+  { startPC      = 0
+--  , branchConfig = BranchConfigAluMe
+  }
 
 -- | Pipeline inputs
 data ToPipe = ToPipe
@@ -122,7 +143,7 @@ mkControl = Control
   , _wbRegFwd    = Nothing
   }
 
-data Pipe = Pipe
+data Pipe b = Pipe
   { _fetchPC :: BitVector 32
 
   -- decode stage
@@ -136,7 +157,7 @@ data Pipe = Pipe
   , _exRvfi  :: Rvfi
 
   -- memory stage
-  , _meIR    :: Maybe MeInstr
+  , _meIR    :: Maybe (MeInstr b)
   , _meRvfi  :: Rvfi
 
   -- writeback stage
@@ -151,7 +172,7 @@ data Pipe = Pipe
   deriving anyclass NFDataX
 makeLenses ''Pipe
 
-mkPipe :: PipeConfig -> Pipe
+mkPipe :: PipeConfig b -> Pipe b
 mkPipe config = Pipe
   { _fetchPC = startPC config
 
@@ -181,7 +202,9 @@ mkPipe config = Pipe
 -- | 5-Stage RISC-V pipeline
 pipe 
   :: HiddenClockResetEnable dom
-  => PipeConfig
+  => PipeBranch b
+  => NFDataX b
+  => PipeConfig b
   -> Signal dom ToPipe
   -> Signal dom FromPipe
 pipe config = mealy pipeMealy (mkPipe config)
@@ -190,7 +213,7 @@ pipe config = mealy pipeMealy (mkPipe config)
                     in (s', o) 
 
 -- | reset control signals (except first cycle)
-resetControl :: MonadState Pipe m => m ()
+resetControl :: MonadState (Pipe b) m => m ()
 resetControl = do
   control.exBranching .= False
   control.meBranching .= Nothing
@@ -202,7 +225,7 @@ resetControl = do
   control.wbRegFwd    .= Nothing
 
 -- | Monadic pipeline
-pipeM :: RWS ToPipe FromPipe Pipe ()
+pipeM :: PipeBranch b => RWS ToPipe FromPipe (Pipe b) ()
 pipeM = do
   resetControl
   writeback
@@ -212,7 +235,7 @@ pipeM = do
   fetch
 
 -- | Writeback stage
-writeback :: RWS ToPipe FromPipe Pipe ()
+writeback :: RWS ToPipe FromPipe (Pipe b) ()
 writeback = withInstr wbIR $ \instr -> do
   wbRvfi.rvfiValid .= True
   wbRvfi.rvfiOrder <~ wbNRet <<+= 1
@@ -241,7 +264,7 @@ writeback = withInstr wbIR $ \instr -> do
     guardZero _ = id
 
 -- | Memory stage
-memory :: RWS ToPipe FromPipe Pipe ()
+memory :: PipeBranch b => RWS ToPipe FromPipe (Pipe b) ()
 memory = do
   wbIR   .= Nothing
   wbRvfi <~ use meRvfi
@@ -257,7 +280,13 @@ memory = do
       control.meBranching ?= npc
       control.meRegFwd ?= (rd, pc4)
       wbIR ?= WbRegWr rd pc4
-    MeBranch isBranch pc4 -> do
+{-
+    MeBranch npc -> do -- branch without alu
+      control.meBranching ?= npc
+      wbRvfi.rvfiPcWData .= npc
+      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      wbIR ?= WbNop
+    MeBranchAlu isBranch pc4 -> do -- branch with alu
       npc <- wbRvfi.rvfiPcWData <<~ if isBranch
                                       then do
                                         branchPC <- view fromAlu
@@ -265,6 +294,8 @@ memory = do
                                       else return pc4
       wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
       wbIR ?= WbNop
+-}
+    MeBranch b -> meBranch b
     MeStore addr mask value -> do
       control.meMemory .= True
       scribe toMem $ First $ Just $ dataMem addr mask $ Just value
@@ -278,9 +309,55 @@ memory = do
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemRMask .= mask
       wbIR ?= WbLoad op rdAddr mask
+{-
+type family PipeBranchMe b where
+  PipeBranchMe BranchConfigNoAlu = MeBranchNoAlu
+  PipeBranchMe BranchConfigAlu   = MeBranchAlu
+-}
+class PipeBranch b where
+  meBranch :: b -> RWS ToPipe FromPipe (Pipe b) ()
+  exBranch :: Branch 
+           -> BitVector 32 
+           -> BitVector 32 
+           -> BitVector 32 
+           -> BitVector 32
+           -> BitVector 32
+           -> RWS ToPipe FromPipe (Pipe b) ()
+ 
+instance PipeBranch MeBranchNoAlu where
+  meBranch (MeBranchNoAlu npc) = do
+    control.meBranching ?= npc
+    wbRvfi.rvfiPcWData .= npc
+    wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+    wbIR ?= WbNop
+  exBranch op imm rs1Data rs2Data pc pc4 = do
+    let isBranch = branch op rs1Data rs2Data
+    when isBranch $ control.exBranching .= True
+    if isBranch -- branch without alu
+      then meIR ?= MeBranch (MeBranchNoAlu (pc + imm))
+      else do 
+        meRvfi.rvfiPcWData .= pc4
+        meRvfi.rvfiTrap ||= (pc4 .&. 0x3 /= 0)
+        meIR ?= MeNop
+
+instance PipeBranch MeBranchAlu where
+  meBranch (MeBranchAlu isBranch pc4) = do
+    npc <- wbRvfi.rvfiPcWData <<~ if isBranch
+                                    then do
+                                      branchPC <- view fromAlu
+                                      control.meBranching <?= branchPC
+                                    else return pc4
+    wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+    wbIR ?= WbNop
+  exBranch op imm rs1Data rs2Data pc pc4 = do
+    let isBranch = branch op rs1Data rs2Data
+    when isBranch $ control.exBranching .= True
+    scribeAlu Add pc imm -- compute branch address with alu
+    meIR ?= MeBranch (MeBranchAlu isBranch pc4)
+
 
 -- | Execute stage
-execute :: RWS ToPipe FromPipe Pipe ()
+execute :: PipeBranch b => RWS ToPipe FromPipe (Pipe b) ()
 execute = do
   meIR .= Nothing
   meRvfi <~ use exRvfi
@@ -306,10 +383,21 @@ execute = do
           scribeAlu Add rs1Data imm -- compute jump address with alu
           meIR ?= MeJump Jalr rd pc4
     ExBranch op imm -> do
+      exBranch op imm rs1Data rs2Data pc pc4
+{-
       let isBranch = branch op rs1Data rs2Data
       when isBranch $ control.exBranching .= True
-      scribeAlu Add pc imm -- compute branch address with alu
-      meIR ?= MeBranch (branch op rs1Data rs2Data) pc4
+      case branchConfig config of
+        BranchConfigAluMe -> do -- branch with alu
+          scribeAlu Add pc imm -- compute branch address with alu
+          meIR ?= MeBranchAlu isBranch pc4
+        BranchConfigMe -> if isBranch -- branch without alu
+          then meIR ?= MeBranch (pc + imm)
+          else do 
+            meRvfi.rvfiPcWData .= pc4
+            meRvfi.rvfiTrap ||= (pc4 .&. 0x3 /= 0)
+            meIR ?= MeNop
+-}
     ExStore op imm -> do
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
@@ -341,10 +429,6 @@ execute = do
       scribeAlu op rs1Data imm
       meIR ?= MeRegWr rd
   where
-    scribeAlu op in1 in2 = do
-      scribe toAluOp     $ First $ Just op
-      scribe toAluInput1 $ First $ Just in1
-      scribe toAluInput2 $ First $ Just in2
 
     guardZero  -- register x0 always has value 0.
       :: MonadState s m 
@@ -367,8 +451,21 @@ execute = do
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
 
+-- | Write operation to ALU
+scribeAlu
+  :: MonadWriter FromPipe m
+  => Op
+  -> BitVector 32
+  -> BitVector 32
+  -> m ()
+scribeAlu op in1 in2 = do
+  scribe toAluOp     $ First $ Just op
+  scribe toAluInput1 $ First $ Just in1
+  scribe toAluInput2 $ First $ Just in2
+
+
 -- | Decode stage
-decode :: RWS ToPipe FromPipe Pipe ()
+decode :: RWS ToPipe FromPipe (Pipe b) ()
 decode = do
   exIR .= Nothing
   exRvfi .= mkRvfi
@@ -393,7 +490,7 @@ decode = do
       Left IllegalInstruction -> fetchPC .= pc -- roll-back PC, should handle trap
         
 -- | fetch instruction
-fetch :: RWS ToPipe FromPipe Pipe ()
+fetch :: RWS ToPipe FromPipe (Pipe b) ()
 fetch = do
   use (control.meBranching) >>= mapM_ (assign fetchPC)
   scribe toMem . First . Just . instrMem =<< use fetchPC

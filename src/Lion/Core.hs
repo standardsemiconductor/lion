@@ -26,17 +26,17 @@ import Data.Monoid
 import Lion.Alu (AluConfig(..), alu)
 import Lion.Rvfi
 import qualified Lion.Pipe as P
-import qualified Lion.Instruction as I (Op(Add))
+import qualified Lion.Instruction as I (Op(Add), MeBranchAlu)
 
 -- | Core configuration
-data CoreConfig = CoreConfig
-  { aluConfig  :: AluConfig    -- ^ alu configuration, default = Soft
-  , pipeConfig :: P.PipeConfig -- ^ pipeline configuration
+data CoreConfig b = CoreConfig
+  { aluConfig  :: AluConfig      -- ^ alu configuration, default = Soft
+  , pipeConfig :: P.PipeConfig b -- ^ pipeline configuration
   }
   deriving stock (Generic, Show, Eq)
 
 -- | Default core configuration
-defaultCoreConfig :: CoreConfig
+defaultCoreConfig :: CoreConfig I.MeBranchAlu
 defaultCoreConfig = CoreConfig
   { aluConfig = Soft
   , pipeConfig = P.defaultPipeConfig
@@ -51,7 +51,9 @@ data FromCore dom = FromCore
 -- | RISC-V Core
 core
   :: HiddenClockResetEnable dom
-  => CoreConfig               -- ^ core configuration
+  => NFDataX b
+  => P.PipeBranch b
+  => CoreConfig b               -- ^ core configuration
   -> Signal dom (BitVector 32)  -- ^ core input, from memory/peripherals
   -> FromCore dom               -- ^ core output
 core config toCore = FromCore
