@@ -26,7 +26,7 @@ main = shakeArgs opts $  do
 
   -- yosys synthesis
   "_build/Metric.json" %> \out -> do
-    putInfo "Syntehsizing Metric"
+    putInfo "Synthesizing Metric"
     need [verilog </> metricTop <.> "v"]
     cmd_ "yosys"
          "-p"
