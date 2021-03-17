@@ -39,6 +39,13 @@ jobs:
           dist-newstyle
         key: ${{ runner.os }}-${{ matrix.ghc }}
 
+    - name: Install dependencies
+      run: |
+        cabal update
+        cabal build --only-dependencies
+    - name: Build
+      run: cabal build
+
     - name: Install icestorm prerequisites
       run: |
         sudo apt-get update
@@ -128,13 +135,6 @@ jobs:
         ./configure --prefix=$HOME/opt/riscv
         sudo make
         echo "$HOME/opt/riscv/bin" >> $GITHUB_PATH
-
-    - name: Install dependencies
-      run: |
-        cabal update
-        cabal build --only-dependencies
-    - name: Build
-      run: cabal build
 
     - name: Formal Verification
       working-directory: lion-formal
