@@ -23,6 +23,13 @@ jobs:
       uses: actions/checkout@v2
       with:
         submodules: true
+    
+    - name: Free up environment resources
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
     - name: Setup Haskell
       uses: haskell/actions/setup@v1
