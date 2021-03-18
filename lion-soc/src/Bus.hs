@@ -31,12 +31,11 @@ data Bus = Rom            -- ^ ROM access
   deriving anyclass NFDataX
 
 spramMap :: ToMem -> Bus
-spramMap (ToMem _ addr mask wrM) = let wordAddr = slice d14 d0 $ addr `shiftR` 2
-                                       (dIn, mskWrEn, wrEn) = case wrM of
-                                         Just d  -> (d, expandMask mask, 1)
-                                         Nothing -> (0, 0, 0)
-                                   in Spram wordAddr dIn mskWrEn wrEn
+spramMap mem = case mem of
+  ToMem _ _ mask (Just wr) -> Spram wordAddr wr (expandMask mask) 1
+  _                        -> Spram wordAddr 0 0 0
   where
+    wordAddr = slice d14 d0 $ memAddress mem `shiftR` 2
     -- convert byte mask (4 bits) to nybble mask (8 bits)
     expandMask :: (KnownNat n, KnownNat m) => BitVector n -> BitVector (m * n)
     expandMask = concatBitVector# . map expandBit . bv2v
