@@ -31,18 +31,20 @@ data Bus = Rom            -- ^ ROM access
   deriving anyclass NFDataX
 
 spramMap :: ToMem -> Bus
-spramMap mem = case mem of
-  ToMem _ _ mask (Just wr) -> Spram wordAddr wr (expandMask mask) 1
-  _                        -> Spram wordAddr 0 0 0
+spramMap mem = maybe spramRead spramWrite $ memWrite mem
   where
+    spramRead     = Spram wordAddr 0 0 0
+    spramWrite wr = Spram wordAddr wr nybMask 1
+
     wordAddr = slice d14 d0 $ memAddress mem `shiftR` 2
+
     -- convert byte mask (4 bits) to nybble mask (8 bits)
-    expandMask :: (KnownNat n, KnownNat m) => BitVector n -> BitVector (m * n)
-    expandMask = concatBitVector# . map expandBit . bv2v
+    nybMask = concatBitVector# $ map expandBit $ bv2v $ memByteMask mem
       where
+        expandBit :: Bit -> BitVector 2
         expandBit b
-          | b == high = maxBound
-          | otherwise = 0
+          | b == high = 0b11
+          | otherwise = 0b00
 
 romMap :: ToMem -> Bus
 romMap = Rom . wordAddr . memAddress
@@ -51,29 +53,39 @@ romMap = Rom . wordAddr . memAddress
     wordAddr a = unpack $ slice d7 d0 $ a `shiftR` 2
 
 uartMap :: ToMem -> Bus
-uartMap (ToMem _ _ msk wrM) = Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
+uartMap mem = case memAccess mem of
+  DataMem -> Uart mask wrM
+  _       -> Uart 0 Nothing
+  where
+    mask = slice d2 d0 $ memByteMask mem
+    wrM  = slice d7 d0 <$> memWrite mem
+
+--uartMap (ToMem DataMem _ msk wrM) = Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
 
 ledMap :: ToMem -> Bus
-ledMap = \case
-  ToMem _ _ $(bitPattern "..11") (Just d) -> Led (slice d11 d8 d) (slice d7 d0 d)
-  _ -> Rom 0
+ledMap = maybe (Rom 0) led . memWrite
+  where
+    led :: BitVector 32 -> Bus
+    led d = Led (slice d11 d8 d) (slice d7 d0 d)
+--ledMap = \case
+--  ToMem _ _ $(bitPattern "..11") (Just d) -> Led (slice d11 d8 d) (slice d7 d0 d)
+--  _ -> Rom 0
 
 busMapIn :: Maybe ToMem -> Bus
 busMapIn Nothing = Rom 0
 busMapIn (Just toMem)
-  | checkRegion 17              = spramMap toMem
-  | checkRegion 10              = romMap   toMem
-  | checkRegion  2 && isDataMem = uartMap  toMem
-  |                   isDataMem = ledMap   toMem
-  | otherwise                   = Rom 0
+  | checkRegion 17 = spramMap toMem
+  | checkRegion 10 = romMap   toMem
+  | checkRegion  2 = uartMap  toMem
+  | otherwise      = ledMap   toMem
   where
-    isDataMem = memAccess toMem == DataMem
-    checkRegion n = bitToBool $ lsb $ memAddress toMem `shiftR` n
+    checkRegion :: Index 32 -> Bool
+    checkRegion n = bitToBool $ memAddress toMem ! n
 
 busMapOut :: Bus -> BitVector 32 -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromSpram fromBios fromUart = case busOut of
-  (Spram _ _ _ _) -> fromSpram
-  (Rom _)       -> fromBios
-  _             -> fromUart
+  Rom{}  -> fromBios
+  Uart{} -> fromUart
+  _      -> fromSpram
 
 

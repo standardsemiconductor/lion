@@ -39,6 +39,7 @@ library
     -fexpose-all-unfoldings
     -fno-worker-wrapper
   default-extensions:
+    BinaryLiterals
     DataKinds
     DeriveAnyClass
     DeriveGeneric
