@@ -253,7 +253,7 @@ memory = do
       wbIR ?= WbRegWr rd wr
     MeJump jump rd pc4 -> do
       npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (jumpAddress jump) -- jal: id, jalr: flip clearBit 0
-      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      wbRvfi.rvfiTrap ||= isMisaligned npc
       control.meBranching ?= npc
       control.meRegFwd ?= (rd, pc4)
       wbIR ?= WbRegWr rd pc4
@@ -263,7 +263,7 @@ memory = do
                                         branchPC <- view fromAlu
                                         control.meBranching <?= branchPC
                                       else return pc4
-      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+      wbRvfi.rvfiTrap ||= isMisaligned npc
       wbIR ?= WbNop
     MeStore addr mask value -> do
       control.meMemory .= True
@@ -317,11 +317,11 @@ execute = do
         Sb -> let wr = concatBitVector# $ replicate d4 $ slice d7 d0 rs2Data
               in meIR ?= MeStore addr' (byteMask addr) wr
         Sh -> do
-          meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0) -- trap on half-word boundary
+          meRvfi.rvfiTrap ||= isMisalignedHalf addr -- trap on half-word boundary
           let wr = concatBitVector# $ replicate d2 $ slice d15 d0 rs2Data
           meIR ?= MeStore addr' (halfMask addr) wr
         Sw -> do
-          meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
+          meRvfi.rvfiTrap ||= isMisaligned addr -- trap on word boundary
           meIR ?= MeStore addr' 0xF rs2Data
     ExLoad op rdAddr imm -> do
       control.exLoad .= True
@@ -329,10 +329,10 @@ execute = do
           addr' = addr .&. complement 0x3 -- aligned
       if | op == Lb || op == Lbu -> meIR ?= MeLoad op rdAddr addr' (byteMask addr)
          | op == Lh || op == Lhu -> do
-             meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0) -- trap on half-word boundary
+             meRvfi.rvfiTrap ||= isMisalignedHalf addr -- trap on half-word boundary
              meIR ?= MeLoad op rdAddr addr' (halfMask addr)
          | otherwise -> do -- Lw
-             meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
+             meRvfi.rvfiTrap ||= isMisaligned addr -- trap on word boundary
              meIR ?= MeLoad op rdAddr addr' 0xF
     ExAlu op rd -> do
       scribeAlu op rs1Data rs2Data
@@ -386,8 +386,8 @@ decode = do
         exPC .= pc
         exRvfi.rvfiInsn .= mem
         control.deLoad .= case instr of
-          ExLoad _ _ _ -> True
-          _ -> False
+          ExLoad{} -> True
+          _        -> False
         scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
         scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
       Left IllegalInstruction -> fetchPC .= pc -- roll-back PC, should handle trap
@@ -437,18 +437,26 @@ halfMask addr = if addr .&. 0x2 == 0
 -- | slice address based on mask
 sliceByte :: BitVector 4 -> BitVector 32 -> BitVector 8
 sliceByte = \case
-  $(bitPattern "0001") -> slice d7  d0
-  $(bitPattern "0010") -> slice d15 d8
-  $(bitPattern "0100") -> slice d23 d16
-  $(bitPattern "1000") -> slice d31 d24
+  $(bitPattern "...1") -> slice d7  d0
+  $(bitPattern "..1.") -> slice d15 d8
+  $(bitPattern ".1..") -> slice d23 d16
+  $(bitPattern "1...") -> slice d31 d24
   _ -> const 0
 
 -- | slice address based on mask
 sliceHalf :: BitVector 4 -> BitVector 32 -> BitVector 16
 sliceHalf = \case
-  $(bitPattern "0011") -> slice d15 d0
-  $(bitPattern "1100") -> slice d31 d16
+  $(bitPattern "..11") -> slice d15 d0
+  $(bitPattern "11..") -> slice d31 d16
   _ -> const 0
+
+-- | check if memory address misaligned on word boundary
+isMisaligned :: (Bits a, Num a) => a -> Bool
+isMisaligned a = a .&. 0x3 /= 0
+
+-- | check if memory address misaligned on half-word boundary
+isMisalignedHalf :: (Bits a, Num a) => a -> Bool
+isMisalignedHalf a = a .&. 0x1 /= 0
 
 -- | run monadic action when instruction is Just
 withInstr :: MonadState s m => Lens' s (Maybe a) -> (a -> m ()) -> m ()

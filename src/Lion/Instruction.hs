@@ -84,8 +84,6 @@ branch = \case
 
 data ExOp = Lui
           | Auipc
---          | Jal
---          | Jalr
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -170,7 +168,7 @@ parseInstr i = case i of
     immB = signExtend (slice d31 d31 i ++# slice d7 d7 i ++# slice d30 d25 i ++# slice d11 d8 i) `shiftL` 1
 
     immU :: BitVector 32
-    immU = (slice d31 d12 i) ++# 0
+    immU = slice d31 d12 i ++# 0
     
     immJ :: BitVector 32
     immJ = signExtend (slice d31 d31 i ++# slice d19 d12 i ++# slice d20 d20 i ++# slice d30 d25 i ++# slice d24 d21 i) `shiftL` 1

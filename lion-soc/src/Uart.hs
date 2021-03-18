@@ -85,20 +85,9 @@ mkUart = Uart
   , _rxBuffer = repeat 0
   }
 
--- | Tx wire
-newtype Tx = Tx { unTx :: Bit }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
-
-instance Semigroup Tx where
-  Tx a <> Tx b = Tx $ a .&. b
-
-instance Monoid Tx where
-  mempty = Tx 1
-
 -- | Uart output
 data FromUart = FromUart
-  { _tx     :: Tx
+  { _tx     :: First Bit
   , _toCore :: First (BitVector 32)
   }
   deriving stock (Generic, Show, Eq)
@@ -111,25 +100,20 @@ makeLenses ''FromUart
 transmit :: RWS ToUart FromUart Uart ()
 transmit = use bus' >>= \case
   B.Uart $(bitPattern "001") (Just wr) -> do -- write send byte
-    txReset
+    txIdx    .= 0
+    txBaud   .= 0
     txBuffer ?= frame wr
   _ -> do
     bufferM <- use txBuffer
-    forM_ bufferM $ \buf -> do
-      scribe tx $ Tx $ buf!(0 :: Index 10)
+    scribe tx $ First $ lsb <$> bufferM
+    forM_ bufferM $ const $ do
       ctr <- txBaud <<%= increment
       when (ctr == maxBound) $ do
         txBuffer %= fmap (`shiftR` 1)
         idx <- txIdx <<%= increment
-        when (idx == maxBound) txReset
+        when (idx == maxBound) $ txBuffer .= Nothing
   where
     frame b = (1 :: BitVector 1) ++# b ++# (0 :: BitVector 1)
-          
-txReset :: MonadState Uart m => m ()
-txReset = do
-  txIdx    .= 0
-  txBaud   .= 0
-  txBuffer .= Nothing
 
 receive :: RWS ToUart FromUart Uart ()
 receive = do
@@ -174,7 +158,7 @@ rxReset = do
 uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
   use bus' >>= \case
-    ToMem _ _ $(bitPattern "0100") _ -> do  -- read status byte
+    B.Uart $(bitPattern "100") Nothing -> do  -- read status byte
       rxS <- uses rxStatus fromStatus
       txS <- uses txBuffer $ boolToBV . isJust 
       let status = (rxS `shiftL` 1) .|. txS
@@ -192,12 +176,12 @@ uartMealy s i = (s', o)
 uart
   :: HiddenClockResetEnable dom 
   => Signal dom Bit                    -- ^ uart rx
-  -> Signal dom ToMem                  -- ^ soc bus 
+  -> Signal dom B.Bus                  -- ^ soc bus 
   -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
 uart rxIn mem = (txOut, uartOut)
   where
-    uartOut = fromMaybe 0 . getFirst . _toCore  <$> fromUart
-    txOut = unTx . _tx <$> fromUart
+    uartOut  = fromMaybe 0 . getFirst . _toCore  <$> fromUart
+    txOut    = fromMaybe 1 . getFirst . _tx <$> fromUart
     fromUart = mealy uartMealy mkUart $ ToUart <$> mem <*> rxIn
 
 -------------
