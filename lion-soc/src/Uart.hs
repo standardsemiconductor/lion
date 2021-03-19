@@ -95,7 +95,7 @@ data FromUart = FromUart
   deriving Semigroup via GenericSemigroup FromUart
   deriving Monoid via GenericMonoid FromUart
 makeLenses ''FromUart
-
+{-
 -- | transmit 
 transmit :: RWS ToUart FromUart Uart ()
 transmit = do
@@ -107,7 +107,8 @@ transmit = do
       txBuffer %= fmap (`shiftR` 1)
       idx <- txIdx <<%= increment
       when (idx == maxBound) $ txBuffer .= Nothing
-
+-}
+{-
 receive :: RWS ToUart FromUart Uart ()
 receive = do
   rxIn <- view rx
@@ -136,24 +137,63 @@ receive = do
       when (ctr == maxBound) $ do
         rxRecv <~ uses rxBuffer (Just . (`shiftL` 8) . zeroExtend . v2bv)
         rxFsm %= increment
-
+-}
 uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
 uartM = do
+  -- transmit
+  bufferM <- use txBuffer
+  scribe tx $ First $ lsb <$> bufferM
+  forM_ bufferM $ const $ do
+    ctr <- txBaud <<%= increment
+    when (ctr == maxBound) $ do
+      txBuffer %= fmap (`shiftR` 1)
+      idx <- txIdx <<%= increment
+      when (idx == maxBound) $ txBuffer .= Nothing
+
+  -- handle memory IO
   view fromBus >>= \case
-    B.Uart $(bitPattern "010") Nothing -> do -- read recv byte
+    B.Uart $(bitPattern ".1.") Nothing -> do -- read recv byte
       scribe toCore . First =<< use rxRecv
       rxRecv .= Nothing
-    B.Uart $(bitPattern "001") (Just wr) -> do -- write send byte
+    B.Uart _ (Just wr) -> do -- write send byte
       txIdx    .= 0
       txBaud   .= 0
       txBuffer ?= frame wr
-    _ -> do -- read status
-      rxS <- uses rxRecv   $ boolToBV . isJust
-      txS <- uses txBuffer $ boolToBV . isJust 
-      let status = (rxS `shiftL` 1) .|. txS
-      scribe toCore $ First $ Just $ status `shiftL` 16
-  transmit
-  receive
+    _ -> return () 
+
+  -- read status
+  rxS <- uses rxRecv   $ boolToBV . isJust
+  let txS = boolToBV $ isJust bufferM
+      status = (rxS `shiftL` 1) .|. txS
+  scribe toCore $ First $ Just $ status `shiftL` 16
+
+  -- receive
+  rxIn <- view rx
+  use rxFsm >>= \case
+    RxIdle -> 
+      when (rxIn == low) $ do
+        rxBaud %= increment
+        rxFsm  %= increment
+    RxStart -> do
+      ctr <- rxBaud <<%= increment
+      let baudHalf = maxBound `shiftR` 1
+      when (ctr == baudHalf) $ do 
+        rxBaud .= 0
+        if rxIn == low
+          then rxFsm %= increment
+          else rxFsm .= RxIdle
+    RxRecv -> do
+      ctr <- rxBaud <<%= increment
+      when (ctr == maxBound) $ do
+        idx <- rxIdx <<%= increment
+        rxBuffer %= (rxIn +>>)
+        when (idx == maxBound) $ 
+          rxFsm %= increment
+    RxStop -> do
+      ctr <- rxBaud <<%= increment
+      when (ctr == maxBound) $ do
+        rxRecv <~ uses rxBuffer (Just . (`shiftL` 8) . zeroExtend . v2bv)
+        rxFsm %= increment
   where
     frame b = (1 :: BitVector 1) ++# b ++# (0 :: BitVector 1)
 
@@ -170,8 +210,8 @@ uart
 uart rxIn mem = (txOut, uartOut)
   where
     uartOut  = register 0 $ fromMaybe 0 . getFirst . _toCore  <$> fromUart
-    txOut    = fromMaybe 1 . getFirst . _tx <$> fromUart
-    fromUart = mealy uartMealy mkUart $ ToUart <$> mem <*> rxIn
+    txOut    = register 1 $ fromMaybe 1 . getFirst . _tx <$> fromUart
+    fromUart = mealy uartMealy mkUart $ ToUart <$> mem <*> register 1 rxIn
 
 -------------
 -- Utility --
