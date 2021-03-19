@@ -306,10 +306,9 @@ execute = do
           scribeAlu Add rs1Data imm -- compute jump address with alu
           meIR ?= MeJump Jalr rd pc4
     ExBranch op imm -> do
-      let isBranch = branch op rs1Data rs2Data
-      when isBranch $ control.exBranching .= True
       scribeAlu Add pc imm -- compute branch address with alu
-      meIR ?= MeBranch (branch op rs1Data rs2Data) pc4
+      isBranch <- control.exBranching <.= branch op rs1Data rs2Data
+      meIR ?= MeBranch isBranch pc4
     ExStore op imm -> do
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
