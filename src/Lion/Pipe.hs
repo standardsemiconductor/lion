@@ -300,16 +300,16 @@ execute = do
       control.exBranching .= True
       case jump of
         Jal -> do
-          scribeAlu Add pc imm -- compute jump address with alu
-          meIR ?= MeJump Jal rd pc4
+--          scribeAlu Add pc imm -- compute jump address with alu
+          meIR ?= MeJump Jal rd (pc + imm) pc4
         Jalr -> do
-          scribeAlu Add rs1Data imm -- compute jump address with alu
-          meIR ?= MeJump Jalr rd pc4
+--          scribeAlu Add rs1Data imm -- compute jump address with alu
+          meIR ?= MeJump Jalr rd (rs1Data + imm) pc4
     ExBranch op imm -> do
       let isBranch = branch op rs1Data rs2Data
       when isBranch $ control.exBranching .= True
-      scribeAlu Add pc imm -- compute branch address with alu
-      meIR ?= MeBranch (branch op rs1Data rs2Data) pc4
+--      scribeAlu Add pc imm -- compute branch address with alu
+      meIR ?= MeBranch isBranch (pc + imm) pc4
     ExStore op imm -> do
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
