@@ -47,10 +47,7 @@ spramMap mem = maybe spramRead spramWrite $ memWrite mem
           | otherwise = 0b00
 
 romMap :: ToMem -> Bus
-romMap = Rom . wordAddr . memAddress
-  where
-    wordAddr :: BitVector 32 -> Unsigned 8
-    wordAddr a = unpack $ slice d7 d0 $ a `shiftR` 2
+romMap = Rom .  unpack . slice d7 d0 . (`shiftR` 2) . memAddress
 
 uartMap :: ToMem -> Bus
 uartMap mem = case memAccess mem of
@@ -60,16 +57,11 @@ uartMap mem = case memAccess mem of
     mask = slice d2 d0 $ memByteMask mem
     wrM  = slice d7 d0 <$> memWrite mem
 
---uartMap (ToMem DataMem _ msk wrM) = Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
-
 ledMap :: ToMem -> Bus
 ledMap = maybe (Rom 0) led . memWrite
   where
     led :: BitVector 32 -> Bus
     led d = Led (slice d11 d8 d) (slice d7 d0 d)
---ledMap = \case
---  ToMem _ _ $(bitPattern "..11") (Just d) -> Led (slice d11 d8 d) (slice d7 d0 d)
---  _ -> Rom 0
 
 busMapIn :: Maybe ToMem -> Bus
 busMapIn Nothing = Rom 0
@@ -84,8 +76,9 @@ busMapIn (Just toMem)
 
 busMapOut :: Bus -> BitVector 32 -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromSpram fromBios fromUart = case busOut of
-  Rom{}  -> fromBios
-  Uart{} -> fromUart
-  _      -> fromSpram
+  Spram{} -> fromSpram
+  Rom{}   -> fromBios
+  Uart{}  -> fromUart
+  Led{}   -> 0
 
 
