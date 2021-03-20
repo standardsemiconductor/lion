@@ -8,8 +8,8 @@
     .globl _start
 
 _start:
-    jal  get_char
     jal  set_led_red
+    jal  get_char
     la   a0, name
     jal  put_str
     la   a0, copyright
