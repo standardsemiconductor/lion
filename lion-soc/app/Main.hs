@@ -53,7 +53,7 @@ main = shakeArgs opts $ do
     cmd_ "yosys" 
          "-q" 
          "-p" 
-         ["synth_ice40 -top " ++ socTop ++ " -json " ++ out ++ " -retime -abc2"] 
+         ["synth_ice40 -top " ++ socTop ++ " -json " ++ out ++ " -abc2"] 
          [verilog socTop </> "*.v"]
 
   -- place and route NextPNR

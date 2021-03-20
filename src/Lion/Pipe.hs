@@ -96,8 +96,8 @@ makeLenses ''FromPipe
 
 data Control = Control
   { _firstCycle  :: Bool                             -- ^ First cycle True, then always False
-  , _exBranching :: Bool                             -- ^ execute stage branch/jump
-  , _meBranching :: Maybe (BitVector 32)             -- ^ memory stage branch/jump
+  , _exBranching :: Maybe (BitVector 32)             -- ^ execute stage branch/jump
+  , _meBranching :: Bool                             -- ^ memory stage branch/jump
   , _deLoad      :: Bool                             -- ^ decode stage load
   , _exLoad      :: Bool                             -- ^ execute stage load
   , _meMemory    :: Bool                             -- ^ memory stage load/store
@@ -112,8 +112,8 @@ makeLenses ''Control
 mkControl :: Control
 mkControl = Control 
   { _firstCycle  = True   
-  , _exBranching = False
-  , _meBranching = Nothing
+  , _exBranching = Nothing
+  , _meBranching = False
   , _deLoad      = False
   , _exLoad      = False
   , _meMemory    = False
@@ -192,8 +192,8 @@ pipe config = mealy pipeMealy (mkPipe config)
 -- | reset control signals (except first cycle)
 resetControl :: MonadState Pipe m => m ()
 resetControl = do
-  control.exBranching .= False
-  control.meBranching .= Nothing
+  control.exBranching .= Nothing
+  control.meBranching .= False
   control.deLoad      .= False
   control.exLoad      .= False
   control.meMemory    .= False
@@ -253,16 +253,18 @@ memory = do
       wr <- view fromAlu
       control.meRegFwd ?= (rd, wr)
       wbIR ?= WbRegWr rd wr
-    MeJump jump rd pc4 -> do
-      npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (jumpAddress jump) -- jal: id, jalr: flip clearBit 0
-      wbRvfi.rvfiTrap ||= isMisaligned npc
-      control.meBranching ?= npc
+    MeJump _ rd pc4 -> do
+--      npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (jumpAddress jump) -- jal: id, jalr: flip clearBit 0
+--      wbRvfi.rvfiTrap ||= isMisaligned npc
+--      control.meBranching ?= npc
+      control.meBranching .= True
       control.meRegFwd ?= (rd, pc4)
       wbIR ?= WbRegWr rd pc4
     MeBranch -> do
-      branchPC <- view fromAlu
-      wbRvfi.rvfiPcWData <~ control.meBranching <?= branchPC
-      wbRvfi.rvfiTrap ||= isMisaligned branchPC
+--      branchPC <- view fromAlu
+--      wbRvfi.rvfiPcWData <~ control.meBranching <?= branchPC
+--      wbRvfi.rvfiTrap ||= isMisaligned branchPC
+      control.meBranching .= True
       wbIR ?= WbNop
     MeStore addr mask value -> do
       control.meMemory .= True
@@ -296,21 +298,30 @@ execute = do
         scribeAlu Add pc imm
         meIR ?= MeRegWr rd
     ExJump jump rd imm -> do
-      control.exBranching .= True
+--      control.exBranching .= True
       case jump of
         Jal -> do
-          scribeAlu Add pc imm -- compute jump address with alu
+--          scribeAlu Add pc imm -- compute jump address with alu
+          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
+          meRvfi.rvfiTrap ||= isMisaligned npc
           meIR ?= MeJump Jal rd pc4          
 --          meIR ?= MeJump Jal rd (pc + imm) pc4
         Jalr -> do
-          scribeAlu Add rs1Data imm -- compute jump address with alu
+--          scribeAlu Add rs1Data imm -- compute jump address with alu
+          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= clearBit (rs1Data + imm) 0
+          meRvfi.rvfiTrap ||= isMisaligned npc
           meIR ?= MeJump Jalr rd pc4
 --          meIR ?= MeJump Jalr rd (rs1Data + imm) pc4
+--      npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (jumpAddress jump) -- jal: id, jalr: flip clearBit 0
+--      wbRvfi.rvfiTrap ||= isMisaligned npc
+
     ExBranch op imm -> do
-      scribeAlu Add pc imm -- compute branch address with alu
-      isBranch <- control.exBranching <.= branch op rs1Data rs2Data
-      if isBranch
-        then meIR ?= MeBranch
+--      scribeAlu Add pc imm -- compute branch address with alu
+      if branch op rs1Data rs2Data
+        then do
+          branchPC <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
+          meRvfi.rvfiTrap ||= isMisaligned branchPC
+          meIR ?= MeBranch
         else do
           meRvfi.rvfiTrap ||= isMisaligned pc4
           meIR ?= MeNop
@@ -377,10 +388,10 @@ decode = do
   exIR .= Nothing
   exRvfi .= mkRvfi
   isFirstCycle  <- control.firstCycle <<.= False -- first memory output undefined
-  isMeBranching <- uses (control.meBranching) isJust
+  isMeBranching <- use $ control.meBranching
   isWbMemory    <- use $ control.wbMemory
   isExLoad      <- use $ control.exLoad
-  isExBranching <- use $ control.exBranching
+  isExBranching <- uses (control.exBranching) isJust
   unless (isFirstCycle || isMeBranching || isWbMemory || isExLoad || isExBranching) $ do
     mem <- view fromMem
     pc <- use dePC
@@ -399,11 +410,13 @@ decode = do
 -- | fetch instruction
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
-  use (control.meBranching) >>= mapM_ (assign fetchPC)
   scribe toMem . First . Just . instrMem =<< use fetchPC
   isMeMemory <- use $ control.meMemory
   isDeLoad   <- use $ control.deLoad
-  unless (isMeMemory || isDeLoad) $ dePC <~ fetchPC <<+= 4  
+  use (control.exBranching) >>= \case
+    Just npc -> fetchPC .= npc
+    Nothing  -> unless (isMeMemory || isDeLoad) $ dePC <~ fetchPC <<+= 4  
+
 
 -------------
 -- Utility --
@@ -477,15 +490,17 @@ withInstr l k = use l >>= mapM_ k
 -- B  = Branch
 -- 
 -- Jump/Branch (Except JALR) -- OLD
--- +----+-----+-----+----+----+
--- | IF | DE  | EX  | ME | WB |
--- +====+=====+=====+====+====+
--- | 4  | --- | --- | -- | -- |   
--- +----+-----+-----+----+----+
--- | 8  | J15 | --- | -- | -- |
--- +----+-----+-----+----+----+
--- | 15 |  O  | J15 | -- | -- |
--- +----+-----+-----+----+----+
+-- +----+-----+-----+-----+----+
+-- | IF | DE  | EX  | ME  | WB |
+-- +====+=====+=====+=====+====+
+-- | 4  | --- | --- | --- | -- |   
+-- +----+-----+-----+-----+----+
+-- | 8  | J15 | --- | --- | -- |
+-- +----+-----+-----+-----+----+
+-- | 12 |  O  | J15 | --- | -- |
+-- +----+-----+-----+-----+----+
+-- | 15 |  O  |  O  | J15 | -- |
+-- +----+-----+-----+-----+----+
 --
 -- Jump/Branch
 -- +----+------+------+------+----+
@@ -510,22 +525,24 @@ withInstr l k = use l >>= mapM_ k
 -- +-------+------+------+------+----+
 -- | 12    | J100 |  S   | ---- | -- |
 -- +-------+------+------+------+----+
--- | *100* |  O   | J100 |  S   | -- |
+-- | *16*  |  O   | J100 |  S   | -- |
 -- +-------+------+------+------+----+
 -- |  100  |  O   |  O   | J100 | S  |
 -- +-------+------+------+------+----+
 --
 -- Load
--- +------+------+------+----+----+
--- | IF   |  DE  |  EX  | ME | WB |
--- +======+======+======+====+====+
--- | 4    | ---- | ---- | -- | -- |
--- +------+------+------+----+----+
--- | *8*  |  L   | ---- | -- | -- |
--- +------+------+------+----+----+
--- | 8    |  O   |  L   | -- | -- |
--- +------+------+------+----+----+
--- | *12* | B100 |  O   | L  | -- |
--- +------+------+------+----+----+
--- | 100  |  O   | B100 | O  | L  |
--- +------+------+------+----+----+
+-- +------+------+------+------+----+
+-- | IF   |  DE  |  EX  |  ME  | WB |
+-- +======+======+======+======+====+
+-- | 4    | ---- | ---- | ---- | -- |
+-- +------+------+------+------+----+
+-- | *8*  |  L   | ---- | ---- | -- |
+-- +------+------+------+------+----+
+-- | 8    |  O   |  L   | ---- | -- |
+-- +------+------+------+------+----+
+-- | *12* | B100 |  O   |  L   | -- |
+-- +------+------+------+------+----+
+-- | 12   |  O   | B100 |  O   | L  |
+-- +------+------+------+------+----+
+-- | 100  |  O   |  O   | B100 | -- |
+-- +------+------+------+------+----+
