@@ -26,7 +26,7 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
 -- | Memory pipeline instruction
 data MeInstr = MeRegWr      (Unsigned 5)
              | MeJump Jump  (Unsigned 5) (BitVector 32)
-             | MeBranch Bool             (BitVector 32)
+             | MeBranch 
              | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
              | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
              | MeNop

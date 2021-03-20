@@ -257,13 +257,10 @@ memory = do
       control.meBranching ?= npc
       control.meRegFwd ?= (rd, pc4)
       wbIR ?= WbRegWr rd pc4
-    MeBranch isBranch pc4 -> do
-      npc <- wbRvfi.rvfiPcWData <<~ if isBranch
-                                      then do
-                                        branchPC <- view fromAlu
-                                        control.meBranching <?= branchPC
-                                      else return pc4
-      wbRvfi.rvfiTrap ||= isMisaligned npc
+    MeBranch -> do
+      branchPC <- view fromAlu
+      wbRvfi.rvfiPcWData <~ control.meBranching <?= branchPC
+      wbRvfi.rvfiTrap ||= isMisaligned branchPC
       wbIR ?= WbNop
     MeStore addr mask value -> do
       control.meMemory .= True
@@ -306,10 +303,13 @@ execute = do
 --          scribeAlu Add rs1Data imm -- compute jump address with alu
           meIR ?= MeJump Jalr rd (rs1Data + imm) pc4
     ExBranch op imm -> do
-      let isBranch = branch op rs1Data rs2Data
-      when isBranch $ control.exBranching .= True
---      scribeAlu Add pc imm -- compute branch address with alu
-      meIR ?= MeBranch isBranch (pc + imm) pc4
+      scribeAlu Add pc imm -- compute branch address with alu
+      isBranch <- control.exBranching <.= branch op rs1Data rs2Data
+      if isBranch
+        then meIR ?= MeBranch
+        else do
+          meRvfi.rvfiTrap ||= isMisaligned pc4
+          meIR ?= MeNop
     ExStore op imm -> do
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
