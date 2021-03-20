@@ -387,10 +387,10 @@ decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exIR .= Nothing
   exRvfi .= mkRvfi
-  mem <- view fromMem
-  pc <- use dePC
---  pc  <- exPC <<~ use dePC
---  mem <- exRvfi.rvfiInsn <<~ view fromMem
+--  mem <- view fromMem
+--  pc <- use dePC
+  exPC <~ use dePC
+  mem <- exRvfi.rvfiInsn <<~ view fromMem
   scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
   scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
   isFirstCycle  <- control.firstCycle <<.= False -- first memory output undefined
@@ -401,14 +401,16 @@ decode = do
   let bubble = isFirstCycle || isMeBranching || isWbMemory || isExLoad || isExBranching
 --  unless (isFirstCycle || isMeBranching || isWbMemory || isExLoad || isExBranching) $
   case parseInstr mem of
-    Right instr -> do
-      unless bubble $ exIR ?= instr
-      exPC .= pc
-      exRvfi.rvfiInsn .= mem
+    Right instr -> unless bubble $ do
+      exIR ?= instr
       control.deLoad .= case instr of
         ExLoad{} -> True
         _        -> False
-    Left IllegalInstruction -> fetchPC .= pc -- roll-back PC, should handle trap
+--      exPC .= pc
+--      exRvfi.rvfiInsn .= mem
+    Left IllegalInstruction -> do
+      unless bubble $ exIR ?= ExAlu Add 0 --fetchPC .= pc -- roll-back PC, should handle trap
+      exRvfi.rvfiTrap .= True
         
 -- | fetch instruction
 fetch :: RWS ToPipe FromPipe Pipe ()
