@@ -297,11 +297,13 @@ execute = do
       control.exBranching .= True
       case jump of
         Jal -> do
---          scribeAlu Add pc imm -- compute jump address with alu
-          meIR ?= MeJump Jal rd (pc + imm) pc4
+          scribeAlu Add pc imm -- compute jump address with alu
+          meIR ?= MeJump Jal rd pc4          
+--          meIR ?= MeJump Jal rd (pc + imm) pc4
         Jalr -> do
---          scribeAlu Add rs1Data imm -- compute jump address with alu
-          meIR ?= MeJump Jalr rd (rs1Data + imm) pc4
+          scribeAlu Add rs1Data imm -- compute jump address with alu
+          meIR ?= MeJump Jalr rd pc4
+--          meIR ?= MeJump Jalr rd (rs1Data + imm) pc4
     ExBranch op imm -> do
       scribeAlu Add pc imm -- compute branch address with alu
       isBranch <- control.exBranching <.= branch op rs1Data rs2Data
