@@ -77,10 +77,10 @@ lion rx = FromSoc
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
     fromSpram      = spram busIn
     fromBios       = bios busIn
-    fromRgb        = rgb $ register (Rom 0) busIn
+    fromRgb        = rgb $ delay (Rom 0) busIn
     (tx, fromUart) = uart rx busIn
     busIn = fmap busMapIn $ toMem $ core config $ 
-      busMapOut <$> register (Rom 0) busIn
+      busMapOut <$> delay (Rom 0) busIn
                 <*> fromSpram
                 <*> fromBios 
                 <*> fromUart
