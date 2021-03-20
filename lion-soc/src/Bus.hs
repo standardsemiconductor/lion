@@ -78,4 +78,5 @@ busMapOut :: Bus -> BitVector 32 -> BitVector 32 -> BitVector 32 -> BitVector 32
 busMapOut busOut fromSpram fromBios fromUart = case busOut of
   Spram{} -> fromSpram
   Rom{}   -> fromBios
-  _       -> fromUart
+  Uart{}  -> fromUart
+  Led{}   -> 0
