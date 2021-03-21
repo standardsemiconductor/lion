@@ -1,3 +1,5 @@
+{-# LANGUAGE ApplicativeDo #-}
+
 {-|
 Module      : Bus
 Description : Lion SoC Bus and Memory Map
@@ -74,7 +76,12 @@ busMapIn (Just toMem)
     checkRegion :: Index 32 -> Bool
     checkRegion n = bitToBool $ memAddress toMem ! n
 
-busMapOut :: Bus -> BitVector 32 -> BitVector 32 -> BitVector 32 -> BitVector 32
+busMapOut 
+  :: Bus 
+  -> BitVector 32
+  -> BitVector 32
+  -> BitVector 32
+  -> BitVector 32
 busMapOut busOut fromSpram fromBios fromUart = case busOut of
   Spram{} -> fromSpram
   Rom{}   -> fromBios
