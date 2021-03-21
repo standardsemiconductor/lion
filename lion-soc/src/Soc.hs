@@ -41,6 +41,7 @@ rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
 ----------
 -- ROM --
 ----------
+{-# NOINLINE bios #-}
 bios
   :: HiddenClockResetEnable dom
   => Signal dom Bus
@@ -77,10 +78,10 @@ lion rx = FromSoc
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
     fromSpram      = spram busIn
     fromBios       = bios busIn
-    fromRgb        = rgb $ register (Rom 0) busIn
+    fromRgb        = rgb busIn
     (tx, fromUart) = uart rx busIn
     busIn = fmap busMapIn $ toMem $ core config $ 
-      busMapOut <$> register (Rom 0) busIn
+      busMapOut <$> delay (Rom 0) busIn
                 <*> fromSpram
                 <*> fromBios 
                 <*> fromUart

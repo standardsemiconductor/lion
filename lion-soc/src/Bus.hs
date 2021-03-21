@@ -1,5 +1,3 @@
-{-# LANGUAGE ApplicativeDo #-}
-
 {-|
 Module      : Bus
 Description : Lion SoC Bus and Memory Map
@@ -32,6 +30,7 @@ data Bus = Rom            -- ^ ROM access
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+{-# NOINLINE spramMap #-}
 spramMap :: ToMem -> Bus
 spramMap mem = maybe spramRead spramWrite $ memWrite mem
   where
@@ -48,42 +47,49 @@ spramMap mem = maybe spramRead spramWrite $ memWrite mem
           | b == high = 0b11
           | otherwise = 0b00
 
+{-# NOINLINE romMap #-}
 romMap :: ToMem -> Bus
 romMap = Rom .  unpack . slice d7 d0 . (`shiftR` 2) . memAddress
 
+{-# NOINLINE uartMap #-}
 uartMap :: ToMem -> Bus
 uartMap mem = case memAccess mem of
-  DataMem -> Uart mask wrM
-  _       -> Uart 0 Nothing
+  DataMem  -> Uart mask wrM
+  InstrMem -> Uart 0 Nothing
   where
     mask = slice d2 d0 $ memByteMask mem
     wrM  = slice d7 d0 <$> memWrite mem
 
+{-# NOINLINE ledMap #-}
 ledMap :: ToMem -> Bus
 ledMap = maybe (Rom 0) led . memWrite
   where
     led :: BitVector 32 -> Bus
     led d = Led (slice d11 d8 d) (slice d7 d0 d)
 
+{-# NOINLINE busMapIn #-}
 busMapIn :: Maybe ToMem -> Bus
 busMapIn Nothing = Rom 0
 busMapIn (Just toMem)
   | checkRegion 17 = spramMap toMem
   | checkRegion 10 = romMap   toMem
-  | checkRegion  2 = uartMap  toMem
+  | checkRegion 2  = uartMap  toMem
   | otherwise      = ledMap   toMem
   where
     checkRegion :: Index 32 -> Bool
     checkRegion n = bitToBool $ memAddress toMem ! n
 
+{-# NOINLINE busMapOut #-}
 busMapOut 
-  :: Bus 
+  :: Bus
   -> BitVector 32
   -> BitVector 32
   -> BitVector 32
   -> BitVector 32
-busMapOut busOut fromSpram fromBios fromUart = case busOut of
-  Spram{} -> fromSpram
+busMapOut bus fromSpram fromBios fromUart = case bus of
   Rom{}   -> fromBios
-  Uart{}  -> fromUart
   Led{}   -> 0
+  Uart{}  -> fromUart
+  Spram{} -> fromSpram  
+
+
