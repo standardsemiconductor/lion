@@ -11,18 +11,16 @@ module Spram where
 import Clash.Prelude
 import Data.Functor ( (<&>) )
 import Ice40.Spram
-import Bus ( Bus(..) )
+import Bus
 
 spram 
   :: HiddenClockResetEnable dom 
-  => Signal dom Bus
-  -> Signal dom (BitVector 32)
-spram busIn = ram32k32 addr dat msk we
+  => Signal dom (BusIn 'Spram)
+  -> Signal dom (BusOut 'Spram)
+spram busIn = FromSpram <$> ram32k32 addr dat msk we
   where
     (addr, dat, msk, we) = unbundle $ busIn <&> \case
-      Spram a d m w -> (a, d, m, w)
-      _ -> (0, 0, 0, 0)
-
+      ToSpram a d m w -> (a, d, m, w)
 
 ram32k32
   :: HiddenClockResetEnable dom

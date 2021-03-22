@@ -9,11 +9,11 @@ Maintainer  : standardsemiconductor@gmail.com
 module Uart where
 
 import Clash.Prelude
-import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
 import Data.Maybe ( isJust, fromMaybe )
 import Data.Monoid.Generic
+import qualified Bus as B
 -- import Ice40.IO
 
 -- | uart register
@@ -28,11 +28,9 @@ import Data.Monoid.Generic
 --   bits 7  - 0 : transmitter buffer -- write only -- writing this byte will reset the transmitter
 
 data ToUart = ToUart
-  { _fromBus :: B.Bus
+  { _fromBus :: B.BusIn 'B.Uart
   , _rx      :: Bit
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
 makeLenses ''ToUart
   
 -- | Receiver finite-state machine
@@ -152,10 +150,10 @@ uartM = do
 
   -- handle memory IO
   view fromBus >>= \case
-    B.Uart $(bitPattern ".1.") Nothing -> do -- read recv byte
+    B.ToUart $(bitPattern ".1.") Nothing -> do -- read recv byte
       scribe toCore . First =<< use rxRecv
       rxRecv .= Nothing
-    B.Uart _ (Just wr) -> do -- write send byte
+    B.ToUart _ (Just wr) -> do -- write send byte
       txIdx    .= 0
       txBaud   .= 0
       txBuffer ?= frame wr
@@ -204,12 +202,12 @@ uartMealy s i = (s', o)
 
 uart
   :: HiddenClockResetEnable dom 
-  => Signal dom Bit                    -- ^ uart rx
-  -> Signal dom B.Bus                  -- ^ soc bus 
-  -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
+  => Signal dom Bit                        -- ^ uart rx
+  -> Signal dom (B.BusIn 'B.Uart)          -- ^ soc bus 
+  -> Unbundled dom (Bit, B.BusOut 'B.Uart) -- ^ (uart tx, toCore)
 uart rxIn mem = (txOut, uartOut)
   where
-    uartOut  = register 0 $ fromMaybe 0 . getFirst . _toCore  <$> fromUart
+    uartOut  = fmap B.FromUart $ register 0 $ fromMaybe 0 . getFirst . _toCore  <$> fromUart
     txOut    = register 1 $ fromMaybe 1 . getFirst . _tx <$> fromUart
     fromUart = mealy uartMealy mkUart $ ToUart <$> mem <*> register 1 rxIn
 

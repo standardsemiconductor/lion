@@ -14,6 +14,7 @@ import Lion.Core (ToMem(..), MemoryAccess(..))
 -- Bus --
 ---------
 -- | SoC Memory/Peripheral access bus
+{-
 data Bus = Rom            -- ^ ROM access 
              (Unsigned 8) -- ^ ROM word address
          | Led             -- ^ LED access 
@@ -29,13 +30,41 @@ data Bus = Rom            -- ^ ROM access
              Bit            -- ^ SPRAM write enable
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+-}
+data Peripheral = Rom
+                | Led
+                | Uart
+                | Spram
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
 
-{-# NOINLINE spramMap #-}
-spramMap :: ToMem -> Bus
-spramMap mem = maybe spramRead spramWrite $ memWrite mem
+data BusIn (p :: Peripheral) where
+  ToRom :: Unsigned 8 -- ^ ROM word address
+        -> BusIn 'Rom -- ^ ROM access
+  ToLed :: BitVector 4 -- ^ LED IP Register Address
+        -> BitVector 8 -- ^ LED IP Register Write Data
+        -> Bool        -- ^ LED enable
+        -> BusIn 'Led  -- ^ LED access
+  ToUart :: BitVector 3         -- ^ UART mask
+         -> Maybe (BitVector 8) -- ^ UART write value
+         -> BusIn 'Uart         -- ^ UART access
+  ToSpram :: BitVector 15 -- ^ SPRAM address
+          -> BitVector 32 -- ^ SPRAM dataIn
+          -> BitVector 8  -- ^ SPRAM mask write enable
+          -> Bit          -- ^ SPRAM write enable
+          -> BusIn 'Spram -- ^ SPRAM access
+
+data BusOut (p :: Peripheral) where
+  FromRom   :: BitVector 32 -> BusOut 'Rom
+  FromUart  :: BitVector 32 -> BusOut 'Uart
+  FromSpram :: BitVector 32 -> BusOut 'Spram
+
+spramMap :: Maybe ToMem -> BusIn 'Spram
+spramMap Nothing    = ToSpram 0 0 0 0
+spramMap (Just mem) = maybe spramRead spramWrite $ memWrite mem
   where
-    spramRead     = Spram wordAddr 0 0 0
-    spramWrite wr = Spram wordAddr wr nybMask 1
+    spramRead     = ToSpram wordAddr 0 0 0
+    spramWrite wr = ToSpram wordAddr wr nybMask 1
 
     wordAddr = slice d14 d0 $ memAddress mem `shiftR` 2
 
@@ -47,27 +76,25 @@ spramMap mem = maybe spramRead spramWrite $ memWrite mem
           | b == high = 0b11
           | otherwise = 0b00
 
-{-# NOINLINE romMap #-}
-romMap :: ToMem -> Bus
-romMap = Rom .  unpack . slice d7 d0 . (`shiftR` 2) . memAddress
+romMap :: Maybe ToMem -> BusIn 'Rom
+romMap = ToRom .  unpack . slice d7 d0 . (`shiftR` 2) . maybe 0 memAddress
 
-{-# NOINLINE uartMap #-}
-uartMap :: ToMem -> Bus
-uartMap mem = case memAccess mem of
-  DataMem  -> Uart mask wrM
-  InstrMem -> Uart 0 Nothing
+uartMap :: Maybe ToMem -> BusIn 'Uart
+uartMap Nothing    = ToUart 0 Nothing
+uartMap (Just mem) = case memAccess mem of
+  DataMem  -> ToUart mask wrM
+  InstrMem -> ToUart 0 Nothing
   where
     mask = slice d2 d0 $ memByteMask mem
     wrM  = slice d7 d0 <$> memWrite mem
 
-{-# NOINLINE ledMap #-}
-ledMap :: ToMem -> Bus
-ledMap = maybe (Rom 0) led . memWrite
+ledMap :: Maybe ToMem -> BusIn 'Led
+ledMap = maybe (ToLed 0 0 False) led . (memWrite =<<)
   where
-    led :: BitVector 32 -> Bus
-    led d = Led (slice d11 d8 d) (slice d7 d0 d)
+    led :: BitVector 32 -> BusIn 'Led
+    led d = ToLed (slice d11 d8 d) (slice d7 d0 d) True
 
-{-# NOINLINE busMapIn #-}
+{-
 busMapIn :: Maybe ToMem -> Bus
 busMapIn Nothing = Rom 0
 busMapIn (Just toMem)
@@ -78,18 +105,28 @@ busMapIn (Just toMem)
   where
     checkRegion :: Index 32 -> Bool
     checkRegion n = bitToBool $ memAddress toMem ! n
+-}
+selectRegion :: Maybe ToMem -> Peripheral
+selectRegion Nothing = Rom
+selectRegion (Just toMem)
+  | checkRegion 17 = Spram
+  | checkRegion 10 = Rom
+  | checkRegion 2  = Uart
+  | otherwise      = Led
+  where
+    checkRegion :: Index 32 -> Bool
+    checkRegion n = bitToBool $ memAddress toMem ! n
 
-{-# NOINLINE busMapOut #-}
 busMapOut 
-  :: Bus
+  :: BusOut 'Spram
+  -> BusOut 'Rom
+  -> BusOut 'Uart
+  -> Peripheral
   -> BitVector 32
-  -> BitVector 32
-  -> BitVector 32
-  -> BitVector 32
-busMapOut bus fromSpram fromBios fromUart = case bus of
-  Rom{}   -> fromBios
-  Led{}   -> 0
-  Uart{}  -> fromUart
-  Spram{} -> fromSpram  
+busMapOut (FromSpram fromSpram) (FromRom fromBios) (FromUart fromUart) = \case
+  Rom   -> fromBios
+  Led   -> 0
+  Uart  -> fromUart
+  Spram -> fromSpram  
 
 

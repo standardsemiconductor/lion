@@ -46,6 +46,8 @@ library
     DerivingStrategies
     DerivingVia
     FlexibleContexts
+    GADTs
+    KindSignatures
     LambdaCase
     MagicHash
     NoImplicitPrelude
