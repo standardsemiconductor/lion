@@ -25,11 +25,11 @@ To compile, synthesize, and route Lion SoC without programming: `cabal run soc`
 ### Clean
 `cabal run soc -- clean`
 
-## Metrics as of Mar 14 2021 for iCE40
+## Metrics as of Mar 22 2021 for iCE40
 ### Device utilisation
 ```
 Device utilisation:
-   ICESTORM_LC:  2432/ 5280    46%
+   ICESTORM_LC:  2461/ 5280    46%
   ICESTORM_RAM:     8/   30    26%
          SB_IO:     2/   96     2%
          SB_GB:     5/    8    62%
@@ -39,7 +39,7 @@ ICESTORM_HFOSC:     1/    1   100%
 ```
 ### Clock frequency
 ```
-Max frequency for clock: 13.51 MHz (PASS @ 12Mhz)
+Max frequency for clock: 14.88 MHz (PASS @ 12Mhz)
 ```
 
 ## Memory Map
