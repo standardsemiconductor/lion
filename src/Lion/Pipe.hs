@@ -189,27 +189,15 @@ pipe config = mealy pipeMealy (mkPipe config)
     pipeMealy s i = let ((), s', o) = runRWS pipeM i s
                     in (s', o) 
 
--- | reset control signals (except first cycle)
-resetControl :: MonadState Pipe m => m ()
-resetControl = do
-  control.exBranching .= Nothing
-  control.meBranching .= False
-  control.deLoad      .= False
-  control.exLoad      .= False
-  control.meMemory    .= False
-  control.wbMemory    .= False
-  control.meRegFwd    .= Nothing
-  control.wbRegFwd    .= Nothing
-
 -- | Monadic pipeline
 pipeM :: RWS ToPipe FromPipe Pipe ()
 pipeM = do
-  resetControl
   writeback
   memory
   execute
   decode
   fetch
+  control .= mkControl{ _firstCycle = False } -- reset control
 
 -- | Writeback stage
 writeback :: RWS ToPipe FromPipe Pipe ()
@@ -374,7 +362,7 @@ decode = do
   mem <- exRvfi.rvfiInsn <<~ view fromMem
   scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
   scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
-  isFirstCycle  <- control.firstCycle <<.= False -- first memory output undefined
+  isFirstCycle  <- use $ control.firstCycle -- first memory output undefined
   isMeBranching <- use $ control.meBranching
   isWbMemory    <- use $ control.wbMemory
   isExLoad      <- use $ control.exLoad
