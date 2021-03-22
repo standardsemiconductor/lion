@@ -39,6 +39,10 @@ main = shakeArgs opts $ do
     need ["_build/Soc.bin"]
     cmd_ "iceprog" "_build/Soc.bin"
 
+  phony "clash" $ do
+    putInfo "Compiling..."
+    need [verilog socTop </> socTop <.> "v"]
+
   phony "bios" $ do
     need [ "_build/bios/bios.rom0"
          , "_build/bios/bios.rom1"
