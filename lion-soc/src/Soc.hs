@@ -18,6 +18,7 @@ import Ice40.Led
 import Lion.Core
 import Bus
 import Uart ( uart )
+import Spram
 
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
@@ -72,13 +73,15 @@ lion rxIn = FromSoc
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
-    fromBios       = bios      $ romMap  <$> fromCore
-    fromRgb        = rgb       $ ledMap  <$> peripheral <*> fromCore
-    (tx, fromUart) = uart rxIn $ uartMap <$> peripheral <*> fromCore
+    fromBios       = bios      $ romMap   <$> fromCore
+    fromRgb        = rgb       $ ledMap   <$> peripheral <*> fromCore
+    (tx, fromUart) = uart rxIn $ uartMap  <$> peripheral <*> fromCore
+    fromSpram      = spram     $ spramMap <$> peripheral <*> fromCore
     peripheral = selectPeripheral <$> fromCore
     fromCore = toMem $ core config $ 
       busMapOut <$> fromBios 
                 <*> fromUart
+                <*> fromSpram
                 <*> register Rom peripheral
 
 ----------------

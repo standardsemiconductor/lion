@@ -16,6 +16,7 @@ import Lion.Core (ToMem(..), MemoryAccess(..))
 data Peripheral = Rom
                 | Led
                 | Uart
+                | Spram
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -32,9 +33,16 @@ data BusIn (p :: Peripheral) where
          -> Maybe (BitVector 8) -- ^ UART write value
          -> BusIn 'Uart         -- ^ UART access
 
+  ToSpram :: BitVector 15 -- ^ SPRAM address
+          -> BitVector 32 -- ^ SPRAM dataIn
+          -> BitVector 8  -- ^ SPRAM mask write enable
+          -> Bit          -- ^ SPRAM write enable
+          -> BusIn 'Spram -- ^ SPRAM access
+
 data BusOut (p :: Peripheral) where
-  FromRom  :: BitVector 32 -> BusOut 'Rom
-  FromUart :: BitVector 32 -> BusOut 'Uart
+  FromRom   :: BitVector 32 -> BusOut 'Rom
+  FromUart  :: BitVector 32 -> BusOut 'Uart
+  FromSpram :: BitVector 32 -> BusOut 'Spram
 
 romMap :: Maybe ToMem -> BusIn 'Rom
 romMap = ToRom . wordAddr . maybe 0 memAddress
@@ -50,9 +58,24 @@ ledMap :: Peripheral -> Maybe ToMem -> BusIn 'Led
 ledMap Led (Just (ToMem _ _ $(bitPattern "..11") (Just d))) = ToLed (slice d11 d8 d) (slice d7 d0 d) True
 ledMap _ _ = ToLed 0 0 False
 
+spramMap :: Peripheral -> Maybe ToMem -> BusIn 'Spram
+spramMap _      Nothing    = ToSpram 0 0 0 0
+spramMap periph (Just mem) = case (periph, memWrite mem) of
+  (Spram, Just wr) -> ToSpram wordAddr wr nybMask 1
+  _                -> ToSpram wordAddr 0 0 0
+  where
+    wordAddr = slice d14 d0 $ memAddress mem `shiftR` 2
+    nybMask = concatBitVector# $ map expandBit $ bv2v $ memByteMask mem
+      where
+        expandBit :: Bit -> BitVector 2
+        expandBit b
+          | b == high = 0b11
+          | otherwise = 0b00
+
 selectPeripheral :: Maybe ToMem -> Peripheral
 selectPeripheral Nothing = Rom
 selectPeripheral (Just toMem)
+  | checkRegion 17 = Spram
   | checkRegion 10 = Rom
   | checkRegion  2 = Uart
   | otherwise      = Led
@@ -60,8 +83,9 @@ selectPeripheral (Just toMem)
     checkRegion :: Index 32 -> Bool
     checkRegion = bitToBool . (memAddress toMem !)
 
-busMapOut :: BusOut 'Rom -> BusOut 'Uart -> Peripheral -> BitVector 32
-busMapOut (FromRom fromBios) (FromUart fromUart) = \case
-  Rom  -> fromBios
-  Uart -> fromUart
-  Led  -> 0
+busMapOut :: BusOut 'Rom -> BusOut 'Uart -> BusOut 'Spram -> Peripheral -> BitVector 32
+busMapOut (FromRom fromBios) (FromUart fromUart) (FromSpram fromSpram) = \case
+  Rom   -> fromBios
+  Uart  -> fromUart
+  Led   -> 0
+  Spram -> fromSpram
