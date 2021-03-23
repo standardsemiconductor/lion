@@ -44,6 +44,8 @@ library
     DerivingStrategies
     DerivingVia
     FlexibleContexts
+    GADTs
+    KindSignatures
     LambdaCase
     NoImplicitPrelude
     NoStarIsType

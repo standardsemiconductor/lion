@@ -27,11 +27,9 @@ import Data.Monoid.Generic
 --   bits 7  - 0 : transmitter buffer -- write only -- writing this byte will reset the transmitter
 
 data ToUart = ToUart
-  { _fromBus :: B.Bus
+  { _fromBus :: B.BusIn 'B.Uart
   , _rx      :: Bit
   }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
 makeLenses ''ToUart
   
 -- | Receiver finite-state machine
@@ -99,10 +97,10 @@ uartM = do
 
   -- handle memory IO
   view fromBus >>= \case
-    B.Uart $(bitPattern ".1.") Nothing -> do -- read recv byte
+    B.ToUart $(bitPattern ".1.") Nothing -> do -- read recv byte
       scribe toCore . First =<< use rxRecv
       rxRecv .= Nothing
-    B.Uart _ (Just wr) -> do -- write send byte
+    B.ToUart _ (Just wr) -> do -- write send byte
       txIdx    .= 0
       txBaud   .= 0
       txBuffer ?= frame wr
@@ -151,10 +149,10 @@ uartMealy s i = (s', o)
 
 uart
   :: HiddenClockResetEnable dom 
-  => Signal dom Bit                    -- ^ uart rx
-  -> Signal dom B.Bus                  -- ^ soc bus 
-  -> Unbundled dom (Bit, BitVector 32) -- ^ (uart tx, toCore)
-uart rxIn bus = (txOut, uartOut)
+  => Signal dom Bit                        -- ^ uart rx
+  -> Signal dom (B.BusIn 'B.Uart)          -- ^ soc bus 
+  -> Unbundled dom (Bit, B.BusOut 'B.Uart) -- ^ (uart tx, toCore)
+uart rxIn bus = (txOut, B.FromUart <$> uartOut)
   where
     uartOut  = register 0 $ fromMaybe 0 . getFirst . _toCore  <$> fromUart
     txOut    = fromMaybe 1 . getFirst . _tx <$> fromUart
