@@ -15,14 +15,15 @@ library
   exposed-modules: Soc
   other-modules:   Bus
                  , Uart
+                 , Spram
   hs-source-dirs: src
   default-language: Haskell2010
   build-depends:
     base >= 4.13 && < 4.15,
     Cabal,
-    clash-prelude >= 1.2.5 && < 1.4,
+    clash-prelude >= 1.4 && < 1.5,
     generic-monoid,
-    ice40-prim >= 0.2 && < 0.3,
+    ice40-prim >= 0.3 && < 0.4,
     lens,
     lion >= 0.1 && < 0.2,
     mtl,
@@ -38,13 +39,17 @@ library
     -fexpose-all-unfoldings
     -fno-worker-wrapper
   default-extensions:
+    BinaryLiterals
     DataKinds
     DeriveAnyClass
     DeriveGeneric
     DerivingStrategies
     DerivingVia
     FlexibleContexts
+    GADTs
+    KindSignatures
     LambdaCase
+    MagicHash
     NoImplicitPrelude
     NoStarIsType
     ViewPatterns

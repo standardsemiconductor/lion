@@ -37,17 +37,45 @@ data ToPipe = ToPipe
   deriving anyclass NFDataX
 makeLenses ''ToPipe
 
--- | Memory bus
---
---   Lion has a shared instruction/memory bus
-data ToMem = InstrMem         -- ^ instruction read
-               (BitVector 32) -- ^ instruction address
-           | DataMem                  -- ^ data access
-               (BitVector 32)         -- ^ data address
-               (BitVector 4)          -- ^ data byte mask
-               (Maybe (BitVector 32)) -- ^ read=Nothing write=(Just wr)
+-- | Memory access - Lion has a shared instruction/memory bus
+data MemoryAccess = InstrMem -- ^ instruction access
+                  | DataMem  -- ^ data access
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+
+-- | Memory bus
+data ToMem = ToMem
+  { memAccess   :: MemoryAccess         -- ^ memory access type
+  , memAddress  :: BitVector 32         -- ^ memory address
+  , memByteMask :: BitVector 4          -- ^ memory byte mask
+  , memWrite    :: Maybe (BitVector 32) -- ^ read=Nothing write=Just wr
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+-- | Construct instruction memory access
+instrMem 
+  :: BitVector 32 -- ^ instruction address
+  -> ToMem
+instrMem addr = ToMem
+  { memAccess   = InstrMem
+  , memAddress  = addr
+  , memByteMask = 0xF
+  , memWrite    = Nothing
+  }
+
+-- | Construct data memory access
+dataMem 
+  :: BitVector 32         -- ^ memory address
+  -> BitVector 4          -- ^ byte mask
+  -> Maybe (BitVector 32) -- ^ write
+  -> ToMem
+dataMem addr mask wrM = ToMem
+  { memAccess   = DataMem
+  , memAddress  = addr
+  , memByteMask = mask
+  , memWrite    = wrM
+  }
 
 -- | Pipeline outputs
 data FromPipe = FromPipe
@@ -68,8 +96,8 @@ makeLenses ''FromPipe
 
 data Control = Control
   { _firstCycle  :: Bool                             -- ^ First cycle True, then always False
-  , _exBranching :: Bool                             -- ^ execute stage branch/jump
-  , _meBranching :: Maybe (BitVector 32)             -- ^ memory stage branch/jump
+  , _exBranching :: Maybe (BitVector 32)             -- ^ execute stage branch/jump
+  , _meBranching :: Bool                             -- ^ memory stage branch/jump
   , _deLoad      :: Bool                             -- ^ decode stage load
   , _exLoad      :: Bool                             -- ^ execute stage load
   , _meMemory    :: Bool                             -- ^ memory stage load/store
@@ -84,8 +112,8 @@ makeLenses ''Control
 mkControl :: Control
 mkControl = Control 
   { _firstCycle  = True   
-  , _exBranching = False
-  , _meBranching = Nothing
+  , _exBranching = Nothing
+  , _meBranching = False
   , _deLoad      = False
   , _exLoad      = False
   , _meMemory    = False
@@ -161,27 +189,15 @@ pipe config = mealy pipeMealy (mkPipe config)
     pipeMealy s i = let ((), s', o) = runRWS pipeM i s
                     in (s', o) 
 
--- | reset control signals (except first cycle)
-resetControl :: MonadState Pipe m => m ()
-resetControl = do
-  control.exBranching .= False
-  control.meBranching .= Nothing
-  control.deLoad      .= False
-  control.exLoad      .= False
-  control.meMemory    .= False
-  control.wbMemory    .= False
-  control.meRegFwd    .= Nothing
-  control.wbRegFwd    .= Nothing
-
 -- | Monadic pipeline
 pipeM :: RWS ToPipe FromPipe Pipe ()
 pipeM = do
-  resetControl
   writeback
   memory
   execute
   decode
   fetch
+  control .= mkControl{ _firstCycle = False } -- reset control
 
 -- | Writeback stage
 writeback :: RWS ToPipe FromPipe Pipe ()
@@ -223,30 +239,23 @@ memory = do
       wr <- view fromAlu
       control.meRegFwd ?= (rd, wr)
       wbIR ?= WbRegWr rd wr
-    MeJump jump rd pc4 -> do
-      npc <- wbRvfi.rvfiPcWData <<~ views fromAlu (jumpAddress jump) -- jal: id, jalr: flip clearBit 0
-      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
-      control.meBranching ?= npc
+    MeJump rd pc4 -> do
+      control.meBranching .= True
       control.meRegFwd ?= (rd, pc4)
       wbIR ?= WbRegWr rd pc4
-    MeBranch isBranch pc4 -> do
-      npc <- wbRvfi.rvfiPcWData <<~ if isBranch
-                                      then do
-                                        branchPC <- view fromAlu
-                                        control.meBranching <?= branchPC
-                                      else return pc4
-      wbRvfi.rvfiTrap ||= (npc .&. 0x3 /= 0)
+    MeBranch -> do
+      control.meBranching .= True
       wbIR ?= WbNop
     MeStore addr mask value -> do
       control.meMemory .= True
-      scribe toMem $ First $ Just $ DataMem addr mask $ Just value
+      scribe toMem $ First $ Just $ dataMem addr mask $ Just value
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemWMask .= mask
       wbRvfi.rvfiMemWData .= value
       wbIR ?= WbStore
     MeLoad op rdAddr addr mask -> do
       control.meMemory .= True
-      scribe toMem $ First $ Just $ DataMem addr mask Nothing
+      scribe toMem $ First $ Just $ dataMem addr mask Nothing
       wbRvfi.rvfiMemAddr  .= addr
       wbRvfi.rvfiMemRMask .= mask
       wbIR ?= WbLoad op rdAddr mask
@@ -269,19 +278,24 @@ execute = do
         scribeAlu Add pc imm
         meIR ?= MeRegWr rd
     ExJump jump rd imm -> do
-      control.exBranching .= True
       case jump of
         Jal -> do
-          scribeAlu Add pc imm -- compute jump address with alu
-          meIR ?= MeJump Jal rd pc4
+          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
+          meRvfi.rvfiTrap ||= isMisaligned npc
+          meIR ?= MeJump rd pc4
         Jalr -> do
-          scribeAlu Add rs1Data imm -- compute jump address with alu
-          meIR ?= MeJump Jalr rd pc4
-    ExBranch op imm -> do
-      let isBranch = branch op rs1Data rs2Data
-      when isBranch $ control.exBranching .= True
-      scribeAlu Add pc imm -- compute branch address with alu
-      meIR ?= MeBranch (branch op rs1Data rs2Data) pc4
+          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= clearBit (rs1Data + imm) 0
+          meRvfi.rvfiTrap ||= isMisaligned npc
+          meIR ?= MeJump rd pc4
+    ExBranch op imm ->
+      if branch op rs1Data rs2Data
+        then do
+          branchPC <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
+          meRvfi.rvfiTrap ||= isMisaligned branchPC
+          meIR ?= MeBranch
+        else do
+          meRvfi.rvfiTrap ||= isMisaligned pc4
+          meIR ?= MeNop
     ExStore op imm -> do
       let addr = rs1Data + imm            -- unaligned
           addr' = addr .&. complement 0x3 -- aligned
@@ -289,11 +303,11 @@ execute = do
         Sb -> let wr = concatBitVector# $ replicate d4 $ slice d7 d0 rs2Data
               in meIR ?= MeStore addr' (byteMask addr) wr
         Sh -> do
-          meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0) -- trap on half-word boundary
+          meRvfi.rvfiTrap ||= isMisalignedHalf addr -- trap on half-word boundary
           let wr = concatBitVector# $ replicate d2 $ slice d15 d0 rs2Data
           meIR ?= MeStore addr' (halfMask addr) wr
         Sw -> do
-          meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
+          meRvfi.rvfiTrap ||= isMisaligned addr -- trap on word boundary
           meIR ?= MeStore addr' 0xF rs2Data
     ExLoad op rdAddr imm -> do
       control.exLoad .= True
@@ -301,10 +315,10 @@ execute = do
           addr' = addr .&. complement 0x3 -- aligned
       if | op == Lb || op == Lbu -> meIR ?= MeLoad op rdAddr addr' (byteMask addr)
          | op == Lh || op == Lhu -> do
-             meRvfi.rvfiTrap ||= (addr .&. 0x1 /= 0) -- trap on half-word boundary
+             meRvfi.rvfiTrap ||= isMisalignedHalf addr -- trap on half-word boundary
              meIR ?= MeLoad op rdAddr addr' (halfMask addr)
          | otherwise -> do -- Lw
-             meRvfi.rvfiTrap ||= (addr .&. 0x3 /= 0) -- trap on word boundary
+             meRvfi.rvfiTrap ||= isMisaligned addr -- trap on word boundary
              meIR ?= MeLoad op rdAddr addr' 0xF
     ExAlu op rd -> do
       scribeAlu op rs1Data rs2Data
@@ -344,34 +358,35 @@ decode :: RWS ToPipe FromPipe Pipe ()
 decode = do
   exIR .= Nothing
   exRvfi .= mkRvfi
-  isFirstCycle  <- control.firstCycle <<.= False -- first memory output undefined
-  isMeBranching <- uses (control.meBranching) isJust
+  exPC <~ use dePC
+  mem <- exRvfi.rvfiInsn <<~ view fromMem
+  scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
+  scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
+  isFirstCycle  <- use $ control.firstCycle -- first memory output undefined
+  isMeBranching <- use $ control.meBranching
   isWbMemory    <- use $ control.wbMemory
   isExLoad      <- use $ control.exLoad
-  isExBranching <- use $ control.exBranching
-  unless (isFirstCycle || isMeBranching || isWbMemory || isExLoad || isExBranching) $ do
-    mem <- view fromMem
-    pc <- use dePC
-    case parseInstr mem of
-      Right instr -> do
-        exIR ?= instr
-        exPC .= pc
-        exRvfi.rvfiInsn .= mem
-        control.deLoad .= case instr of
-          ExLoad _ _ _ -> True
-          _ -> False
-        scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
-        scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
-      Left IllegalInstruction -> fetchPC .= pc -- roll-back PC, should handle trap
+  isExBranching <- uses (control.exBranching) isJust
+  let bubble = isFirstCycle || isMeBranching || isWbMemory || isExLoad || isExBranching
+  case parseInstr mem of
+    Right instr -> unless bubble $ do
+      exIR ?= instr
+      control.deLoad .= case instr of
+        ExLoad{} -> True
+        _        -> False
+    Left IllegalInstruction -> do -- trap and instr=Nop (addi x0 x0 0)
+      unless bubble $ exIR ?= ExAlu Add 0
+      exRvfi.rvfiTrap .= True
         
 -- | fetch instruction
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
-  use (control.meBranching) >>= mapM_ (assign fetchPC)
-  scribe toMem . First . Just . InstrMem =<< use fetchPC
+  scribe toMem . First . Just . instrMem =<< use fetchPC
   isMeMemory <- use $ control.meMemory
   isDeLoad   <- use $ control.deLoad
-  unless (isMeMemory || isDeLoad) $ dePC <~ fetchPC <<+= 4  
+  use (control.exBranching) >>= \case
+    Just npc -> fetchPC .= npc
+    Nothing  -> unless (isMeMemory || isDeLoad) $ dePC <~ fetchPC <<+= 4
 
 -------------
 -- Utility --
@@ -409,18 +424,26 @@ halfMask addr = if addr .&. 0x2 == 0
 -- | slice address based on mask
 sliceByte :: BitVector 4 -> BitVector 32 -> BitVector 8
 sliceByte = \case
-  $(bitPattern "0001") -> slice d7  d0
-  $(bitPattern "0010") -> slice d15 d8
-  $(bitPattern "0100") -> slice d23 d16
-  $(bitPattern "1000") -> slice d31 d24
+  $(bitPattern "...1") -> slice d7  d0
+  $(bitPattern "..1.") -> slice d15 d8
+  $(bitPattern ".1..") -> slice d23 d16
+  $(bitPattern "1...") -> slice d31 d24
   _ -> const 0
 
 -- | slice address based on mask
 sliceHalf :: BitVector 4 -> BitVector 32 -> BitVector 16
 sliceHalf = \case
-  $(bitPattern "0011") -> slice d15 d0
-  $(bitPattern "1100") -> slice d31 d16
+  $(bitPattern "..11") -> slice d15 d0
+  $(bitPattern "11..") -> slice d31 d16
   _ -> const 0
+
+-- | check if memory address misaligned on word boundary
+isMisaligned :: (Bits a, Num a) => a -> Bool
+isMisaligned a = a .&. 0x3 /= 0
+
+-- | check if memory address misaligned on half-word boundary
+isMisalignedHalf :: (Bits a, Num a) => a -> Bool
+isMisalignedHalf a = a .&. 0x1 /= 0
 
 -- | run monadic action when instruction is Just
 withInstr :: MonadState s m => Lens' s (Maybe a) -> (a -> m ()) -> m ()
@@ -435,17 +458,6 @@ withInstr l k = use l >>= mapM_ k
 -- S  = Store
 -- *  = Stall
 -- B  = Branch
--- 
--- Jump/Branch (Except JALR) -- OLD
--- +----+-----+-----+----+----+
--- | IF | DE  | EX  | ME | WB |
--- +====+=====+=====+====+====+
--- | 4  | --- | --- | -- | -- |   
--- +----+-----+-----+----+----+
--- | 8  | J15 | --- | -- | -- |
--- +----+-----+-----+----+----+
--- | 15 |  O  | J15 | -- | -- |
--- +----+-----+-----+----+----+
 --
 -- Jump/Branch
 -- +----+------+------+------+----+
@@ -470,22 +482,24 @@ withInstr l k = use l >>= mapM_ k
 -- +-------+------+------+------+----+
 -- | 12    | J100 |  S   | ---- | -- |
 -- +-------+------+------+------+----+
--- | *100* |  O   | J100 |  S   | -- |
+-- | *16*  |  O   | J100 |  S   | -- |
 -- +-------+------+------+------+----+
 -- |  100  |  O   |  O   | J100 | S  |
 -- +-------+------+------+------+----+
 --
 -- Load
--- +------+------+------+----+----+
--- | IF   |  DE  |  EX  | ME | WB |
--- +======+======+======+====+====+
--- | 4    | ---- | ---- | -- | -- |
--- +------+------+------+----+----+
--- | *8*  |  L   | ---- | -- | -- |
--- +------+------+------+----+----+
--- | 8    |  O   |  L   | -- | -- |
--- +------+------+------+----+----+
--- | *12* | B100 |  O   | L  | -- |
--- +------+------+------+----+----+
--- | 100  |  O   | B100 | O  | L  |
--- +------+------+------+----+----+
+-- +------+------+------+------+----+
+-- | IF   |  DE  |  EX  |  ME  | WB |
+-- +======+======+======+======+====+
+-- | 4    | ---- | ---- | ---- | -- |
+-- +------+------+------+------+----+
+-- | *8*  |  L   | ---- | ---- | -- |
+-- +------+------+------+------+----+
+-- | 8    |  O   |  L   | ---- | -- |
+-- +------+------+------+------+----+
+-- | *12* | B100 |  O   |  L   | -- |
+-- +------+------+------+------+----+
+-- |  12  |  O   | B100 |  O   | L  |
+-- +------+------+------+------+----+
+-- | 100  |  O   |  O   | B100 | O  |
+-- +------+------+------+------+----+

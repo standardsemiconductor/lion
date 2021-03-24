@@ -25,8 +25,8 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
 
 -- | Memory pipeline instruction
 data MeInstr = MeRegWr      (Unsigned 5)
-             | MeJump Jump  (Unsigned 5) (BitVector 32)
-             | MeBranch Bool             (BitVector 32)
+             | MeJump       (Unsigned 5) (BitVector 32)
+             | MeBranch 
              | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
              | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
              | MeNop
@@ -84,19 +84,12 @@ branch = \case
 
 data ExOp = Lui
           | Auipc
---          | Jal
---          | Jalr
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
 data Jump = Jal | Jalr
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-
-jumpAddress :: Jump -> BitVector 32 -> BitVector 32
-jumpAddress = \case
-  Jal  -> id
-  Jalr -> flip clearBit 0 
 
 -- | Store operation
 data Store = Sb
@@ -170,7 +163,7 @@ parseInstr i = case i of
     immB = signExtend (slice d31 d31 i ++# slice d7 d7 i ++# slice d30 d25 i ++# slice d11 d8 i) `shiftL` 1
 
     immU :: BitVector 32
-    immU = (slice d31 d12 i) ++# 0
+    immU = slice d31 d12 i ++# 0
     
     immJ :: BitVector 32
     immJ = signExtend (slice d31 d31 i ++# slice d19 d12 i ++# slice d20 d20 i ++# slice d30 d25 i ++# slice d24 d21 i) `shiftL` 1

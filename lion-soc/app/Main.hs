@@ -19,7 +19,7 @@ buildDir' :: FilePath -> FilePath
 buildDir' = (buildDir </>)
 
 verilog :: String -> FilePath
-verilog top = "_build/verilog" </> top </> top
+verilog top = "_build" </> top <.> "topEntity"
 
 main :: IO ()
 main = shakeArgs opts $ do
@@ -38,6 +38,10 @@ main = shakeArgs opts $ do
     putInfo "Programming"
     need ["_build/Soc.bin"]
     cmd_ "iceprog" "_build/Soc.bin"
+
+  phony "clash" $ do
+    putInfo "Compiling..."
+    need [verilog socTop </> socTop <.> "v"]
 
   phony "bios" $ do
     need [ "_build/bios/bios.rom0"
@@ -62,7 +66,6 @@ main = shakeArgs opts $ do
     need ["_build/Soc.json", "Soc.pcf"]
     cmd_ "nextpnr-ice40"
          "--up5k"
-         "--opt-timing"
          "--package sg48"
          "--pcf Soc.pcf"
          "--asc"
@@ -75,7 +78,7 @@ main = shakeArgs opts $ do
     need ["_build/Soc.asc"]
     cmd_ "icepack" "_build/Soc.asc" [out]
     
-  -- build soc
+  -- compile soc with clash
   verilog socTop </> socTop <.> "v" %> \_ -> do
     need [ "_build/bios/bios.rom0"
          , "_build/bios/bios.rom1"
@@ -114,6 +117,7 @@ main = shakeArgs opts $ do
       , shakeThreads = 0
       }
 
+-- compile clash
 compile :: String -> IO ()
 compile topModule = defaultMain  ["-fclash-hdldir", buildDir, topModule, "--verilog"]
 

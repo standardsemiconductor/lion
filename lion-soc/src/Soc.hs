@@ -16,8 +16,9 @@ import Ice40.Osc ( hf12Mhz )
 import Ice40.Rgb
 import Ice40.Led
 import Lion.Core
-import Bus  ( busMapIn, busMapOut, Bus(Rom, Led))
+import Bus
 import Uart ( uart )
+import Spram
 
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
@@ -29,30 +30,28 @@ data FromSoc dom = FromSoc
 ---------
 type Rgb = ("red" ::: Bit, "green" ::: Bit, "blue" ::: Bit)
 
-rgb :: HiddenClock dom => Signal dom (Maybe Bus) -> Signal dom Rgb
+rgb :: HiddenClock dom => Signal dom (BusIn 'Led) -> Signal dom Rgb
 rgb mem = rgbPrim "0b0" "0b111111" "0b111111" "0b111111" (pure 1) (pure 1) r g b
   where
     (r, g, b, _) = led (pure 1) wr addr en (pure True)
     (wr, addr, en) = unbundle $ mem <&> \case
-      Just (Led a d) -> (d, a, True )
-      _              -> (0, 0, False)
+      ToLed a d e -> (d, a, e)
 
 ----------
 -- ROM --
 ----------
 bios
   :: HiddenClockResetEnable dom
-  => Signal dom (Maybe Bus)
-  -> Signal dom (BitVector 32)
-bios mem = concat4 <$> b3 <*> b2 <*> b1 <*> b0
+  => Signal dom (BusIn 'Rom)
+  -> Signal dom (BusOut 'Rom)
+bios mem = fmap FromRom $ concat4 <$> b3 <*> b2 <*> b1 <*> b0
   where
     b3 = romFilePow2 "_build/bios/bios.rom3" addr
     b2 = romFilePow2 "_build/bios/bios.rom2" addr
     b1 = romFilePow2 "_build/bios/bios.rom1" addr
     b0 = romFilePow2 "_build/bios/bios.rom0" addr
     addr = mem <&> \case
-      Just (Rom a) -> a
-      _            -> 0
+      ToRom a -> a
 
 concat4
   :: KnownNat n
@@ -74,13 +73,16 @@ lion rxIn = FromSoc
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
-    fromBios       = bios      busIn
-    fromRgb        = rgb       busIn
-    (tx, fromUart) = uart rxIn busIn
-    busIn = fmap (busMapIn =<<) $ toMem $ core config $
-      busMapOut <$> register Nothing busIn
-                <*> fromBios 
+    fromBios       = bios      $ romMap   <$> fromCore
+    fromRgb        = rgb       $ ledMap   <$> peripheral <*> fromCore
+    (tx, fromUart) = uart rxIn $ uartMap  <$> peripheral <*> fromCore
+    fromSpram      = spram     $ spramMap <$> peripheral <*> fromCore
+    peripheral = selectPeripheral <$> fromCore
+    fromCore = toMem $ core config $ 
+      busMapOut <$> fromBios 
                 <*> fromUart
+                <*> fromSpram
+                <*> register Rom peripheral
 
 ----------------
 -- Top Entity --

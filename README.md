@@ -19,6 +19,11 @@ This repository contains four parts:
 
 When connecting the `core` to memory and peripherals, ensure single cycle latency.
 
+## Clone the repository
+1. `git clone https://github.com/standardsemiconductor/lion.git`
+2. `cd lion`
+3. `git submodule update --init`
+
 ## Features
 ### Current Support
 * Architecture: RV32I (no FENCE, ECALL, EBREAK)
@@ -29,6 +34,8 @@ When connecting the `core` to memory and peripherals, ensure single cycle latenc
 * Zicsr, Control and Status Register (CSR) Instructions
 * CSR registers
 * RV32IM
+
+Check out the [Lion Development project](https://github.com/standardsemiconductor/lion/projects/1) to see which features are in progress.
 
 [hackage]:            <https://hackage.haskell.org/package/lion>
 [hackage-badge]:      <https://img.shields.io/hackage/v/lion.svg?color=success>

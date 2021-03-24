@@ -14,15 +14,44 @@ jobs:
     runs-on: ${{ matrix.os }} 
     strategy:
       matrix:
-        ghc: ['8.8.4', '8.10.4']
-        cabal: ['3.2.0.0', '3.4.0.0']
+        ghc: ['8.8', '8.10']
+        cabal: ['3.2', '3.4']
         os: [ubuntu-20.04]
     name: ${{ matrix.os }} GHC ${{ matrix.ghc }} Cabal ${{ matrix.cabal }}
     steps:
     - name: Checkout
       uses: actions/checkout@v2
       with:
-        submodules: recursive
+        submodules: true
+    
+    - name: Free up environment resources
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
+    - name: Setup Haskell
+      uses: haskell/actions/setup@v1
+      with:
+        ghc-version: ${{ matrix.ghc }}
+        cabal-version: ${{ matrix.cabal }}
+
+    - name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cabal/packages
+          ~/.cabal/store
+          dist-newstyle
+        key: ${{ runner.os }}-${{ matrix.ghc }}
+
+    - name: Install dependencies
+      run: |
+        cabal update
+        cabal build --only-dependencies
+    - name: Build
+      run: cabal build
 
     - name: Install icestorm prerequisites
       run: |
@@ -47,7 +76,7 @@ jobs:
         repository: YosysHQ/nextpnr
         ref: master
         path: nextpnr
-        submodules: recursive
+        submodules: true
 
     - name: Install nextpnr
       working-directory: nextpnr
@@ -114,45 +143,26 @@ jobs:
         sudo make
         echo "$HOME/opt/riscv/bin" >> $GITHUB_PATH
 
-    - name: Setup Haskell
-      uses: haskell/actions/setup@v1
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: ${{ matrix.cabal }}
-
-    - name: Cache
-      uses: actions/cache@v1
-      env:
-        cache-name: cache-cabal
-      with:
-        path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
-
-    - name: Install dependencies
-      run: |
-        cabal update
-        cabal build --only-dependencies
-    - name: Build
-      run: cabal build
-
     - name: Formal Verification
       working-directory: lion-formal
       run: |
         cabal build
         cabal run
+        cabal run formal -- clean
+        cabal clean
 
     - name: SoC
       working-directory: lion-soc
       run: |
         cabal build
         cabal run soc
+        cabal run soc -- clean
+        cabal clean
 
     - name: Metric
       working-directory: lion-metric
       run: |
         cabal build
         cabal run 
+        cabal run metric -- clean
+        cabal clean

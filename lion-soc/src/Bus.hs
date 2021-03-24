@@ -8,56 +8,84 @@ Maintainer  : standardsemiconductor@gmail.com
 module Bus where
 
 import Clash.Prelude
-import Lion.Core (ToMem(..))
+import Lion.Core (ToMem(..), MemoryAccess(..))
 
 ---------
 -- Bus --
 ---------
--- | SoC Memory/Peripheral access bus
-data Bus = Rom -- ^ rom access 
-             (Unsigned 8) -- ^ rom word address
-         | Led -- ^ LED access 
-             (BitVector 4) -- ^ LED IP Register Address
-             (BitVector 8) -- ^ LED IP Register Write Data
-         | Uart -- ^ UART access 
-             (BitVector 3)         -- ^ UART mask
-             (Maybe (BitVector 8)) -- ^ UART write value             
+data Peripheral = Rom
+                | Led
+                | Uart
+                | Spram
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-romMap :: ToMem -> Maybe Bus
-romMap = Just . Rom . wordAddr . getAddress
+data BusIn (p :: Peripheral) where
+  ToRom :: Unsigned 8 -- ^ ROM word address
+        -> BusIn 'Rom -- ^ ROM access
+
+  ToLed :: BitVector 4 -- ^ LED IP register address
+        -> BitVector 8 -- ^ LED IP register write data
+        -> Bool        -- ^ LED IP enable
+        -> BusIn 'Led  -- ^ LED access
+
+  ToUart :: BitVector 3         -- ^ UART mask
+         -> Maybe (BitVector 8) -- ^ UART write value
+         -> BusIn 'Uart         -- ^ UART access
+
+  ToSpram :: BitVector 15 -- ^ SPRAM address
+          -> BitVector 32 -- ^ SPRAM dataIn
+          -> BitVector 8  -- ^ SPRAM mask write enable
+          -> Bit          -- ^ SPRAM write enable
+          -> BusIn 'Spram -- ^ SPRAM access
+
+data BusOut (p :: Peripheral) where
+  FromRom   :: BitVector 32 -> BusOut 'Rom
+  FromUart  :: BitVector 32 -> BusOut 'Uart
+  FromSpram :: BitVector 32 -> BusOut 'Spram
+
+romMap :: Maybe ToMem -> BusIn 'Rom
+romMap = ToRom . wordAddr . maybe 0 memAddress
   where
     wordAddr :: BitVector 32 -> Unsigned 8
     wordAddr a = unpack $ slice d7 d0 $ a `shiftR` 2
 
-uartMap :: ToMem -> Maybe Bus
-uartMap = \case
-  DataMem _ msk wrM -> Just $ Uart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
-  _ -> Nothing
+uartMap :: Peripheral -> Maybe ToMem -> BusIn 'Uart
+uartMap Uart (Just (ToMem DataMem _ msk wrM)) = ToUart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
+uartMap _ _ = ToUart 0 Nothing
 
-ledMap :: ToMem -> Maybe Bus
-ledMap = \case
-  DataMem _ $(bitPattern "..11") (Just d) -> Just $ Led (slice d11 d8 d) (slice d7 d0 d)
-  _ -> Nothing
+ledMap :: Peripheral -> Maybe ToMem -> BusIn 'Led
+ledMap Led (Just (ToMem _ _ $(bitPattern "..11") (Just d))) = ToLed (slice d11 d8 d) (slice d7 d0 d) True
+ledMap _ _ = ToLed 0 0 False
 
-busMapIn :: ToMem -> Maybe Bus
-busMapIn toMem = case getAddress toMem of
-  $(bitPattern ".....................1..........") -> romMap  toMem -- rom
-  $(bitPattern ".............................1..") -> uartMap toMem -- uart
-  _ -> ledMap toMem
+spramMap :: Peripheral -> Maybe ToMem -> BusIn 'Spram
+spramMap _      Nothing    = ToSpram 0 0 0 0
+spramMap periph (Just mem) = case (periph, memWrite mem) of
+  (Spram, Just wr) -> ToSpram wordAddr wr nybMask 1
+  _                -> ToSpram wordAddr 0 0 0
+  where
+    wordAddr = slice d14 d0 $ memAddress mem `shiftR` 2
+    nybMask = concatBitVector# $ map expandBit $ bv2v $ memByteMask mem
+      where
+        expandBit :: Bit -> BitVector 2
+        expandBit b
+          | b == high = 0b11
+          | otherwise = 0b00
 
-busMapOut :: Maybe Bus -> BitVector 32 -> BitVector 32 -> BitVector 32
-busMapOut busOut fromBios fromUart = case busOut of
-  Just (Rom _) -> fromBios
-  _            -> fromUart
+selectPeripheral :: Maybe ToMem -> Peripheral
+selectPeripheral Nothing = Rom
+selectPeripheral (Just toMem)
+  | checkRegion 17 = Spram
+  | checkRegion 10 = Rom
+  | checkRegion  2 = Uart
+  | otherwise      = Led
+  where
+    checkRegion :: Index 32 -> Bool
+    checkRegion = bitToBool . (memAddress toMem !)
 
--------------
--- Utility --
--------------
-
-getAddress :: ToMem -> BitVector 32
-getAddress = \case
-  InstrMem a     -> a
-  DataMem  a _ _ -> a
-
+busMapOut :: BusOut 'Rom -> BusOut 'Uart -> BusOut 'Spram -> Peripheral -> BitVector 32
+busMapOut (FromRom fromBios) (FromUart fromUart) (FromSpram fromSpram) = \case
+  Rom   -> fromBios
+  Uart  -> fromUart
+  Led   -> 0
+  Spram -> fromSpram
