@@ -17,6 +17,7 @@ data Peripheral = Rom
                 | Led
                 | Uart
                 | Spram
+                | Spi
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -39,10 +40,14 @@ data BusIn (p :: Peripheral) where
           -> Bit          -- ^ SPRAM write enable
           -> BusIn 'Spram -- ^ SPRAM access
 
+  ToSpi :: BitVector 8
+        -> BusIn 'Spi -- ^ SPI access
+
 data BusOut (p :: Peripheral) where
   FromRom   :: BitVector 32 -> BusOut 'Rom
   FromUart  :: BitVector 32 -> BusOut 'Uart
   FromSpram :: BitVector 32 -> BusOut 'Spram
+  FromSpi   :: BitVector 32 -> BusOut 'Spi
 
 romMap :: Maybe ToMem -> BusIn 'Rom
 romMap = ToRom . wordAddr . maybe 0 memAddress
@@ -72,20 +77,35 @@ spramMap periph (Just mem) = case (periph, memWrite mem) of
           | b == high = 0b11
           | otherwise = 0b00
 
+spiMap :: Peripheral -> Maybe ToMem -> BusIn 'Spi
+spiMap = _
+
 selectPeripheral :: Maybe ToMem -> Peripheral
 selectPeripheral Nothing = Rom
 selectPeripheral (Just toMem)
   | checkRegion 17 = Spram
   | checkRegion 10 = Rom
+  | checkRegion  3 = Spi
   | checkRegion  2 = Uart
   | otherwise      = Led
   where
     checkRegion :: Index 32 -> Bool
     checkRegion = bitToBool . (memAddress toMem !)
 
-busMapOut :: BusOut 'Rom -> BusOut 'Uart -> BusOut 'Spram -> Peripheral -> BitVector 32
-busMapOut (FromRom fromBios) (FromUart fromUart) (FromSpram fromSpram) = \case
-  Rom   -> fromBios
-  Uart  -> fromUart
-  Led   -> 0
-  Spram -> fromSpram
+busMapOut 
+  :: BusOut 'Rom 
+  -> BusOut 'Uart 
+  -> BusOut 'Spram 
+  -> BusOut 'Spi
+  -> Peripheral 
+  -> BitVector 32
+busMapOut (FromRom   fromBios) 
+          (FromUart  fromUart) 
+          (FromSpram fromSpram) 
+          (FromSpi   fromSpi)
+  = \case
+    Rom   -> fromBios
+    Uart  -> fromUart
+    Led   -> 0
+    Spram -> fromSpram
+    Spi   -> fromSpi

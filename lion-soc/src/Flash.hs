@@ -4,13 +4,17 @@ Description : Lion SoC SPI flash memory peripheral
 Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
+
+Register Map
+31 -- 24 | 23 ------- 16 | 15 ------ 8 | 7 -------- 0 |
+Reserved | SysBus Status | SysBus Read | SysBus Write |
 -}
 
 module Flash where
 
 import Clash.Prelude
 import Ice40.Spi
-import Bus ( Bus (Flash) )
+import Bus
 
 data SpiIO = SpiIO ("biwo" ::: Bit)
                    ("bowi" ::: Bit)
@@ -19,13 +23,32 @@ data SpiIO = SpiIO ("biwo" ::: Bit)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
+data ToSysBus = ToSysBus
+  { _sysBusAck :: Bit
+  , _sysBusDat :: BitVector 8
+  , _fromCore  :: BusIn 'Spi
+  }
+makeLenses ''ToSysBus
+
+sysBus 
+  :: HiddenClockResetEnable dom
+  => Signal dom ToSysBus
+  -> Signal dom FromSysBus
+sysBus = mealy sysBusMealy mkSysBus
+  where
+    sysBusMealy s i = (s', o)
+      where
+        ((), s', o) = runRWS sysBusM i s
+
 flash
   :: HiddenClock dom
-  => Signal dom (Maybe Bus)
-  -> Unbundled dom (SpiIO, BitVector 32)
-flash busIn = (spiIO, fromFlash)
+  => Signal dom (BusIn 'Spi)
+  -> Unbundled dom (SpiIO, BusOut 'Spi)
+flash fromCore = (spiIO, FromSpi . _toCore <$> fromSysBus)
   where
-    fromSb = sysBus toSb
+    fromSysBus = sysBus $ ToSysBus <$> sbdato
+                                   <*> sbacko
+                                   <*> fromCore
    
     spiIO = SpiIO <$> biwo <*> bowi <*> wck <*> cs
     (biwo, bi) = biwoIO
