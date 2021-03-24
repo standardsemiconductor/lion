@@ -1,19 +1,20 @@
 {-|
-Module      : Flash
-Description : Lion SoC SPI flash memory peripheral
+Module      : Spi
+Description : Lion SoC SPI peripheral
 Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
 Register Map
-31 -- 24 | 23 ------- 16 | 15 ------ 8 | 7 -------- 0 |
-Reserved | SysBus Status | SysBus Read | SysBus Write |
+ | 31 ------- 24 | 23 ----------- 16 | 15 --------- 0 |
+ | SysBus Status | SysBus Read/Write | SysBus Command |
 -}
 
-module Flash where
+module Spi where
 
 import Clash.Prelude
-import Ice40.Spi
+import qualified Ice40.Spi as S
+import Ice40.IO
 import Bus
 
 data SpiIO = SpiIO ("biwo" ::: Bit)
@@ -30,6 +31,9 @@ data ToSysBus = ToSysBus
   }
 makeLenses ''ToSysBus
 
+sysBusM :: RWS ToSysBus FromSysBus SysBus ()
+sysBusM = _
+
 sysBus 
   :: HiddenClockResetEnable dom
   => Signal dom ToSysBus
@@ -40,11 +44,11 @@ sysBus = mealy sysBusMealy mkSysBus
       where
         ((), s', o) = runRWS sysBusM i s
 
-flash
+spi
   :: HiddenClock dom
   => Signal dom (BusIn 'Spi)
   -> Unbundled dom (SpiIO, BusOut 'Spi)
-flash fromCore = (spiIO, FromSpi . _toCore <$> fromSysBus)
+spi fromCore = (spiIO, FromSpi . _toCore <$> fromSysBus)
   where
     fromSysBus = sysBus $ ToSysBus <$> sbdato
                                    <*> sbacko
@@ -57,15 +61,15 @@ flash fromCore = (spiIO, FromSpi . _toCore <$> fromSysBus)
     cs         = csIO   bcsnoe bcsno
 
     (sbdato, sbacko, _, _, _, _, bo, boe, wcko, wckoe, bcsno, bcsnoe) 
-      = spi "0b0000"
-            (getSbrwi  <$> fromSb)
-            (getSbstbi <$> fromSb)
-            (getSbadri <$> fromSb)
-            (getSbdati <$> fromSb)
-            bi
-            (pure 0)
-            (pure 0)
-            (pure 0)
+      = S.spi "0b0000"
+              (getSbrwi  <$> fromSb)
+              (getSbstbi <$> fromSb)
+              (getSbadri <$> fromSb)
+              (getSbdati <$> fromSb)
+              bi
+              (pure 0)
+              (pure 0)
+              (pure 0)
 
 sysBus :: Signal dom (Maybe Bus) -> Unbundled (FromSb, BitVector 32)
 sysBus = _

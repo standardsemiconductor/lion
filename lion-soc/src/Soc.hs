@@ -23,6 +23,7 @@ import Spram
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
   , txOut  :: "uart_tx" ::: Signal dom Bit
+  , spiIO  :: "spi"     ::: Signal dom SpiIO
   }
 
 ---------
@@ -63,20 +64,22 @@ concat4
 concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 
 --------------
--- Lion SOC --
+-- Lion SoC --
 --------------
 {-# NOINLINE lion #-}
 lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
 lion rxIn = FromSoc
   { rgbOut = fromRgb
   , txOut  = tx
+  , spiIO  = spiio
   }
   where
     config = defaultCoreConfig{ pipeConfig = defaultPipeConfig{ startPC = 0x400 } }
-    fromBios       = bios      $ romMap   <$> fromCore
-    fromRgb        = rgb       $ ledMap   <$> peripheral <*> fromCore
-    (tx, fromUart) = uart rxIn $ uartMap  <$> peripheral <*> fromCore
-    fromSpram      = spram     $ spramMap <$> peripheral <*> fromCore
+    fromBios         = bios      $ romMap   <$> fromCore
+    fromRgb          = rgb       $ ledMap   <$> peripheral <*> fromCore
+    (tx, fromUart)   = uart rxIn $ uartMap  <$> peripheral <*> fromCore
+    fromSpram        = spram     $ spramMap <$> peripheral <*> fromCore
+    (spiio, fromSpi) = spi       $ spiMap   <$> peripheral <*> fromCore
     peripheral = selectPeripheral <$> fromCore
     fromCore = toMem $ core config $ 
       busMapOut <$> fromBios 

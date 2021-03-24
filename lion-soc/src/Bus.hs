@@ -40,8 +40,9 @@ data BusIn (p :: Peripheral) where
           -> Bit          -- ^ SPRAM write enable
           -> BusIn 'Spram -- ^ SPRAM access
 
-  ToSpi :: BitVector 8
-        -> BusIn 'Spi -- ^ SPI access
+  ToSpi :: BitVector 4          -- ^ SPI mask
+        -> Maybe (BitVector 32) -- ^ SPI read/write, read=Nothing, write=Just value
+        -> BusIn 'Spi           -- ^ SPI access
 
 data BusOut (p :: Peripheral) where
   FromRom   :: BitVector 32 -> BusOut 'Rom
@@ -78,7 +79,8 @@ spramMap periph (Just mem) = case (periph, memWrite mem) of
           | otherwise = 0b00
 
 spiMap :: Peripheral -> Maybe ToMem -> BusIn 'Spi
-spiMap = _
+spiMap _   Nothing                           = ToSpi 0    Nothing 
+spiMap Spi (Just (ToMem DataMem _ mask wrM)) = ToSpi mask wrM
 
 selectPeripheral :: Maybe ToMem -> Peripheral
 selectPeripheral Nothing = Rom
