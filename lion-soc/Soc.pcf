@@ -3,6 +3,13 @@ set_io led_blue  41
 set_io led_green 40
 set_io led_red   39
 
+# spi
+set_io spi_biwo 9
+set_io spi_bowi 11
+set_io spi_wck  10
+set_io spi_cs   13
+
+# uart
 set_io uart_tx 17
 set_io uart_rx 15
 

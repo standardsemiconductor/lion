@@ -6,13 +6,21 @@ License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
 Register Map
- | 31 ------- 24 | 23 ----------- 16 | 15 --------- 0 |
- | SysBus Status | SysBus Read/Write | SysBus Command |
+ | 31 ------- 24 | 23 ------------------------------ 16 | 15 --------- 0 |
+ | SysBus Status | SysBus Read/Write OR SysBus Received | SysBus Command |
+
+SysBus Status 0=Empty, otherwise Busy
+SysBus Read/Write 0=Read, 1=Write
+SysBus Command address=bits 15-8, data=7-0
 -}
 
 module Spi where
 
 import Clash.Prelude
+import Control.Monad.RWS
+import Control.Lens hiding (Index)
+import Data.Maybe ( fromMaybe, isJust )
+import Data.Monoid.Generic
 import qualified Ice40.Spi as S
 import Ice40.IO
 import Bus
@@ -25,14 +33,75 @@ data SpiIO = SpiIO ("biwo" ::: Bit)
   deriving anyclass NFDataX
 
 data ToSysBus = ToSysBus
-  { _sysBusAck :: Bit
-  , _sysBusDat :: BitVector 8
-  , _fromCore  :: BusIn 'Spi
+  { _sbAckO   :: Bool
+  , _sbDatO   :: BitVector 8
+  , _fromCore :: BusIn 'Spi
   }
 makeLenses ''ToSysBus
 
+data FromSysBus = FromSysBus
+  { _sbRWI  :: First Bool
+  , _sbStbI :: First Bool
+  , _sbAdrI :: First (BitVector 8)
+  , _sbDatI :: First (BitVector 8)
+  , _toCore :: First (BitVector 32)
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+  deriving Semigroup via GenericSemigroup FromSysBus
+  deriving Monoid via GenericMonoid FromSysBus
+makeLenses ''FromSysBus
+
+data SysBus = SysBus 
+  { _sbInstr :: Maybe (BitVector 8, Maybe (BitVector 8)) 
+  , _sbRecv  :: BitVector 8
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+makeLenses ''SysBus
+
+mkSysBus :: SysBus
+mkSysBus = SysBus Nothing 0
+
 sysBusM :: RWS ToSysBus FromSysBus SysBus ()
-sysBusM = _
+sysBusM = do
+  instr <- use sbInstr
+
+  -- output sysbus signals
+  let rw  = isJust $ snd =<< instr
+      stb = isJust instr
+      adr = maybe 0 fst instr
+      dat = fromMaybe 0 $ snd =<< instr
+  scribe sbRWI  $ First $ Just rw
+  scribe sbStbI $ First $ Just stb
+  scribe sbAdrI $ First $ Just adr
+  scribe sbDatI $ First $ Just dat
+
+  -- when ack received, set instr to Nothing indicating done
+  -- and store sbDatO in sbRecv
+  isAck <- view sbAckO
+  when isAck $ do
+    sbInstr .= Nothing
+    sbRecv <~ view sbDatO
+
+  -- handle memory requests
+  view fromCore >>= \case
+    ToSpi $(bitPattern "1111") (Just wr) -> -- command
+      case instr of
+        Just _  -> return () -- busy, ignore command
+        Nothing ->           -- idle, execute command
+          let isWrite = bitToBool $ wr!(16 :: Index 32)
+              adri = slice d15 d8 wr
+              dati = slice d7  d0 wr 
+          in sbInstr ?= if isWrite
+               then (adri, Just dati)
+               else (adri, Nothing)
+    ToSpi $(bitPattern "0100") Nothing -> -- read received
+      scribe toCore . First . Just =<< uses sbRecv ((`shiftL` 16).zeroExtend)
+    _ -> -- read status, default instruction
+      scribe toCore $ First $ Just $ if isJust instr
+        then 0x01000000
+        else 0x00000000
 
 sysBus 
   :: HiddenClockResetEnable dom
@@ -45,14 +114,15 @@ sysBus = mealy sysBusMealy mkSysBus
         ((), s', o) = runRWS sysBusM i s
 
 spi
-  :: HiddenClock dom
+  :: HiddenClockResetEnable dom
   => Signal dom (BusIn 'Spi)
   -> Unbundled dom (SpiIO, BusOut 'Spi)
-spi fromCore = (spiIO, FromSpi . _toCore <$> fromSysBus)
+spi toSpi = (spiIO, fromSpi)
   where
-    fromSysBus = sysBus $ ToSysBus <$> sbdato
-                                   <*> sbacko
-                                   <*> fromCore
+    fromSpi = fmap FromSpi $ register 0 $ fromMaybe 0 . getFirst . _toCore <$> fromSysBus
+    fromSysBus = sysBus $ ToSysBus <$> sbacko
+                                   <*> sbdato
+                                   <*> toSpi
    
     spiIO = SpiIO <$> biwo <*> bowi <*> wck <*> cs
     (biwo, bi) = biwoIO
@@ -60,19 +130,21 @@ spi fromCore = (spiIO, FromSpi . _toCore <$> fromSysBus)
     wck        = wckIO  wckoe  wcko
     cs         = csIO   bcsnoe bcsno
 
+    rwi  = fromMaybe False . getFirst . _sbRWI  <$> fromSysBus
+    stbi = fromMaybe False . getFirst . _sbStbI <$> fromSysBus
+    adri = fromMaybe 0 . getFirst . _sbAdrI <$> fromSysBus
+    dati = fromMaybe 0 . getFirst . _sbDatI <$> fromSysBus
+
     (sbdato, sbacko, _, _, _, _, bo, boe, wcko, wckoe, bcsno, bcsnoe) 
       = S.spi "0b0000"
-              (getSbrwi  <$> fromSb)
-              (getSbstbi <$> fromSb)
-              (getSbadri <$> fromSb)
-              (getSbdati <$> fromSb)
+              rwi -- (getSbrwi  <$> fromSb)
+              stbi -- (getSbstbi <$> fromSb)
+              adri -- (getSbadri <$> fromSb)
+              dati -- (getSbdati <$> fromSb)
               bi
               (pure 0)
               (pure 0)
               (pure 0)
-
-sysBus :: Signal dom (Maybe Bus) -> Unbundled (FromSb, BitVector 32)
-sysBus = _
 
 biwoIO :: HiddenClock dom => Unbundled dom (Bit, Bit)
 biwoIO = (biwo, bi)
@@ -91,7 +163,7 @@ biwoIO = (biwo, bi)
                        0
 
 bowiIO :: HiddenClock dom => Signal dom Bit -> Signal dom Bit -> Signal dom Bit
-bowiIO boe boe = bowi
+bowiIO boe bo = bowi
   where
     (bowi, _, _) = io
                      PinInput

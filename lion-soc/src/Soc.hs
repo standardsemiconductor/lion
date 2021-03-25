@@ -19,11 +19,12 @@ import Lion.Core
 import Bus
 import Uart ( uart )
 import Spram
+import qualified Spi as S
 
 data FromSoc dom = FromSoc
   { rgbOut :: "led"     ::: Signal dom Rgb
   , txOut  :: "uart_tx" ::: Signal dom Bit
-  , spiIO  :: "spi"     ::: Signal dom SpiIO
+  , spiIO  :: "spi"     ::: Signal dom S.SpiIO
   }
 
 ---------
@@ -79,12 +80,13 @@ lion rxIn = FromSoc
     fromRgb          = rgb       $ ledMap   <$> peripheral <*> fromCore
     (tx, fromUart)   = uart rxIn $ uartMap  <$> peripheral <*> fromCore
     fromSpram        = spram     $ spramMap <$> peripheral <*> fromCore
-    (spiio, fromSpi) = spi       $ spiMap   <$> peripheral <*> fromCore
+    (spiio, fromSpi) = S.spi     $ spiMap   <$> peripheral <*> fromCore
     peripheral = selectPeripheral <$> fromCore
     fromCore = toMem $ core config $ 
       busMapOut <$> fromBios 
                 <*> fromUart
                 <*> fromSpram
+                <*> fromSpi
                 <*> register Rom peripheral
 
 ----------------

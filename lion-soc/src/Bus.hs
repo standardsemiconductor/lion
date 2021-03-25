@@ -79,8 +79,8 @@ spramMap periph (Just mem) = case (periph, memWrite mem) of
           | otherwise = 0b00
 
 spiMap :: Peripheral -> Maybe ToMem -> BusIn 'Spi
-spiMap _   Nothing                           = ToSpi 0    Nothing 
 spiMap Spi (Just (ToMem DataMem _ mask wrM)) = ToSpi mask wrM
+spiMap _   _                                 = ToSpi 0    Nothing 
 
 selectPeripheral :: Maybe ToMem -> Peripheral
 selectPeripheral Nothing = Rom
