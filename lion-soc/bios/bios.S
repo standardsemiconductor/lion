@@ -51,7 +51,7 @@ init_spi:
     li a0, SPI_BASE # set SPI_BASE pointer
   
     # enable spi
-1:  lb   a1, 3(a0)       # read bus status
+1:  lbu  a1, 3(a0)       # read bus status
     bnez a1, 1b          # wait until bus idle
     li   a1, 0x00010000  # set WRITE mode
     li   a2, SPI_CR1     # set CR1 address
@@ -60,8 +60,8 @@ init_spi:
     sw   a1, (a0)        # send command
 
     # set clock div
-2:  lb   a1, 3(a0)       # read bus status
-    bnez a1, 1b          # wait until bus idle
+2:  lbu  a1, 3(a0)       # read bus status
+    bnez a1, 2b          # wait until bus idle
     li   a1, 0x00010000  # set WRITE mode
     li   a2, SPI_BR      # set BR address
     or   a1, a1, a2      # set BR address
