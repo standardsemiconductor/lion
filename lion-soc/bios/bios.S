@@ -3,6 +3,11 @@
     .equ PWRR      , 0x1
 
     .equ UART_BASE , 0x4
+
+    .equ SPI_BASE  , 0x8
+    .equ SPI_CR1   , 0x00000800  
+    .equ SPI_BR    , 0x00000B00
+
     .equ SPRAM_BASE, 0x20000
 
     .section .text
@@ -31,6 +36,9 @@ _start:
 1:  la   a0, success_str
 2:  jal  put_str
 
+    # check SPI Flash
+    jal init_spi
+
     # echo user input
 3:  jal  get_char
     jal  put_char
@@ -38,6 +46,31 @@ _start:
 halt: 
     j halt
 
+
+init_spi:
+    li a0, SPI_BASE # set SPI_BASE pointer
+  
+    # enable spi
+1:  lb   a1, 3(a0)       # read bus status
+    bnez a1, 1b          # wait until bus idle
+    li   a1, 0x00010000  # set WRITE mode
+    li   a2, SPI_CR1     # set CR1 address
+    or   a1, a1, a2      # set CR1 address
+    ori  a1, a1, 0x80    # set data
+    sw   a1, (a0)        # send command
+
+    # set clock div
+2:  lb   a1, 3(a0)       # read bus status
+    bnez a1, 1b          # wait until bus idle
+    li   a1, 0x00010000  # set WRITE mode
+    li   a2, SPI_BR      # set BR address
+    or   a1, a1, a2      # set BR address
+    ori  a1, a1, 0x3     # set data
+    sw   a1, (a0)        # send command
+
+    ret
+
+  
 check_spram:
     li   a0, 0x0
     li   a1, SPRAM_BASE
@@ -90,6 +123,7 @@ check_spram:
 
     ret
 
+
 get_char:
     li   a0, UART_BASE # set UART_BASE pointer
 1:  lbu  a1, 0x2(a0)   # read status register
@@ -99,6 +133,7 @@ get_char:
     mv   a0, a1        # return data in a0
     ret
 
+
 put_char:
     li   a1, UART_BASE # set UART_BASE pointer
 1:  lbu  a2, 0x2(a1)   # read status
@@ -106,6 +141,7 @@ put_char:
     bnez a2, 1b        # wait until transmitter empty
     sb   a0, (a1)      # transmit byte
     ret
+
 
 put_str:
     li   a1, UART_BASE # set UART_BASE pointer
@@ -118,6 +154,7 @@ put_str:
     addi a0, a0, 0x1   # increment str pointer
     j    1b
 2:  ret 
+
 
 set_led_red:
     li   a1, LED_BASE
@@ -135,6 +172,7 @@ set_led_red:
     sh   a0, (a1)
 
     ret
+
 
     .section .rodata
     .align 4
