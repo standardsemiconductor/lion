@@ -137,10 +137,10 @@ spi toSpi = (spiIO, fromSpi)
 
     (sbdato, sbacko, _, _, _, _, bo, boe, wcko, wckoe, bcsno, bcsnoe) 
       = S.spi "0b0000"
-              rwi -- (getSbrwi  <$> fromSb)
-              stbi -- (getSbstbi <$> fromSb)
-              adri -- (getSbadri <$> fromSb)
-              dati -- (getSbdati <$> fromSb)
+              rwi
+              stbi
+              adri
+              dati
               bi
               (pure 0)
               (pure 0)
