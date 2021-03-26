@@ -82,7 +82,7 @@ Writing the TX Buffer resets the UART transmitter.
 
 ### SPI Flash
 
-See VELDT-info for more information about the on-board SPI flash chip and the Lattice SysBus interface.
+See [VELDT-info](https://github.com/standardsemiconductor/VELDT-info#veldt-info) for more information about the on-board [SPI flash chip](https://github.com/standardsemiconductor/VELDT-info/blob/master/AT25SF081.pdf) and the [Lattice SPI and SysBus interface](https://github.com/standardsemiconductor/VELDT-info/blob/master/AdvancediCE40SPII2CHardenedIPUsageGuide.pdf).
 
 #### Peripheral Register
 | Byte 3        | Byte 2                                | Byte 1                 | Byte 0              |
@@ -98,9 +98,10 @@ See VELDT-info for more information about the on-board SPI flash chip and the La
 
 ##### SysBus Read/Write AND SysBus Received
 When writing to this memory location: 0 indicates READ, 1 indicates WRITE.
+
 When reading from this memory location: most recently received byte from SysBus.
 
-######SysBus Read/Write
+SysBus Read/Write:
 ```
 76543210
 .......*
