@@ -113,6 +113,7 @@ sysBus = mealy sysBusMealy mkSysBus
       where
         ((), s', o) = runRWS sysBusM i s
 
+{-# NOINLINE spi #-}
 spi
   :: HiddenClockResetEnable dom
   => Signal dom (BusIn 'Spi)
@@ -125,29 +126,34 @@ spi toSpi = (spiIO, fromSpi)
                                    <*> toSpi
    
     spiIO = SpiIO <$> biwo <*> bowi <*> wck <*> cs
-    (biwo, bi) = biwoIO
-    bowi       = bowiIO boe    bo
-    wck        = wckIO  wckoe  wcko
-    cs         = csIO   bcsnoe bcsno
+    (biwo, bi)   = biwoIO woe    wo
+    (bowi, wi)   = bowiIO boe    bo
+    (wck,  wcki) = wckIO  wckoe  wcko
+    (cs, wcsni)  = csIO   bcsnoe bcsno
 
     rwi  = fromMaybe False . getFirst . _sbRWI  <$> fromSysBus
     stbi = fromMaybe False . getFirst . _sbStbI <$> fromSysBus
     adri = fromMaybe 0 . getFirst . _sbAdrI <$> fromSysBus
     dati = fromMaybe 0 . getFirst . _sbDatI <$> fromSysBus
 
-    (sbdato, sbacko, _, _, _, _, bo, boe, wcko, wckoe, bcsno, bcsnoe) 
+    (sbdato, sbacko, _, _, wo, woe, bo, boe, wcko, wckoe, bcsno, bcsnoe) 
       = S.spi "0b0000"
               rwi
               stbi
               adri
               dati
               bi
-              (pure 0)
-              (pure 0)
-              (pure 0)
+              wi
+              wcki
+              wcsni
 
-biwoIO :: HiddenClock dom => Unbundled dom (Bit, Bit)
-biwoIO = (biwo, bi)
+{-# NOINLINE biwoIO #-}
+biwoIO 
+  :: HiddenClock dom 
+  => Signal dom Bit
+  -> Signal dom Bit
+  -> Unbundled dom (Bit, Bit)
+biwoIO woe wo = (biwo, bi)
   where
     (biwo, bi, _) = io PinInput
                        PinNoOutput
@@ -158,61 +164,71 @@ biwoIO = (biwo, bi)
                        0
                        hasClock
                        hasClock
-                       0
-                       0
+                       woe
+                       wo
                        0
 
-bowiIO :: HiddenClock dom => Signal dom Bit -> Signal dom Bit -> Signal dom Bit
-bowiIO boe bo = bowi
+{-# NOINLINE bowiIO #-}
+bowiIO 
+  :: HiddenClock dom 
+  => Signal dom Bit 
+  -> Signal dom Bit 
+  -> Unbundled dom (Bit, Bit)
+bowiIO boe bo = (bowi, wi)
   where
-    (bowi, _, _) = io
-                     PinInput
-                     PinOutputTristate
-                     0 -- pullup
-                     0 -- negTrigger
-                     SBLVCMOS
-                     0 -- latchInputValue
-                     0 -- clock enable
-                     hasClock
-                     hasClock
-                     boe -- output enable
-                     bo  -- dOut0
-                     0
+    (bowi, wi, _) = io PinInput
+                       PinOutputTristate
+                       0 -- pullup
+                       0 -- negTrigger
+                       SBLVCMOS
+                       0 -- latchInputValue
+                       0 -- clock enable
+                       hasClock
+                       hasClock
+                       boe -- output enable
+                       bo  -- dOut0
+                       0
 
-wckIO :: HiddenClock dom => Signal dom Bit -> Signal dom Bit -> Signal dom Bit
-wckIO wckoe wcko = wck
+{-# NOINLINE wckIO #-}
+wckIO 
+  :: HiddenClock dom 
+  => Signal dom Bit 
+  -> Signal dom Bit 
+  -> Unbundled dom (Bit, Bit)
+wckIO wckoe wcko = (wck, wcki)
   where
-    (wck, _, _) = io PinInput
-                     PinOutputTristate
-                     1 -- pullUp
-                     0 -- negTrigger
-                     SBLVCMOS
-                     0 -- latchInputValue
-                     0 -- clock enable
-                     hasClock
-                     hasClock
-                     wckoe
-                     wcko
-                     0
+    (wck, wcki, _) = io PinInput
+                        PinOutputTristate
+                        1 -- pullUp
+                        0 -- negTrigger
+                        SBLVCMOS
+                        0 -- latchInputValue
+                        0 -- clock enable
+                        hasClock
+                        hasClock
+                        wckoe
+                        wcko
+                        0
 
+{-# NOINLINE csIO #-}
 csIO 
   :: HiddenClock dom 
   => Signal dom (BitVector 4) 
   -> Signal dom (BitVector 4) 
-  -> Signal dom Bit
-csIO bcsnoe bcsno = cs
+  -> Unbundled dom (Bit, Bit)
+csIO bcsnoe bcsno = (cs, wcsni)
   where
-    (cs, _, _) = io PinInput
-                    PinOutputTristate
-                    1 -- pullUp
-                    0 -- negTrigger
-                    SBLVCMOS
-                    0 -- latch input value
-                    0 -- clock enable
-                    hasClock
-                    hasClock
-                    ((!(3 :: Index 4)) <$> bcsnoe) -- output enable
-                    ((!(3 :: Index 4)) <$> bcsno)  -- dOut0
-                    0 -- dOut1
+    (cs, wcsni, _) = io PinInput
+                        PinOutputTristate
+                        1 -- pullUp
+                        0 -- negTrigger
+                        SBLVCMOS
+                        0 -- latch input value
+                        0 -- clock enable
+                        hasClock
+                        hasClock
+                        ((!(3 :: Index 4)) <$> bcsnoe) -- output enable
+                        ((!(3 :: Index 4)) <$> bcsno)  -- dOut0
+                        0 -- dOut1
                 
                      
