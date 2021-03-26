@@ -5,7 +5,7 @@
     .equ UART_BASE , 0x4
 
     .equ SPI_BASE  , 0x8
-    .equ SPI_CR1   , 0x00000800  
+    .equ SPI_CR1   , 0x00000900  
     .equ SPI_CR2   , 0x00000A00
     .equ SPI_BR    , 0x00000B00
     .equ SPI_TXDR  , 0x00000D00
@@ -111,7 +111,7 @@ init_spi:
     li   a1, 0x00010000  # set WRITE mode
     li   a2, SPI_BR      # set BR address
     or   a1, a1, a2      # set BR address
-    ori  a1, a1, 0x3     # set data
+    ori  a1, a1, 0x03    # set data
     sw   a1, (a0)        # send command
 
     ret
@@ -126,10 +126,9 @@ transfer_start_spi:
     li   a1, 0x00010000 # set WRITE mode
     li   a2, SPI_CSR    # set CSR address
     or   a1, a1, a2     # set CSR address
-    ori  a1, a1, 0x00   # set data
     sw   a1, (a0)       # send command
 
-    # set spi master, cs hold, sck pol/pha
+    # set spi master, cs hold
 2:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 2b         # wait until bus idle
     li   a1, 0x00010000 # set WRITE mode
@@ -141,9 +140,7 @@ transfer_start_spi:
     # wait trdy
 3:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 3b         # wait until bus idle
-    li   a1, 0x00000000 # set READ mode
-    li   a2, SPI_SR     # set SR address
-    or   a1, a1, a2     # set SR address
+    li   a1, SPI_SR     # set READ mode SR address
     sw   a1, (a0)       # send command
 4:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 4b         # wait until bus idle
@@ -171,26 +168,22 @@ transfer_spi:
     # wait rrdy
 2:  lbu  a2, 3(a1)      # read bus status
     bnez a2, 2b         # wait until bus idle
-    li   a2, 0x00000000 # set READ mode
-    li   a3, SPI_SR     # set SR address
-    or   a2, a2, a3     # set SR address
+    li   a2, SPI_SR     # set READ mode SR address
     sw   a2, (a1)       # send command
 3:  lbu  a2, 3(a1)      # read bus status
     bnez a2, 3b         # wait until bus idle
     lbu  a2, 2(a1)      # read bus receive
     andi a2, a2, 0x08   # mask rrdy 0000_1000
-    beqz a2, 2b         # loop until rrdy
+    beqz a2, 2b         # loop until rrdy     ## ERROR LOOPING FOREVER ##
 
     # read rxdr
-4:  lbu  a2, 3(a1)      # read bus status
-    bnez a2, 4b         # wait until bus idle
-    li   a2, 0x00000000 # set READ mode
-    li   a3, SPI_RXDR   # set RXDR address
-    or   a2, a2, a3     # set RXDR address
-    sw   a2, (a1)       # send command
-5:  lbu  a2, 3(a1)      # read bus status
-    bnez a2, 5b         # wait until bus idle
-    lbu  a0, 2(a1)      # read bus receive
+#4:  lbu  a2, 3(a1)      # read bus status
+#    bnez a2, 4b         # wait until bus idle
+#    li   a2, SPI_RXDR   # set READ mode RXDR address
+#    sw   a2, (a1)       # send command
+#5:  lbu  a2, 3(a1)      # read bus status
+#    bnez a2, 5b         # wait until bus idle
+#    lbu  a0, 2(a1)      # read bus receive
 
     ret
   
