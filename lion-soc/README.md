@@ -19,6 +19,8 @@ System-On-Chip using Lion and targeting the [VELDT FPGA development board](https
 /____/_/\___/_//_/ /___/\___/\___/  
 
 Standard Semiconductor (c) 2021
+
+Checking FLASH...SUCCESS
 ```
 To compile, synthesize, and route Lion SoC without programming: `cabal run soc`
 
@@ -29,18 +31,19 @@ To compile, synthesize, and route Lion SoC without programming: `cabal run soc`
 ### Device utilisation
 ```
 Device utilisation:
-   ICESTORM_LC:  2691/ 5280    50%
+   ICESTORM_LC:  2712/ 5280    51%
   ICESTORM_RAM:     8/   30    26%
-         SB_IO:     2/   96     2%
-         SB_GB:     8/    8    62%
+         SB_IO:     6/   96     6%
+         SB_GB:     8/    8   100%
 ICESTORM_HFOSC:     1/    1   100%
+        SB_SPI:     1/    2    50%
    SB_LEDDA_IP:     1/    1   100%
    SB_RGBA_DRV:     1/    1   100%
 ICESTORM_SPRAM:     4/    4   100%
 ```
 ### Clock frequency
 ```
-Max frequency for clock: 14.98 MHz (PASS @ 12Mhz)
+Max frequency for clock: 13.02 MHz (PASS @ 12Mhz)
 ```
 
 ## Memory Map
@@ -48,6 +51,7 @@ Max frequency for clock: 14.98 MHz (PASS @ 12Mhz)
 |------------|---------------|-------------|
 | LED        |  0x00000000   | 0x00000000  |
 | UART       |  0x00000004   | 0x00000004  |
+| SPI Flash  |  0x00000008   | 0x00000008  |
 | ROM        |  0x00000400   | 0x000007FF  |
 | SPRAM      |  0x00020000   | 0x0003FFFF  |
 
@@ -75,3 +79,55 @@ Status Byte:
 Reading the RX Buffer resets the UART receiver.
 
 Writing the TX Buffer resets the UART transmitter.
+
+### SPI Flash
+
+See VELDT-info for more information about the on-board SPI flash chip and the Lattice SysBus interface.
+
+#### Peripheral Register
+| Byte 3        | Byte 2                                | Byte 1                 | Byte 0              |
+|---------------|---------------------------------------|------------------------|---------------------|
+| SysBus Status | SysBus Read/Write AND SysBus Received | SysBus Command Address | SysBus Command Data |
+
+##### SysBus Status
+```
+76543210
+.......*
+       |__ 0 = Idle, 1 = Busy
+```
+
+##### SysBus Read/Write AND SysBus Received
+When writing to this memory location: 0 indicates READ, 1 indicates WRITE.
+When reading from this memory location: most recently received byte from SysBus.
+
+######SysBus Read/Write
+```
+76543210
+.......*
+       |__ 0 = READ, 1 = WRITE
+```
+
+#### Peripheral Usage Examples
+
+##### SPI Enable
+```assembly
+   li   a0, 0x8        # set pointer to SPI peripheral memory address
+1: lbu  a1, 3(a0)      # read bus status
+   bnez a1, 1b         # wait until bus idle
+   li   a1, 0x00010000 # set WRITE mode
+   li   a2, 0x00000900 # set CR1 address
+   or   a1, a1, a2     # set CR1 address
+   ori  a1, a1, 0x80   # set SPI enable
+   sw   a1, (a0)       # send SPI enable command
+```
+##### SPI Read Status Register
+```assembly
+   li   a0, 0x8        # set pointer to SPI peripheral memory address
+1: lbu  a1, 3(a0)      # read bus status
+   bnez a1, 1b         # wait until bus idle
+   li   a1, 0x00000C00 # set READ mode and SR address
+   sw   a1, (a0)       # send SPI read status command
+2: lbu  a1, 3(a0)      # read bus status
+   bnez a1, 2b         # wait until bus idle
+   lbu  a1, 2(a0)      # read SPI status from bus received
+```
