@@ -50,43 +50,43 @@ _start:
     jal  transfer_start_spi
     li   a0, 0xAB
     jal  transfer_spi
-#    jal  transfer_end_spi
+    jal  transfer_end_spi
 
     # read JEDEC ID
-#    jal  transfer_start_spi
+    jal  transfer_start_spi
 
-#    li   a0, 0x9F
-#    jal  transfer_spi
+    li   a0, 0x9F
+    jal  transfer_spi
 
-#    li   a0, 0x00
-#    jal  transfer_spi
-#    mv   t0, a0
+    li   a0, 0x00
+    jal  transfer_spi
+    mv   t0, a0
 
-#    li   a0, 0x00
-#    jal  transfer_spi
-#    mv   t1, a0
+    li   a0, 0x00
+    jal  transfer_spi
+    mv   t1, a0
 
-#    li   a0, 0x00
-#    jal  transfer_spi
-#    mv   t2, a0
+    li   a0, 0x00
+    jal  transfer_spi
+    mv   t2, a0
     
-#    jal  transfer_end_spi
+    jal  transfer_end_spi
 
     # shift jedec out of t0,1,2 into a0
-#    li   a0, 0x0
-#    slli t0, t0, 16
-#    or   a0, a0, t0
-#    slli t1, t1, 8
-#    or   a0, a0, t1
-#    or   a0, a0, t2
+    li   a0, 0x0
+    slli t0, t0, 16
+    or   a0, a0, t0
+    slli t1, t1, 8
+    or   a0, a0, t1
+    or   a0, a0, t2
 
     # compare jedec vs expected then print success or failure.
-#    li   a1, 0x1F8501 # expected JEDEC ID
-#    beq  a0, a1, 3f       # branch if equal
-#    la   a0, fail_str
-#    j    4f
-#3:  la   a0, success_str
-#4:  jal  put_str
+    li   a1, 0x1F8501 # expected JEDEC ID
+    beq  a0, a1, 3f       # branch if equal
+    la   a0, fail_str
+    j    4f
+3:  la   a0, success_str
+4:  jal  put_str
 
     # echo user input
 5:  jal  get_char
@@ -177,13 +177,13 @@ transfer_spi:
     beqz a2, 2b         # loop until rrdy     ## ERROR LOOPING FOREVER ##
 
     # read rxdr
-#4:  lbu  a2, 3(a1)      # read bus status
-#    bnez a2, 4b         # wait until bus idle
-#    li   a2, SPI_RXDR   # set READ mode RXDR address
-#    sw   a2, (a1)       # send command
-#5:  lbu  a2, 3(a1)      # read bus status
-#    bnez a2, 5b         # wait until bus idle
-#    lbu  a0, 2(a1)      # read bus receive
+4:  lbu  a2, 3(a1)      # read bus status
+    bnez a2, 4b         # wait until bus idle
+    li   a2, SPI_RXDR   # set READ mode RXDR address
+    sw   a2, (a1)       # send command
+5:  lbu  a2, 3(a1)      # read bus status
+    bnez a2, 5b         # wait until bus idle
+    lbu  a0, 2(a1)      # read bus receive
 
     ret
   
