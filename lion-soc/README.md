@@ -76,10 +76,25 @@ Status Byte:
       |___Receiver Status:    0 = Empty, 1 = Full
 ```
 
-Reading the RX Buffer resets the UART receiver.
+#### UART Usage Examples
+##### UART Write Byte
+```assembly
+   li   a0, 0xAB    # load desired byte to send
+   li   a1, 0x4     # set pointer to UART peripheral memory location
+1: lbu  a2, 0x2(a1) # read status 
+   andi a2, a2, 0x1 # mask transmitter status
+   bnez a2, 1b      # wait until transmitter empty
+   sb   a0, (a1)    # transmit byte
+```
 
-Writing the TX Buffer resets the UART transmitter.
-
+##### UART Read Byte
+```assembly
+   li   a0, 0x4     # set pointer to UART peripheral memory location
+1: lbu  a1, 0x2(a0) # read status register
+   andi a1, a1, 0x2 # mask receiver status
+   beqz a1, 1b      # wait until receiver full
+   lbu  a1, 0x1(a0) # read receiver buffer
+```
 ### SPI Flash
 
 See [VELDT-info](https://github.com/standardsemiconductor/VELDT-info#veldt-info) for more information about the on-board [SPI flash chip](https://github.com/standardsemiconductor/VELDT-info/blob/master/AT25SF081.pdf) and the [Lattice SPI and SysBus interface](https://github.com/standardsemiconductor/VELDT-info/blob/master/AdvancediCE40SPII2CHardenedIPUsageGuide.pdf).
@@ -108,7 +123,7 @@ SysBus Read/Write:
        |__ 0 = READ, 1 = WRITE
 ```
 
-#### Peripheral Usage Examples
+#### SPI Usage Examples
 
 ##### SPI Enable
 ```assembly
