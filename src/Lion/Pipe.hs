@@ -23,6 +23,8 @@ newtype PipeConfig = PipeConfig
   deriving stock (Generic, Show, Eq)
 
 -- | Default pipeline configuration
+-- 
+-- `startPC` = 0
 defaultPipeConfig :: PipeConfig
 defaultPipeConfig = PipeConfig 0
 

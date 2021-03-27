@@ -16,9 +16,9 @@ import Data.Proxy
 import Ice40.Mac 
 import Lion.Instruction
 
--- | Alu configuration
+-- | ALU configuration
 data AluConfig = Hard -- ^ use hard adder and subtractor from iCE40 SB_MAC16
-               | Soft -- ^ use generic adder and subtractor: (+), (-)
+               | Soft -- ^ use generic adder and subtractor: (+) and (-)
   deriving stock (Generic, Show, Eq)
 
 class Alu (config :: AluConfig) where

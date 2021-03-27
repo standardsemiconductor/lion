@@ -5,7 +5,7 @@ Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
-The Lion core is a 32-bit RISC-V processor written in Haskell using [Clash](https://clash-lang.org). Note, all peripherals and memory must have single cycle latency. See [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc) for an example of using the Lion core in a system.
+The Lion core is a 32-bit [RISC-V](https://riscv.org/about/) processor written in Haskell using [Clash](https://clash-lang.org). Note, all peripherals and memory must have single cycle latency. See [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc) for an example of using the Lion core in a system.
 -}
 
 module Lion.Core 
@@ -18,25 +18,31 @@ module Lion.Core
   , FromCore(..)
   , P.ToMem(..)
   , P.MemoryAccess(..)
+  , Alu
   ) where
 
 import Clash.Prelude
 import Data.Proxy
 import Data.Maybe
 import Data.Monoid
-import Lion.Alu -- (AluConfig(..), alu)
+import Lion.Alu
 import Lion.Rvfi
 import qualified Lion.Pipe as P
 import qualified Lion.Instruction as I (Op(Add))
 
 -- | Core configuration
--- ALU configuration default: Soft
+--
+-- ALU configuration default: `Soft`
 newtype CoreConfig (a :: AluConfig) = CoreConfig
   { pipeConfig :: P.PipeConfig -- ^ pipeline configuration
   }
   deriving stock (Generic, Show, Eq)
 
 -- | Default core configuration
+--
+-- ALU configuration = `Soft`
+--
+-- `pipeConfig` = `defaultPipeConfig`
 defaultCoreConfig :: CoreConfig 'Soft
 defaultCoreConfig = CoreConfig
   { pipeConfig = P.defaultPipeConfig
@@ -48,7 +54,7 @@ data FromCore dom = FromCore
   , toRvfi :: Signal dom Rvfi -- ^ formal verification interface output, see [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) for usage
   }
 
--- | RISC-V Core
+-- | RISC-V Core: RV32I
 core
   :: forall a dom
    . HiddenClockResetEnable dom
