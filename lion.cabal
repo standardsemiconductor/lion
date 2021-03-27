@@ -58,11 +58,13 @@ library
     GeneralizedNewtypeDeriving
     LambdaCase
     MagicHash
+    MultiParamTypeClasses
     MultiWayIf
     NoImplicitPrelude
     NoStarIsType
     PolyKinds
     RankNTypes
+    ScopedTypeVariables
     TemplateHaskell
     TupleSections
     TypeFamilies

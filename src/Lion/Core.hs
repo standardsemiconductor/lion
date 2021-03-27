@@ -21,25 +21,25 @@ module Lion.Core
   ) where
 
 import Clash.Prelude
+import Data.Proxy
 import Data.Maybe
 import Data.Monoid
-import Lion.Alu (AluConfig(..), alu)
+import Lion.Alu -- (AluConfig(..), alu)
 import Lion.Rvfi
 import qualified Lion.Pipe as P
 import qualified Lion.Instruction as I (Op(Add))
 
 -- | Core configuration
-data CoreConfig = CoreConfig
-  { aluConfig  :: AluConfig    -- ^ alu configuration, default = Soft
-  , pipeConfig :: P.PipeConfig -- ^ pipeline configuration
+-- ALU configuration default: Soft
+newtype CoreConfig (a :: AluConfig) = CoreConfig
+  { pipeConfig :: P.PipeConfig -- ^ pipeline configuration
   }
   deriving stock (Generic, Show, Eq)
 
 -- | Default core configuration
-defaultCoreConfig :: CoreConfig
+defaultCoreConfig :: CoreConfig 'Soft
 defaultCoreConfig = CoreConfig
-  { aluConfig = Soft
-  , pipeConfig = P.defaultPipeConfig
+  { pipeConfig = P.defaultPipeConfig
   }
 
 -- | Core outputs
@@ -50,20 +50,22 @@ data FromCore dom = FromCore
 
 -- | RISC-V Core
 core
-  :: HiddenClockResetEnable dom
-  => CoreConfig               -- ^ core configuration
-  -> Signal dom (BitVector 32)  -- ^ core input, from memory/peripherals
-  -> FromCore dom               -- ^ core output
+  :: forall a dom
+   . HiddenClockResetEnable dom
+  => Alu a
+  => CoreConfig (a :: AluConfig) -- ^ core configuration
+  -> Signal dom (BitVector 32)   -- ^ core input, from memory/peripherals
+  -> FromCore dom                -- ^ core output
 core config toCore = FromCore
   { toMem  = getFirst . P._toMem <$> fromPipe
   , toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
   }
   where
     -- alu connection
-    aluOp = fromMaybe I.Add . getFirst . P._toAluOp <$> fromPipe
+    aluOp = fromMaybe I.Add . getFirst . P._toAluOp     <$> fromPipe
     aluInput1 = fromMaybe 0 . getFirst . P._toAluInput1 <$> fromPipe
     aluInput2 = fromMaybe 0 . getFirst . P._toAluInput2 <$> fromPipe
-    aluOutput = alu (aluConfig config) aluOp aluInput1 aluInput2
+    aluOutput = alu (Proxy :: Proxy a) aluOp aluInput1 aluInput2
     -- reg bank connection
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
