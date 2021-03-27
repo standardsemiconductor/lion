@@ -56,25 +56,6 @@ instance Alu 'Hard where
       isAddSub = delay False $ isAdd .||. isSub
       adderSubtractor = hardAddSub (boolToBit <$> isSub) in1 in2
   
-{-
--- | Configurable arithmetic logic unit, 1 cycle latency
-alu 
-  :: HiddenClockResetEnable dom
-  => AluConfig 
-  -> Signal dom Op
-  -> Signal dom (BitVector 32)
-  -> Signal dom (BitVector 32)
-  -> Signal dom (BitVector 32)
-alu cfg op in1 in2 = mux isAddSub' adderSubtractor $ register 0 $ baseAlu op in1 in2
-  where
-    isAdd = (Add == ) <$> op
-    isSub = (Sub == ) <$> op
-    isAddSub = isAdd .||. isSub
-    isAddSub' = delay False isAddSub
-    adderSubtractor = case cfg of
-      Hard -> hardAddSub (boolToBit <$> isSub) in1 in2
-      Soft -> softAddSub (boolToBit <$> isSub) in1 in2
--}
 baseAlu
   :: Signal dom Op
   -> Signal dom (BitVector 32)
@@ -95,15 +76,7 @@ baseAlu = liftA3 $ \case
     shamt = unpack . resize . slice d4 d0
     sign = unpack :: BitVector 32 -> Signed 32
     (...) = (.).(.)
-{-
-softAddSub
-  :: HiddenClockResetEnable dom
-  => Signal dom Bit -- 0 = Add, 1 = Sub
-  -> Signal dom (BitVector 32)
-  -> Signal dom (BitVector 32)
-  -> Signal dom (BitVector 32)
-softAddSub addSub x y = delay 0 $ mux (addSub .==. 0) (x + y) (x - y)
--}
+
 -- | addSub32PipelinedUnsigned
 hardAddSub
   :: HiddenClock dom
