@@ -68,14 +68,14 @@ sysBusM = do
   instr <- use sbInstr
 
   -- output sysbus signals
-  let rw  = isJust $ snd =<< instr
-      stb = isJust instr
-      adr = maybe 0 fst instr
-      dat = fromMaybe 0 $ snd =<< instr
-  scribe sbRWI  $ First $ Just rw
-  scribe sbStbI $ First $ Just stb
-  scribe sbAdrI $ First $ Just adr
-  scribe sbDatI $ First $ Just dat
+  let rw  = isJust . snd <$> instr
+      stb = True <$ instr
+      adr = fst <$> instr
+      dat = snd =<< instr
+  scribe sbRWI  $ First rw
+  scribe sbStbI $ First stb
+  scribe sbAdrI $ First adr
+  scribe sbDatI $ First dat
 
   -- when ack received, set instr to Nothing indicating done
   -- and store sbDatO in sbRecv
@@ -120,7 +120,7 @@ spi
   -> Unbundled dom (SpiIO, BusOut 'Spi)
 spi toSpi = (spiIO, fromSpi)
   where
-    fromSpi = fmap FromSpi $ register 0 $ fromMaybe 0 . getFirst . _toCore <$> fromSysBus
+    fromSpi = fmap FromSpi $ regMaybe 0 $ getFirst . _toCore <$> fromSysBus
     fromSysBus = sysBus $ ToSysBus <$> sbacko
                                    <*> sbdato
                                    <*> toSpi
