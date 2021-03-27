@@ -11,7 +11,7 @@ System-On-Chip using Lion and targeting the [VELDT FPGA development board](https
 1. Ensure the VELDT is ON and in the FLASH mode.
 2. `cabal run soc -- prog` 
 3. Cycle power switch, set mode switch to FPGA.
-4. `cabal run com` to open serial port, then press any key to display the Lion SoC name. The Lion Soc will echo any further input. Press <kbd>Ctrl-c</kbd> to end the program. The default port for `com` is `/dev/ttyUSB0`. If you require a different port, specify it as an argument: `cabal run com -- path/to/port`. Other serial port programs will work as well; be sure to specify a 8 data bits, 1 stop bit, no flow control, and a baud rate of 19200.
+4. `cabal run com` to open serial port, then press any key to display the Lion SoC name. The Lion Soc will echo any further input. Press <kbd>Ctrl-c</kbd> to end the program. The default port for `com` is `/dev/ttyUSB0`. If you require a different port, specify it as an argument: `cabal run com -- path/to/port`. Other serial port programs will work as well; be sure to specify 8 data bits, 1 stop bit, no flow control, and a baud rate of 19200.
 ```
    __   _             ____     _____
   / /  (_)__  ___    / __/__  / ___/
@@ -27,14 +27,15 @@ To compile, synthesize, and route Lion SoC without programming: `cabal run soc`
 ### Clean
 `cabal run soc -- clean`
 
-## Metrics as of Mar 23 2021 for iCE40
+## Metrics as of Mar 27 2021 for iCE40
 ### Device utilisation
 ```
 Device utilisation:
-   ICESTORM_LC:  2712/ 5280    51%
+   ICESTORM_LC:  2669/ 5280    50%
   ICESTORM_RAM:     8/   30    26%
          SB_IO:     6/   96     6%
          SB_GB:     8/    8   100%
+  ICESTORM_DSP:     1/    8    12%
 ICESTORM_HFOSC:     1/    1   100%
         SB_SPI:     1/    2    50%
    SB_LEDDA_IP:     1/    1   100%
@@ -43,7 +44,7 @@ ICESTORM_SPRAM:     4/    4   100%
 ```
 ### Clock frequency
 ```
-Max frequency for clock: 13.02 MHz (PASS @ 12Mhz)
+Max frequency for clock: 13.89 MHz (PASS @ 12Mhz)
 ```
 
 ## Memory Map
