@@ -16,7 +16,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: git://github.com/standardsemiconductor/lion.git
+  location: https://github.com/standardsemiconductor/lion
 
 library
   exposed-modules: Lion.Core
@@ -27,7 +27,7 @@ library
   hs-source-dirs: src
   default-language: Haskell2010
   build-depends: 
-    base           >= 4.13  && < 4.15,
+    base           >= 4.13  && < 4.16,
     Cabal,
     generic-monoid >= 0.1   && < 0.2,
     mtl            >= 2.2   && < 2.3,
