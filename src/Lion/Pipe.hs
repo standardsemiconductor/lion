@@ -215,12 +215,14 @@ writeback = withInstr wbIR $ \instr -> do
       control.wbMemory .= True
       wbRvfi.rvfiRdAddr .= rdAddr
       mem <- wbRvfi.rvfiMemRData <<~ view fromMem
-      let wr = case op of
-            Lb  -> signExtend $ sliceByte mask mem
-            Lh  -> signExtend $ sliceHalf mask mem
+      let byte = sliceByte mask mem
+          half = sliceHalf mask mem
+          wr = case op of
+            Lb  -> signExtend byte
+            Lh  -> signExtend half
             Lw  -> mem
-            Lbu -> zeroExtend $ sliceByte mask mem
-            Lhu -> zeroExtend $ sliceHalf mask mem
+            Lbu -> zeroExtend byte
+            Lhu -> zeroExtend half
       rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
       scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
     WbStore -> control.wbMemory .= True
