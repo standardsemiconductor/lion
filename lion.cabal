@@ -28,7 +28,6 @@ library
   default-language: Haskell2010
   build-depends: 
     base           >= 4.13  && < 4.16,
-    Cabal,
     generic-monoid >= 0.1   && < 0.2,
     mtl            >= 2.2   && < 2.3,
     lens           >= 4.19  && < 5.1,
