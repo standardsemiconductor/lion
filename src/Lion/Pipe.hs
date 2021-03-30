@@ -280,15 +280,11 @@ execute = do
         Auipc -> scribeAlu Add pc imm
       meIR ?= MeRegWr rd
     ExJump jump rd imm -> do
-      case jump of
-        Jal -> do
-          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
-          meRvfi.rvfiTrap ||= isMisaligned npc
-          meIR ?= MeJump rd pc4
-        Jalr -> do
-          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= clearBit (rs1Data + imm) 0
-          meRvfi.rvfiTrap ||= isMisaligned npc
-          meIR ?= MeJump rd pc4
+      npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= case jump of
+        Jal  -> pc + imm
+        Jalr -> clearBit (rs1Data + imm) 0
+      meRvfi.rvfiTrap ||= isMisaligned npc
+      meIR ?= MeJump rd pc4
     ExBranch op imm ->
       if branch op rs1Data rs2Data
         then do
