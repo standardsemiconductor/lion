@@ -274,13 +274,11 @@ execute = do
   rs1Data <- meRvfi.rvfiRs1Data <<~ regFwd exRs1 fromRs1 (control.meRegFwd) (control.wbRegFwd)
   rs2Data <- meRvfi.rvfiRs2Data <<~ regFwd exRs2 fromRs2 (control.meRegFwd) (control.wbRegFwd)
   withInstr exIR $ \case
-    Ex op rd imm -> case op of
-      Lui -> do 
-        scribeAlu Add 0 imm
-        meIR ?= MeRegWr rd
-      Auipc -> do
-        scribeAlu Add pc imm
-        meIR ?= MeRegWr rd
+    Ex op rd imm -> do
+      case op of
+        Lui   -> scribeAlu Add 0  imm
+        Auipc -> scribeAlu Add pc imm
+      meIR ?= MeRegWr rd
     ExJump jump rd imm -> do
       case jump of
         Jal -> do
