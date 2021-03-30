@@ -24,7 +24,7 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
   deriving anyclass NFDataX
 
 -- | Memory pipeline instruction
-data MeInstr = MeRegWr      (Unsigned 5)
+data MeInstr = MeRegWr      (Unsigned 5) (BitVector 32)
              | MeJump       (Unsigned 5) (BitVector 32)
              | MeBranch 
              | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
@@ -57,6 +57,23 @@ data Op = Add
         | And
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+
+alu :: Op -> BitVector 32 -> BitVector 32 -> BitVector 32
+alu = \case 
+  Add  -> (+)
+  Sub  -> (-)
+  Sll  -> \x y -> x `shiftL` shamt y
+  Slt  -> boolToBV ... (<) `on` sign
+  Sltu -> boolToBV ... (<)
+  Xor  -> xor
+  Srl  -> \x y -> x `shiftR` shamt y
+  Sra  -> \x y -> pack $ sign x `shiftR` shamt y
+  Or   -> (.|.)
+  And  -> (.&.)
+  where
+    shamt = unpack . resize . slice d4 d0
+    sign = unpack :: BitVector 32 -> Signed 32
+    (...) = (.).(.)
 
 -- | Branch operation
 data Branch = Beq

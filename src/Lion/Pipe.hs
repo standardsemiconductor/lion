@@ -265,7 +265,7 @@ memory = do
       wbIR ?= WbLoad op rdAddr mask
 
 -- | Execute stage
-execute :: RWS ToPipe FromPipe Pipe ()
+execute :: RWS ToPipe FromPipe (Pipe a) ()
 execute = do
   meIR .= Nothing
   meRvfi <~ use exRvfi
@@ -278,7 +278,7 @@ execute = do
       case op of
         Lui   -> scribeAlu Add 0  imm
         Auipc -> scribeAlu Add pc imm
-      meIR ?= MeRegWr rd
+      meIR ?= MeRegWr rd 0
     ExJump jump rd imm -> do
       case jump of
         Jal -> do
@@ -323,8 +323,9 @@ execute = do
              meRvfi.rvfiTrap ||= isMisaligned addr -- trap on word boundary
              meIR ?= MeLoad op rdAddr addr' 0xF
     ExAlu op rd -> do
-      scribeAlu op rs1Data rs2Data
-      meIR ?= MeRegWr rd
+--      scribeAlu op rs1Data rs2Data
+--      meIR ?= MeRegWr rd
+      exAlu rd op rs1Data rs2Data
     ExAluImm op rd imm -> do
       scribeAlu op rs1Data imm
       meIR ?= MeRegWr rd
@@ -354,6 +355,28 @@ execute = do
       -> m (BitVector 32)
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
+
+class PipeAlu (a :: AluConfig) where
+  exAlu :: Proxy a
+        -> Unsigned 5 -- rd
+        -> Op
+        -> BitVector 32 -- rs1Data
+        -> BitVector 32 -- rs2Data
+        -> RWS ToPipe FromPipe Pipe ()
+
+  meAlu :: Proxy a
+        -> 
+
+instance PipeAlu 'Hard where
+  exAlu _ rd op rs1Data rs2Data = do
+    scribeAlu op rs1Data rs2Data
+    meIR ?= MeRegWr rd 0
+  
+instance PipeAlu 'Soft where
+  exAlu _ rd op rs1Data rs2Data = do
+    let aluOut = alu op rs1Data rs2Data
+    meIR ?= MeRegWr rd aluOut
+
 
 -- | Decode stage
 decode :: RWS ToPipe FromPipe Pipe ()
