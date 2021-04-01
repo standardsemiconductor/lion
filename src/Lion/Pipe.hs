@@ -275,9 +275,9 @@ execute = do
   rs2Data <- meRvfi.rvfiRs2Data <<~ regFwd exRs2 fromRs2 (control.meRegFwd) (control.wbRegFwd)
   withInstr exIR $ \case
     Ex op rd imm -> do
-      case op of
-        Lui   -> scribeAlu Add 0  imm
-        Auipc -> scribeAlu Add pc imm
+      scribeAlu Add imm $ case op of
+        Lui   -> 0
+        Auipc -> pc
       meIR ?= MeRegWr rd
     ExJump jump rd imm -> do
       npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= case jump of
