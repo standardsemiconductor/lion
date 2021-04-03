@@ -2,6 +2,9 @@ module Lion.Pipe.Execute where
 
 import Clash.Prelude
 
+----------------
+-- Execute Ex --
+----------------
 class ExecuteEx (a :: AluConfig) where
   executeEx :: Op -- op
             -> Unsigned 5 -- rd
@@ -9,6 +12,21 @@ class ExecuteEx (a :: AluConfig) where
             -> BitVector 32 -- pc
             -> RWS (ToPipe a) (FromPipe a) (Pipe a) ()
 
+instance Ex 'Hard where
+  executeEx op rd pc imm = do
+    case op of
+      Lui   -> scribeAlu Add 0 imm
+      Auipc -> scribeAlu Add pc imm  
+    meIR ?= MeRegWr rd
+
+instance Ex 'Soft where
+  executeEx op rd pc imm = meIR ?= case op of
+    Lui   -> MeRegWr rd imm
+    Auipc -> MeRegWr rd $ pc + imm
+
+-------------------
+-- ExecuteExJump --
+-------------------
 class ExecuteExJump (a :: AluConfig) where
   executeExJump :: Jump
                 -> Unsigned 5 -- rd
@@ -70,20 +88,6 @@ instance Execute (a :: AluConfig) where
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
 
-class ExecuteEx (a :: AluConfig) where
-  ex 
-    :: Op 
-    -> Unsigned 5   -- rd
-    -> BitVector 32 -- pc
-    -> BitVector 32 -- imm
-    -> RWS (ToPipe a) (FromPipe a) (Pipe a) ()
-
-instance Ex 'Hard where
-  ex op rd pc imm = do
-    case op of
-      Lui   -> scribeAlu Add 0 imm
-      Auipc -> scribeAlu Add pc imm  
-    meIR ?= MeRegWr rd
 
 -- | Execute stage
 execute :: RWS ToPipe FromPipe (Pipe a) ()
