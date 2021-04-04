@@ -330,16 +330,6 @@ execute = do
       scribe toAluInput1 $ First $ Just in1
       scribe toAluInput2 $ First $ Just in2
 
-    guardZero  -- register x0 always has value 0.
-      :: MonadState s m 
-      => Lens' s (Unsigned 5) 
-      -> BitVector 32 
-      -> m (BitVector 32)
-    guardZero rsAddr rsValue = do
-      isZero <- uses rsAddr (== 0)
-      return $ if isZero
-        then 0
-        else rsValue
     regFwd 
       :: MonadState s m 
       => MonadReader r m
@@ -350,6 +340,17 @@ execute = do
       -> m (BitVector 32)
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
+      where
+        guardZero  -- register x0 always has value 0.
+          :: MonadState s m 
+          => Lens' s (Unsigned 5) 
+          -> BitVector 32 
+          -> m (BitVector 32)
+        guardZero addr value = do
+          isZero <- uses addr (== 0)
+          return $ if isZero
+             then 0
+             else value
 
 -- | Decode stage
 decode :: RWS ToPipe FromPipe Pipe ()
