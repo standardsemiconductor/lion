@@ -149,6 +149,7 @@ instance ExecuteAluImm 'Hard where
 instance ExecuteAluImm 'Soft where
   executeAluImm op rd imm rs1Data = meIR ?= MeRegWr rd (I.alu op rs1Data imm)
 
+-- | Execute stage
 execute 
   :: ExecuteEx a 
   => ExecuteAlu a
@@ -170,16 +171,6 @@ execute = do
     ExAlu op rd          -> executeAlu op rd rs1Data rs2Data
     ExAluImm op rd imm   -> executeAluImm op rd imm rs1Data
   where
-    guardZero  -- register x0 always has value 0.
-      :: MonadState s m 
-      => Lens' s (Unsigned 5) 
-      -> BitVector 32 
-      -> m (BitVector 32)
-    guardZero rsAddr rsValue = do
-      isZero <- uses rsAddr (== 0)
-      return $ if isZero
-        then 0
-        else rsValue
     regFwd 
       :: MonadState s m 
       => MonadReader r m
@@ -190,12 +181,23 @@ execute = do
       -> m (BitVector 32)
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
+      where
+        guardZero  -- register x0 always has value 0.
+          :: MonadState s m 
+          => Lens' s (Unsigned 5) 
+          -> BitVector 32 
+          -> m (BitVector 32)
+        guardZero rsAddr rsValue = do
+          isZero <- uses rsAddr (== 0)
+          return $ if isZero
+            then 0
+            else rsValue
 
 scribeAlu op in1 in2 = do
   scribe toAluOp     $ First $ Just op
   scribe toAluInput1 $ First $ Just in1
   scribe toAluInput2 $ First $ Just in2
-
+{-
 -- | Execute stage
 execute :: RWS ToPipe FromPipe (Pipe a) ()
 execute = do
@@ -308,4 +310,4 @@ instance PipeAlu 'Soft where
   exAlu _ rd op rs1Data rs2Data = do
     let aluOut = alu op rs1Data rs2Data
     meIR ?= MeRegWr rd aluOut
-
+-}
