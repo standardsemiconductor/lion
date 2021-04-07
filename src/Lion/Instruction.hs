@@ -24,14 +24,27 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
   deriving anyclass NFDataX
 
 -- | Memory pipeline instruction
-data MeInstr = MeRegWr      (Unsigned 5) (BitVector 32)
-             | MeJump       (Unsigned 5) (BitVector 32)
-             | MeBranch 
-             | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
-             | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
-             | MeNop
+data MeInstr (a :: AluConfig) 
+  = MeRegWr (MeRegWrAlu a) --     (Unsigned 5) (BitVector 32)
+  | MeJump       (Unsigned 5) (BitVector 32)
+  | MeBranch 
+  | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
+  | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
+  | MeNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+
+data MeRegWrHardAlu = MeRegWrHardAlu (Unsigned 5)
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+data MeRegWrSoftAlu = MeRegWrSoftAlu (Unsigned 5) (BitVector 32)
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass NFDataX
+
+type family MeRegWrAlu (a :: AluConfig) where
+  MeRegWrAlu 'Hard = MeRegWrHardAlu
+  MeRegWrAlu 'Soft = MeRegWrSoftAlu
 
 -- | Execute pipeline instruction
 data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
