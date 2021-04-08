@@ -66,6 +66,7 @@ library
     ScopedTypeVariables
     TemplateHaskell
     TupleSections
+    TypeApplications
     TypeFamilies
     TypeOperators
     ViewPatterns
