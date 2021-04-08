@@ -1,6 +1,9 @@
 module Lion.Pipe.Execute where
 
 import Clash.Prelude
+import Control.Lens
+import Lion.Pipe.Instruction
+import Lion.Pipe.Monad
 
 ----------------
 -- Execute Ex --

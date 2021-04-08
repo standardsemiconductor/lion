@@ -9,6 +9,7 @@ Maintainer  : standardsemiconductor@gmail.com
 module Lion.Pipe.Monad where
 
 import Clash.Prelude
+import Control.Lens
 import Control.Monad.RWS
 
 -- | Pipeline inputs
@@ -162,3 +163,11 @@ mkPipe config = Pipe
   -- pipeline control
   , _control = mkControl
   }
+
+--------------------
+-- Pipeline Monad --
+--------------------
+newtype PipeM c = PipeM{ unPipe :: RWS (ToPipe c) (FromPipe c) (Pipe c) }
+  deriving ( Functor, Applicative, Monad
+           , MonadRWS (ToPipe c) (FromPipe c) (Pipe c)
+           )

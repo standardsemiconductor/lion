@@ -14,7 +14,7 @@ import Clash.Prelude
 import Data.Function ( on )
 import Data.Proxy
 import Ice40.Mac 
-import Lion.Instruction
+import Lion.Pipe.Instruction
 
 -- | ALU configuration
 data AluConfig = Hard -- ^ use hard adder and subtractor from iCE40 SB_MAC16

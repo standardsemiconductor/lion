@@ -1,15 +1,15 @@
 {-|
-Module      : Lion.Instruction
+Module      : Lion.Pipe.Instruction
 Description : RISC-V ISA
 Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}
-
-module Lion.Instruction where
+module Lion.Pipe.Instruction where
 
 import Clash.Prelude
 import Data.Function ( on )
+import Lion.Pipe.Config
 
 data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
@@ -24,16 +24,21 @@ data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
   deriving anyclass NFDataX
 
 -- | Memory pipeline instruction
-data MeInstr (a :: AluConfig) 
-  = MeRegWr (MeRegWrAlu a) --     (Unsigned 5) (BitVector 32)
+data MeInstr (a :: AluConfig)
+  = MeRegWr (MeRegWrAlu (a :: AluConfig)) --     (Unsigned 5) (BitVector 32)
   | MeJump       (Unsigned 5) (BitVector 32)
   | MeBranch 
   | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
   | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
   | MeNop
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass NFDataX
+  deriving stock Generic
 
+--deriving instance Show a => Show (MeInstr a)
+--deriving instance Eq a => Eq (MeInstr a)
+--deriving instance NFDataX (a :: AluConfig) => NFDataX (MeInstr (a :: AluConfig))
+instance NFDataX (a :: AluConfig) => NFDataX (MeInstr (a :: AluConfig))
+
+{-
 data MeRegWrHardAlu = MeRegWrHardAlu (Unsigned 5)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -41,10 +46,10 @@ data MeRegWrHardAlu = MeRegWrHardAlu (Unsigned 5)
 data MeRegWrSoftAlu = MeRegWrSoftAlu (Unsigned 5) (BitVector 32)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-
-type family MeRegWrAlu (a :: AluConfig) where
-  MeRegWrAlu 'Hard = MeRegWrHardAlu
-  MeRegWrAlu 'Soft = MeRegWrSoftAlu
+-}
+data family MeRegWrAlu (a :: AluConfig)
+data instance MeRegWrAlu 'Hard = MeRegWrHardAlu (Unsigned 5)
+data instance MeRegWrAlu 'Soft = MeRegWrSoftAlu (Unsigned 5) (BitVector 32)
 
 -- | Execute pipeline instruction
 data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
