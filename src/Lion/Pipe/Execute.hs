@@ -35,15 +35,12 @@ executeJump
   -> BitVector 32 -- pc4
   -> BitVector 32 -- rs1Data
   -> RWS (ToPipe a) (FromPipe a) (Pipe a) ()
-executeJump jump rd imm pc pc4 rs1Data = case jump of
-  Jal -> do
-    npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
-    meRvfi.rvfiTrap ||= isMisaligned npc
-    meIR ?= MeJump rd pc4
-  Jalr -> do
-    npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= clearBit (rs1Data + imm) 0
-    meRvfi.rvfiTrap ||= isMisaligned npc
-    meIR ?= MeJump rd pc4
+executeJump jump rd imm pc pc4 rs1Data = do
+  npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= case jump of
+    Jal  -> pc + imm
+    Jalr -> clearBit (rs1Data + imm) 0
+  meRvfi.rvfiTrap ||= isMisaligned npc
+  meIR ?= MeJump rd pc4
 
 --------------------
 -- Execute Branch --
