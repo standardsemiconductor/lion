@@ -17,16 +17,14 @@ import Lion.Instruction
 import Lion.Rvfi
 
 -- | Pipeline configuration
-newtype PipeConfig = PipeConfig
-  { startPC :: BitVector 32 -- ^ initial Program Counter address, default = 0
-  }
+data PipeConfig (startPC :: Nat) = PipeConfig
   deriving stock (Generic, Show, Eq)
 
 -- | Default pipeline configuration
 -- 
 -- `startPC` = 0
-defaultPipeConfig :: PipeConfig
-defaultPipeConfig = PipeConfig 0
+defaultPipeConfig :: PipeConfig 0
+defaultPipeConfig = PipeConfig
 
 -- | Pipeline inputs
 data ToPipe = ToPipe
@@ -153,9 +151,13 @@ data Pipe = Pipe
   deriving anyclass NFDataX
 makeLenses ''Pipe
 
-mkPipe :: PipeConfig -> Pipe
-mkPipe config = Pipe
-  { _fetchPC = startPC config
+mkPipe 
+  :: forall startPC
+   . (KnownNat startPC, startPC <= 0xFFFFFFFF)
+  => PipeConfig (startPC :: Nat) 
+  -> Pipe
+mkPipe _ = Pipe
+  { _fetchPC = natToNum @startPC
 
   -- decode stage 
   , _dePC    = 0
@@ -183,7 +185,8 @@ mkPipe config = Pipe
 -- | 5-Stage RISC-V pipeline
 pipe 
   :: HiddenClockResetEnable dom
-  => PipeConfig
+  => (KnownNat startPC, startPC <= 0xFFFFFFFF)
+  => PipeConfig (startPC :: Nat)
   -> Signal dom ToPipe
   -> Signal dom FromPipe
 pipe config = mealy pipeMealy (mkPipe config)
@@ -275,20 +278,16 @@ execute = do
   rs2Data <- meRvfi.rvfiRs2Data <<~ regFwd exRs2 fromRs2 (control.meRegFwd) (control.wbRegFwd)
   withInstr exIR $ \case
     Ex op rd imm -> do
-      case op of
-        Lui   -> scribeAlu Add 0  imm
-        Auipc -> scribeAlu Add pc imm
-      meIR ?= MeRegWr rd 0
+      scribeAlu Add imm $ case op of
+        Lui   -> 0
+        Auipc -> pc
+      meIR ?= MeRegWr rd
     ExJump jump rd imm -> do
-      case jump of
-        Jal -> do
-          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
-          meRvfi.rvfiTrap ||= isMisaligned npc
-          meIR ?= MeJump rd pc4
-        Jalr -> do
-          npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= clearBit (rs1Data + imm) 0
-          meRvfi.rvfiTrap ||= isMisaligned npc
-          meIR ?= MeJump rd pc4
+      npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= case jump of
+        Jal  -> pc + imm
+        Jalr -> clearBit (rs1Data + imm) 0
+      meRvfi.rvfiTrap ||= isMisaligned npc
+      meIR ?= MeJump rd pc4
     ExBranch op imm ->
       if branch op rs1Data rs2Data
         then do
@@ -335,16 +334,6 @@ execute = do
       scribe toAluInput1 $ First $ Just in1
       scribe toAluInput2 $ First $ Just in2
 
-    guardZero  -- register x0 always has value 0.
-      :: MonadState s m 
-      => Lens' s (Unsigned 5) 
-      -> BitVector 32 
-      -> m (BitVector 32)
-    guardZero rsAddr rsValue = do
-      isZero <- uses rsAddr (== 0)
-      return $ if isZero
-        then 0
-        else rsValue
     regFwd 
       :: MonadState s m 
       => MonadReader r m
@@ -355,6 +344,17 @@ execute = do
       -> m (BitVector 32)
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
+      where
+        guardZero  -- register x0 always has value 0.
+          :: MonadState s m 
+          => Lens' s (Unsigned 5) 
+          -> BitVector 32 
+          -> m (BitVector 32)
+        guardZero addr value = do
+          isZero <- uses addr (== 0)
+          return $ if isZero
+             then 0
+             else value
 
 class PipeAlu (a :: AluConfig) where
   exAlu :: Proxy a

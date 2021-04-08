@@ -58,7 +58,7 @@ library
 
 executable soc
     main-is:          Main.hs
-    build-depends:    base >= 4.13 && < 4.15
+    build-depends:    base
                     , bytestring
                     , clash-ghc
                     , shake
@@ -67,8 +67,9 @@ executable soc
 
 executable com
     main-is:          Com.hs
-    build-depends:    base >= 4.13 && < 4.15
-                    , serialport >= 0.5 && < 0.6
+    build-depends:    async      >= 2.2  && < 2.3
+                    , base
+                    , serialport >= 0.5  && < 0.6
     hs-source-dirs:   app
     default-extensions:
       LambdaCase

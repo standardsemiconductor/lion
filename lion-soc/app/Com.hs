@@ -1,8 +1,8 @@
 
-import Control.Concurrent ( forkIO )
-import Control.Monad      ( forever )
-import Data.Functor       ( (<&>) )
-import System.Environment ( getArgs )
+import Control.Concurrent.Async ( concurrently_ )
+import Control.Monad            ( forever )
+import Data.Functor             ( (<&>) )
+import System.Environment       ( getArgs )
 import System.Hardware.Serialport 
 import System.IO 
 
@@ -17,8 +17,7 @@ com :: String -> IO ()
 com portPath = hWithSerial portPath serialPortSettings $ \hndl -> do
   hSetBuffering stdin NoBuffering
   hSetBuffering stdout NoBuffering
-  forkIO $ readUart hndl
-  writeUart hndl
+  concurrently_ (readUart hndl) (writeUart hndl)
   where
     readUart  hndl = forever $ putChar =<< hGetChar hndl
     writeUart hndl = forever $ hPutChar hndl =<< getChar
