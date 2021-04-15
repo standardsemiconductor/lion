@@ -68,14 +68,10 @@ sysBusM = do
   instr <- use sbInstr
 
   -- output sysbus signals
-  let rw  = isJust . snd <$> instr
-      stb = True <$ instr
-      adr = fst <$> instr
-      dat = snd =<< instr
-  scribe sbRWI  $ First rw
-  scribe sbStbI $ First stb
-  scribe sbAdrI $ First adr
-  scribe sbDatI $ First dat
+  scribe sbRWI  $ First $ isJust . snd <$> instr
+  scribe sbStbI $ First $ True <$ instr
+  scribe sbAdrI $ First $ fst <$> instr
+  scribe sbDatI $ First $ snd =<< instr
 
   -- when ack received, set instr to Nothing indicating done
   -- and store sbDatO in sbRecv
