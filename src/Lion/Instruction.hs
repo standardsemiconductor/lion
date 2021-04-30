@@ -11,36 +11,41 @@ module Lion.Instruction where
 import Clash.Prelude
 import Data.Function ( on )
 
+import Lion.Util.Clash
+
 data Exception = IllegalInstruction
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
 -- | Writeback pipeline instruction
-data WbInstr = WbRegWr (Unsigned 5) (BitVector 32)
-             | WbLoad Load (Unsigned 5) (BitVector 4)
-             | WbStore
-             | WbNop
+data WbInstr xl
+    = WbRegWr (Unsigned 5) (BitVector xl)
+    | WbLoad Load (Unsigned 5) (BitVector (Div xl 8))
+    | WbStore
+    | WbNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
 -- | Memory pipeline instruction
-data MeInstr = MeRegWr      (Unsigned 5)
-             | MeJump       (Unsigned 5) (BitVector 32)
-             | MeBranch 
-             | MeStore                   (BitVector 32) (BitVector 4) (BitVector 32)
-             | MeLoad  Load (Unsigned 5) (BitVector 32) (BitVector 4)
-             | MeNop
+data MeInstr xl
+    = MeRegWr      (Unsigned 5)
+    | MeJump       (Unsigned 5) (BitVector xl)
+    | MeBranch
+    | MeStore                   (BitVector xl) (BitVector (Div xl 8)) (BitVector xl)
+    | MeLoad  Load (Unsigned 5) (BitVector xl) (BitVector (Div xl 8))
+    | MeNop
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
 -- | Execute pipeline instruction
-data ExInstr = Ex       ExOp   (Unsigned 5) (BitVector 32)
-             | ExJump   Jump   (Unsigned 5) (BitVector 32)
-             | ExBranch Branch              (BitVector 32)
-             | ExStore  Store               (BitVector 32)
-             | ExLoad   Load   (Unsigned 5) (BitVector 32)
-             | ExAlu    Op     (Unsigned 5)
-             | ExAluImm Op     (Unsigned 5) (BitVector 32)
+data ExInstr xl
+    = Ex       ExOp   (Unsigned 5) (BitVector xl)
+    | ExJump   Jump   (Unsigned 5) (BitVector xl)
+    | ExBranch Branch              (BitVector xl)
+    | ExStore  Store               (BitVector xl)
+    | ExLoad   Load   (Unsigned 5) (BitVector xl)
+    | ExAlu    Op     (Unsigned 5)
+    | ExAluImm Op     (Unsigned 5) (BitVector xl)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -69,7 +74,7 @@ data Branch = Beq
   deriving anyclass NFDataX
 
 -- | branch calculation
-branch :: Branch -> BitVector 32 -> BitVector 32 -> Bool
+branch :: KnownNat xl => Branch -> BitVector xl -> BitVector xl -> Bool
 branch = \case
   Beq  -> not ... (/=)
   Bne  -> (/=)
@@ -79,8 +84,6 @@ branch = \case
   Bltu -> (<)
   where
     (...) = (.).(.)
-    sign :: BitVector 32 -> Signed 32
-    sign = unpack
 
 data ExOp = Lui
           | Auipc
@@ -95,6 +98,7 @@ data Jump = Jal | Jalr
 data Store = Sb
            | Sh
            | Sw
+           | Sd
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
@@ -104,10 +108,12 @@ data Load = Lb
           | Lw
           | Lbu
           | Lhu
+          | Lwu
+          | Ld
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-parseInstr :: BitVector 32 -> Either Exception ExInstr
+parseInstr :: forall xl . KnownNat xl => BitVector 32 -> Either Exception (ExInstr xl)
 parseInstr i = case i of
   $(bitPattern ".........................0110111") -> Right $ Ex Lui   rd immU -- lui
   $(bitPattern ".........................0010111") -> Right $ Ex Auipc rd immU -- auipc
@@ -122,20 +128,26 @@ parseInstr i = case i of
   $(bitPattern ".................000.....0000011") -> Right $ ExLoad Lb  rd immI -- lb
   $(bitPattern ".................001.....0000011") -> Right $ ExLoad Lh  rd immI -- lh
   $(bitPattern ".................010.....0000011") -> Right $ ExLoad Lw  rd immI -- lw
+  $(bitPattern ".................011.....0000011") -> Right $ ExLoad Ld  rd immI -- ld
   $(bitPattern ".................100.....0000011") -> Right $ ExLoad Lbu rd immI -- lbu
   $(bitPattern ".................101.....0000011") -> Right $ ExLoad Lhu rd immI -- lhu
+  $(bitPattern ".................110.....0000011") -> Right $ ExLoad Lwu rd immI -- lwu
   $(bitPattern ".................000.....0100011") -> Right $ ExStore Sb immS -- sb
   $(bitPattern ".................001.....0100011") -> Right $ ExStore Sh immS -- sh
   $(bitPattern ".................010.....0100011") -> Right $ ExStore Sw immS -- sw
+  $(bitPattern ".................011.....0100011") -> Right $ ExStore Sd immS -- sd
   $(bitPattern ".................000.....0010011") -> Right $ ExAluImm Add  rd immI -- addi
   $(bitPattern ".................010.....0010011") -> Right $ ExAluImm Slt  rd immI -- slti
   $(bitPattern ".................011.....0010011") -> Right $ ExAluImm Sltu rd immI -- sltiu
   $(bitPattern ".................100.....0010011") -> Right $ ExAluImm Xor  rd immI -- xori
   $(bitPattern ".................110.....0010011") -> Right $ ExAluImm Or   rd immI -- ori
   $(bitPattern ".................111.....0010011") -> Right $ ExAluImm And  rd immI -- andi
-  $(bitPattern "0000000..........001.....0010011") -> Right $ ExAluImm Sll  rd immI -- slli
-  $(bitPattern "0000000..........101.....0010011") -> Right $ ExAluImm Srl  rd immI -- srli
-  $(bitPattern "0100000..........101.....0010011") -> Right $ ExAluImm Sra  rd immI -- srai
+  $(bitPattern "000000x..........001.....0010011")
+    | 0 == x || 32 < natVal immI                   -> Right $ ExAluImm Sll  rd immI -- slli
+  $(bitPattern "000000x..........101.....0010011")
+    | 0 == x || 32 < natVal immI                   -> Right $ ExAluImm Srl  rd immI -- srli
+  $(bitPattern "010000x..........101.....0010011")
+    | 0 == x || 32 < natVal immI                   -> Right $ ExAluImm Sra  rd immI -- srai
   $(bitPattern "0000000..........000.....0110011") -> Right $ ExAlu Add  rd -- add
   $(bitPattern "0100000..........000.....0110011") -> Right $ ExAlu Sub  rd -- sub
   $(bitPattern "0000000..........001.....0110011") -> Right $ ExAlu Sll  rd -- sll
@@ -153,20 +165,20 @@ parseInstr i = case i of
 
     rd = sliceRd i
 
-    immI :: BitVector 32
-    immI = signExtend $ slice d31 d20 i
+    immI :: BitVector xl
+    immI = signResize $ slice d31 d20 i
     
-    immS :: BitVector 32
-    immS = signExtend $ slice d31 d25 i ++# slice d11 d7 i
+    immS :: BitVector xl
+    immS = signResize $ slice d31 d25 i ++# slice d11 d7 i
 
-    immB :: BitVector 32
-    immB = signExtend (slice d31 d31 i ++# slice d7 d7 i ++# slice d30 d25 i ++# slice d11 d8 i) `shiftL` 1
+    immB :: BitVector xl
+    immB = signResize (slice d31 d31 i ++# slice d7 d7 i ++# slice d30 d25 i ++# slice d11 d8 i) `shiftL` 1
 
-    immU :: BitVector 32
-    immU = slice d31 d12 i ++# 0
+    immU :: BitVector xl
+    immU = zeroResize (slice d31 d12 i ++# 0 :: BitVector 32)
     
-    immJ :: BitVector 32
-    immJ = signExtend (slice d31 d31 i ++# slice d19 d12 i ++# slice d20 d20 i ++# slice d30 d25 i ++# slice d24 d21 i) `shiftL` 1
+    immJ :: BitVector xl
+    immJ = signResize (slice d31 d31 i ++# slice d19 d12 i ++# slice d20 d20 i ++# slice d30 d25 i ++# slice d24 d21 i) `shiftL` 1
 
 
 sliceRd :: BitVector 32 -> Unsigned 5

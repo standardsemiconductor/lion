@@ -11,44 +11,46 @@ Configurable alu, choose between soft and hard adders/subtractors
 module Lion.Alu where
 
 import Clash.Prelude
+import Data.Bool ( bool )
 import Data.Function ( on )
 import Data.Proxy
 import Ice40.Mac 
 import Lion.Instruction
+import Lion.Util.Clash
 
 -- | ALU configuration
 data AluConfig = Hard -- ^ use hard adder and subtractor from iCE40 SB_MAC16
                | Soft -- ^ use generic adder and subtractor: (+) and (-)
   deriving stock (Generic, Show, Eq)
 
-class Alu (config :: AluConfig) where
-  alu :: HiddenClockResetEnable dom 
+class Alu (xl :: Nat) (config :: AluConfig) where
+  alu :: (KnownNat xl, KnownNat (Log2 xl))
+      => HiddenClockResetEnable dom 
       => Proxy (config :: AluConfig)
       -> Signal dom Op
-      -> Signal dom (BitVector 32)
-      -> Signal dom (BitVector 32)
-      -> Signal dom (BitVector 32)
+      -> Signal dom (BitVector xl)
+      -> Signal dom (BitVector xl)
+      -> Signal dom (BitVector xl)
 
-instance Alu 'Soft where
+instance Alu xl 'Soft where
   alu _ op in1 = register 0 . liftA3 aluFunc op in1 
     where
       aluFunc = \case 
         Add  -> (+)
         Sub  -> (-)
         Sll  -> \x y -> x `shiftL` shamt y
-        Slt  -> boolToBV ... (<) `on` sign
-        Sltu -> boolToBV ... (<)
+        Slt  -> bool 0 1 ... (<) `on` sign
+        Sltu -> bool 0 1 ... (<)
         Xor  -> xor
         Srl  -> \x y -> x `shiftR` shamt y
         Sra  -> \x y -> pack $ sign x `shiftR` shamt y
         Or   -> (.|.)
         And  -> (.&.)
         where
-          shamt = unpack . resize . slice d4 d0
-          sign = unpack :: BitVector 32 -> Signed 32
+          shamt = fromEnum . resizeTo (SNat :: SNat (Log2 xl))
           (...) = (.).(.)
       
-instance Alu 'Hard where
+instance Alu 32 'Hard where
   alu _ op in1 in2 = mux isAddSub adderSubtractor $ register 0 $ baseAlu op in1 in2
     where
       isAdd = (Add == ) <$> op
@@ -57,24 +59,25 @@ instance Alu 'Hard where
       adderSubtractor = hardAddSub (boolToBit <$> isSub) in1 in2
   
 baseAlu
-  :: Signal dom Op
-  -> Signal dom (BitVector 32)
-  -> Signal dom (BitVector 32)
-  -> Signal dom (BitVector 32)
+  :: forall dom xl
+   . (KnownNat xl, KnownNat (Log2 xl))
+  => Signal dom Op
+  -> Signal dom (BitVector xl)
+  -> Signal dom (BitVector xl)
+  -> Signal dom (BitVector xl)
 baseAlu = liftA3 $ \case 
   Add  -> \_ _ -> 0
   Sub  -> \_ _ -> 0
   Sll  -> \x y -> x `shiftL` shamt y
-  Slt  -> boolToBV ... (<) `on` sign
-  Sltu -> boolToBV ... (<)
+  Slt  -> bool 0 1 ... (<) `on` sign
+  Sltu -> bool 0 1 ... (<)
   Xor  -> xor
   Srl  -> \x y -> x `shiftR` shamt y
   Sra  -> \x y -> pack $ sign x `shiftR` shamt y
   Or   -> (.|.)
   And  -> (.&.)
   where
-    shamt = unpack . resize . slice d4 d0
-    sign = unpack :: BitVector 32 -> Signed 32
+    shamt = fromEnum . resizeTo (SNat :: SNat (Log2 xl))
     (...) = (.).(.)
 
 -- | addSub32PipelinedUnsigned

@@ -6,6 +6,9 @@ License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}
 
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+
 module LionFV where
 
 import Clash.Prelude
@@ -17,13 +20,14 @@ import Lion.Rvfi            ( Rvfi )
 
 lionFV
   :: HiddenClockResetEnable dom
-  => Signal dom (BitVector 32)   -- ^ mem_rdata
+  => (KnownNat xl, KnownNat (Log2 xl), 1 <= Div xl 8)
+  => Signal dom (BitVector xl)   -- ^ mem_rdata
   -> ( Signal dom Bool           -- mem_valid
      , Signal dom Bool           -- mem_instr
-     , Signal dom (BitVector 32) -- mem_addr
-     , Signal dom (BitVector 32) -- mem_wdata
-     , Signal dom (BitVector 4)  -- mem_wstrb
-     , Signal dom Rvfi           -- rvfi
+     , Signal dom (BitVector xl) -- mem_addr
+     , Signal dom (BitVector xl) -- mem_wdata
+     , Signal dom (BitVector (Div xl 8)) -- mem_wstrb
+     , Signal dom (Rvfi xl)      -- rvfi
      )
 lionFV memRData = 
   ( memValid
@@ -41,7 +45,7 @@ lionFV memRData =
     memWData = fromMaybe 0 . (memWrite =<<) <$> toMem fromCore
     memWStrb = maybe 0 memByteMask <$> toMem fromCore
 
-isInstr :: ToMem -> Bool
+isInstr :: ToMem xl -> Bool
 isInstr = (== InstrMem) . memAccess
 
 {-# NOINLINE topEntity #-}
@@ -54,7 +58,7 @@ topEntity
      , "mem_addr"  ::: Signal System (BitVector 32)
      , "mem_wdata" ::: Signal System (BitVector 32)
      , "mem_wstrb" ::: Signal System (BitVector 4)
-     , "rvfi"      ::: Signal System Rvfi
+     , "rvfi"      ::: Signal System (Rvfi 32)
      )
 topEntity clk rst = exposeClockResetEnable lionFV clk rst enableGen
 makeTopEntityWithName 'topEntity "LionFV"

@@ -50,21 +50,21 @@ data BusOut (p :: Peripheral) where
   FromSpram :: BitVector 32 -> BusOut 'Spram
   FromSpi   :: BitVector 32 -> BusOut 'Spi
 
-romMap :: Maybe ToMem -> BusIn 'Rom
+romMap :: Maybe (ToMem 32) -> BusIn 'Rom
 romMap = ToRom . wordAddr . maybe 0 memAddress
   where
     wordAddr :: BitVector 32 -> Unsigned 8
     wordAddr a = unpack $ slice d7 d0 $ a `shiftR` 2
 
-uartMap :: Peripheral -> Maybe ToMem -> BusIn 'Uart
+uartMap :: Peripheral -> Maybe (ToMem 32) -> BusIn 'Uart
 uartMap Uart (Just (ToMem DataMem _ msk wrM)) = ToUart (slice d2 d0 msk) $ slice d7 d0 <$> wrM
 uartMap _ _ = ToUart 0 Nothing
 
-ledMap :: Peripheral -> Maybe ToMem -> BusIn 'Led
+ledMap :: Peripheral -> Maybe (ToMem 32) -> BusIn 'Led
 ledMap Led (Just (ToMem _ _ $(bitPattern "..11") (Just d))) = ToLed (slice d11 d8 d) (slice d7 d0 d) True
 ledMap _ _ = ToLed 0 0 False
 
-spramMap :: Peripheral -> Maybe ToMem -> BusIn 'Spram
+spramMap :: Peripheral -> Maybe (ToMem 32) -> BusIn 'Spram
 spramMap _      Nothing    = ToSpram 0 0 0 0
 spramMap periph (Just mem) = case (periph, memWrite mem) of
   (Spram, Just wr) -> ToSpram wordAddr wr nybMask 1
@@ -78,11 +78,11 @@ spramMap periph (Just mem) = case (periph, memWrite mem) of
           | b == high = 0b11
           | otherwise = 0b00
 
-spiMap :: Peripheral -> Maybe ToMem -> BusIn 'Spi
+spiMap :: Peripheral -> Maybe (ToMem 32) -> BusIn 'Spi
 spiMap Spi (Just (ToMem DataMem _ mask wrM)) = ToSpi mask wrM
 spiMap _   _                                 = ToSpi 0    Nothing 
 
-selectPeripheral :: Maybe ToMem -> Peripheral
+selectPeripheral :: Maybe (ToMem 32) -> Peripheral
 selectPeripheral Nothing = Rom
 selectPeripheral (Just toMem)
   | checkRegion 17 = Spram

@@ -6,15 +6,19 @@ License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}
 
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+
 module Lion.Pipe where
 
 import Clash.Prelude
-import Control.Lens hiding ( op )
+import Control.Lens hiding ( (:<), (:>), imap, indices, op )
 import Control.Monad.RWS
-import Data.Maybe ( isJust )
+import Data.Maybe ( isJust, fromMaybe )
 import Data.Monoid.Generic
 import Lion.Instruction
 import Lion.Rvfi
+import Lion.Util.Clash
 
 -- | Pipeline configuration
 data PipeConfig (startPC :: Nat) = PipeConfig
@@ -27,11 +31,11 @@ defaultPipeConfig :: PipeConfig 0
 defaultPipeConfig = PipeConfig
 
 -- | Pipeline inputs
-data ToPipe = ToPipe
-  { _fromRs1 :: BitVector 32
-  , _fromRs2 :: BitVector 32
-  , _fromAlu :: BitVector 32
-  , _fromMem :: BitVector 32
+data ToPipe xl = ToPipe
+  { _fromRs1 :: BitVector xl
+  , _fromRs2 :: BitVector xl
+  , _fromAlu :: BitVector xl
+  , _fromMem :: BitVector xl
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
@@ -44,19 +48,20 @@ data MemoryAccess = InstrMem -- ^ instruction access
   deriving anyclass NFDataX
 
 -- | Memory bus
-data ToMem = ToMem
+data ToMem xl = ToMem
   { memAccess   :: MemoryAccess         -- ^ memory access type
-  , memAddress  :: BitVector 32         -- ^ memory address
-  , memByteMask :: BitVector 4          -- ^ memory byte mask
-  , memWrite    :: Maybe (BitVector 32) -- ^ read=Nothing write=Just wr
+  , memAddress  :: BitVector xl         -- ^ memory address
+  , memByteMask :: BitVector (Div xl 8) -- ^ memory byte mask
+  , memWrite    :: Maybe (BitVector xl) -- ^ read=Nothing write=Just wr
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
 -- | Construct instruction memory access
 instrMem 
-  :: BitVector 32 -- ^ instruction address
-  -> ToMem
+  :: KnownNat xl
+  => BitVector xl -- ^ instruction address
+  -> ToMem xl
 instrMem addr = ToMem
   { memAccess   = InstrMem
   , memAddress  = addr
@@ -66,10 +71,10 @@ instrMem addr = ToMem
 
 -- | Construct data memory access
 dataMem 
-  :: BitVector 32         -- ^ memory address
-  -> BitVector 4          -- ^ byte mask
-  -> Maybe (BitVector 32) -- ^ write
-  -> ToMem
+  :: BitVector xl         -- ^ memory address
+  -> BitVector (Div xl 8) -- ^ byte mask
+  -> Maybe (BitVector xl) -- ^ write
+  -> ToMem xl
 dataMem addr mask wrM = ToMem
   { memAccess   = DataMem
   , memAddress  = addr
@@ -78,38 +83,38 @@ dataMem addr mask wrM = ToMem
   }
 
 -- | Pipeline outputs
-data FromPipe = FromPipe
-  { _toMem       :: First ToMem
+data FromPipe xl = FromPipe
+  { _toMem       :: First (ToMem xl)
   , _toRs1Addr   :: First (Unsigned 5)
   , _toRs2Addr   :: First (Unsigned 5)
-  , _toRd        :: First (Unsigned 5, BitVector 32)
+  , _toRd        :: First (Unsigned 5, BitVector xl)
   , _toAluOp     :: First Op
-  , _toAluInput1 :: First (BitVector 32)
-  , _toAluInput2 :: First (BitVector 32)
-  , _toRvfi      :: First Rvfi
+  , _toAluInput1 :: First (BitVector xl)
+  , _toAluInput2 :: First (BitVector xl)
+  , _toRvfi      :: First (Rvfi xl)
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-  deriving Semigroup via GenericSemigroup FromPipe
-  deriving Monoid via GenericMonoid FromPipe
+  deriving Semigroup via GenericSemigroup (FromPipe xl)
+  deriving Monoid via GenericMonoid (FromPipe xl)
 makeLenses ''FromPipe
 
-data Control = Control
+data Control xl = Control
   { _firstCycle  :: Bool                             -- ^ First cycle True, then always False
-  , _exBranching :: Maybe (BitVector 32)             -- ^ execute stage branch/jump
+  , _exBranching :: Maybe (BitVector xl)             -- ^ execute stage branch/jump
   , _meBranching :: Bool                             -- ^ memory stage branch/jump
   , _deLoad      :: Bool                             -- ^ decode stage load
   , _exLoad      :: Bool                             -- ^ execute stage load
   , _meMemory    :: Bool                             -- ^ memory stage load/store
   , _wbMemory    :: Bool                             -- ^ writeback stage load/store
-  , _meRegFwd    :: Maybe (Unsigned 5, BitVector 32) -- ^ memory stage register forwarding
-  , _wbRegFwd    :: Maybe (Unsigned 5, BitVector 32) -- ^ writeback stage register forwading
+  , _meRegFwd    :: Maybe (Unsigned 5, BitVector xl) -- ^ memory stage register forwarding
+  , _wbRegFwd    :: Maybe (Unsigned 5, BitVector xl) -- ^ writeback stage register forwading
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Control
 
-mkControl :: Control
+mkControl :: Control xl
 mkControl = Control 
   { _firstCycle  = True   
   , _exBranching = Nothing
@@ -122,40 +127,41 @@ mkControl = Control
   , _wbRegFwd    = Nothing
   }
 
-data Pipe = Pipe
-  { _fetchPC :: BitVector 32
+data Pipe xl = Pipe
+  { _fetchPC :: BitVector xl
 
   -- decode stage
-  , _dePC    :: BitVector 32
+  , _dePC    :: BitVector xl
 
   -- execute stage
-  , _exIR    :: Maybe ExInstr
-  , _exPC    :: BitVector 32
+  , _exIR    :: Maybe (ExInstr xl)
+  , _exPC    :: BitVector xl
   , _exRs1   :: Unsigned 5
   , _exRs2   :: Unsigned 5
-  , _exRvfi  :: Rvfi
+  , _exRvfi  :: Rvfi xl
 
   -- memory stage
-  , _meIR    :: Maybe MeInstr
-  , _meRvfi  :: Rvfi
+  , _meIR    :: Maybe (MeInstr xl)
+  , _meRvfi  :: Rvfi xl
 
   -- writeback stage
-  , _wbIR    :: Maybe WbInstr
+  , _wbIR    :: Maybe (WbInstr xl)
   , _wbNRet  :: BitVector 64
-  , _wbRvfi  :: Rvfi
+  , _wbRvfi  :: Rvfi xl
 
   -- pipeline control
-  , _control :: Control
+  , _control :: Control xl
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Pipe
 
 mkPipe 
-  :: forall startPC
-   . (KnownNat startPC, startPC <= 0xFFFFFFFF)
+  :: forall startPC xl
+   . KnownNat xl
+  => (KnownNat startPC, startPC + 1 <= 2^xl)
   => PipeConfig (startPC :: Nat) 
-  -> Pipe
+  -> Pipe xl
 mkPipe _ = Pipe
   { _fetchPC = natToNum @startPC
 
@@ -185,17 +191,20 @@ mkPipe _ = Pipe
 -- | 5-Stage RISC-V pipeline
 pipe 
   :: HiddenClockResetEnable dom
-  => (KnownNat startPC, startPC <= 0xFFFFFFFF)
+  => (KnownNat xl, 1 <= Div xl 8)
+  => (KnownNat startPC, startPC + 1 <= 2^xl)
   => PipeConfig (startPC :: Nat)
-  -> Signal dom ToPipe
-  -> Signal dom FromPipe
+  -> Signal dom (ToPipe xl)
+  -> Signal dom (FromPipe xl)
 pipe config = mealy pipeMealy (mkPipe config)
   where
     pipeMealy s i = let ((), s', o) = runRWS pipeM i s
                     in (s', o) 
 
 -- | Monadic pipeline
-pipeM :: RWS ToPipe FromPipe Pipe ()
+pipeM
+  :: (KnownNat xl, 1 <= Div xl 8)
+  => RWS (ToPipe xl) (FromPipe xl) (Pipe xl) ()
 pipeM = do
   writeback
   memory
@@ -205,7 +214,9 @@ pipeM = do
   control .= mkControl{ _firstCycle = False } -- reset control
 
 -- | Writeback stage
-writeback :: RWS ToPipe FromPipe Pipe ()
+writeback
+  :: KnownNat xl
+  => RWS (ToPipe xl) (FromPipe xl) (Pipe xl) ()
 writeback = withInstr wbIR $ \instr -> do
   wbRvfi.rvfiValid .= True
   wbRvfi.rvfiOrder <~ wbNRet <<+= 1
@@ -218,14 +229,17 @@ writeback = withInstr wbIR $ \instr -> do
       control.wbMemory .= True
       wbRvfi.rvfiRdAddr .= rdAddr
       mem <- wbRvfi.rvfiMemRData <<~ view fromMem
-      let byte = sliceByte mask mem
-          half = sliceHalf mask mem
+      let mem8 = sliceX d8 mask mem
+          mem16 = sliceX d16 mask mem
+          mem32 = sliceX d32 mask mem
           wr = case op of
-            Lb  -> signExtend byte
-            Lh  -> signExtend half
-            Lw  -> mem
-            Lbu -> zeroExtend byte
-            Lhu -> zeroExtend half
+            Lb  -> signResize mem8
+            Lh  -> signResize mem16
+            Lw  -> signResize mem32
+            Ld  -> mem
+            Lbu -> zeroResize mem8
+            Lhu -> zeroResize mem16
+            Lwu -> zeroResize mem32
       rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
       scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
     WbStore -> control.wbMemory .= True
@@ -236,7 +250,7 @@ writeback = withInstr wbIR $ \instr -> do
     guardZero _ = id
 
 -- | Memory stage
-memory :: RWS ToPipe FromPipe Pipe ()
+memory :: RWS (ToPipe xl) (FromPipe xl) (Pipe xl) ()
 memory = do
   wbIR   .= Nothing
   wbRvfi <~ use meRvfi
@@ -268,7 +282,9 @@ memory = do
       wbIR ?= WbLoad op rdAddr mask
 
 -- | Execute stage
-execute :: RWS ToPipe FromPipe Pipe ()
+execute :: forall xl
+  .  (KnownNat xl, 1 <= Div xl 8)
+  => RWS (ToPipe xl) (FromPipe xl) (Pipe xl) ()
 execute = do
   meIR .= Nothing
   meRvfi <~ use exRvfi
@@ -286,41 +302,43 @@ execute = do
       npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= case jump of
         Jal  -> pc + imm
         Jalr -> clearBit (rs1Data + imm) 0
-      meRvfi.rvfiTrap ||= isMisaligned npc
+      meRvfi.rvfiTrap ||= isMisaligned d32 npc
       meIR ?= MeJump rd pc4
     ExBranch op imm ->
       if branch op rs1Data rs2Data
         then do
           branchPC <- meRvfi.rvfiPcWData <<~ control.exBranching <?= pc + imm
-          meRvfi.rvfiTrap ||= isMisaligned branchPC
+          meRvfi.rvfiTrap ||= isMisaligned d32 branchPC
           meIR ?= MeBranch
         else do
-          meRvfi.rvfiTrap ||= isMisaligned pc4
+          meRvfi.rvfiTrap ||= isMisaligned d32 pc4
           meIR ?= MeNop
-    ExStore op imm -> do
+    ExStore op imm ->
       let addr = rs1Data + imm            -- unaligned
-          addr' = addr .&. complement 0x3 -- aligned
-      case op of
-        Sb -> let wr = concatBitVector# $ replicate d4 $ slice d7 d0 rs2Data
-              in meIR ?= MeStore addr' (byteMask addr) wr
-        Sh -> do
-          meRvfi.rvfiTrap ||= isMisalignedHalf addr -- trap on half-word boundary
-          let wr = concatBitVector# $ replicate d2 $ slice d15 d0 rs2Data
-          meIR ?= MeStore addr' (halfMask addr) wr
-        Sw -> do
-          meRvfi.rvfiTrap ||= isMisaligned addr -- trap on word boundary
-          meIR ?= MeStore addr' 0xF rs2Data
+          addr' = addr .&. fromIntegral (natVal (SNat :: SNat (Div xl 8)) - 1) -- aligned
+          helper :: _ => SNat yl -> _
+          helper yl = do
+            meRvfi.rvfiTrap ||= isMisaligned yl addr -- trap on boundary
+            let wr :: BitVector xl
+                wr = concatReplicateI $ resizeTo yl rs2Data
+            meIR ?= MeStore addr' (byteMaskX yl addr) wr
+      in case op of
+        Sb -> helper d8
+        Sh -> helper d16
+        Sw -> helper d32
+        Sd -> helper d64
     ExLoad op rdAddr imm -> do
       control.exLoad .= True
       let addr = rs1Data + imm            -- unaligned
-          addr' = addr .&. complement 0x3 -- aligned
-      if | op == Lb || op == Lbu -> meIR ?= MeLoad op rdAddr addr' (byteMask addr)
-         | op == Lh || op == Lhu -> do
-             meRvfi.rvfiTrap ||= isMisalignedHalf addr -- trap on half-word boundary
-             meIR ?= MeLoad op rdAddr addr' (halfMask addr)
-         | otherwise -> do -- Lw
-             meRvfi.rvfiTrap ||= isMisaligned addr -- trap on word boundary
-             meIR ?= MeLoad op rdAddr addr' 0xF
+          addr' = addr .&. fromIntegral (natVal (SNat :: SNat (Div xl 8)) - 1) -- aligned
+          helper :: _ => SNat yl -> _
+          helper yl = do
+             meRvfi.rvfiTrap ||= isMisaligned yl addr -- trap on boundary
+             meIR ?= MeLoad op rdAddr addr' (byteMaskX yl addr)
+      if | op == Lb || op == Lbu -> helper d8
+         | op == Lh || op == Lhu -> helper d16
+         | op == Lw || op == Lwu -> helper d32
+         | otherwise -> helper d64
     ExAlu op rd -> do
       scribeAlu op rs1Data rs2Data
       meIR ?= MeRegWr rd
@@ -337,18 +355,18 @@ execute = do
       :: MonadState s m 
       => MonadReader r m
       => Lens' s (Unsigned 5) 
-      -> Lens' r (BitVector 32)
-      -> Lens' s (Maybe (Unsigned 5, BitVector 32))
-      -> Lens' s (Maybe (Unsigned 5, BitVector 32))
-      -> m (BitVector 32)
+      -> Lens' r (BitVector xl)
+      -> Lens' s (Maybe (Unsigned 5, BitVector xl))
+      -> Lens' s (Maybe (Unsigned 5, BitVector xl))
+      -> m (BitVector xl)
     regFwd rsAddr rsData meFwd wbFwd = 
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
       where
         guardZero  -- register x0 always has value 0.
           :: MonadState s m 
           => Lens' s (Unsigned 5) 
-          -> BitVector 32 
-          -> m (BitVector 32)
+          -> BitVector xl 
+          -> m (BitVector xl)
         guardZero addr value = do
           isZero <- uses addr (== 0)
           return $ if isZero
@@ -356,12 +374,12 @@ execute = do
              else value
 
 -- | Decode stage
-decode :: RWS ToPipe FromPipe Pipe ()
+decode :: KnownNat xl => RWS (ToPipe xl) (FromPipe xl) (Pipe xl) ()
 decode = do
   exIR .= Nothing
   exRvfi .= mkRvfi
   exPC <~ use dePC
-  mem <- exRvfi.rvfiInsn <<~ view fromMem
+  mem <- exRvfi.rvfiInsn <<~ (resize <$> view fromMem)
   scribe toRs1Addr . First . Just =<< exRvfi.rvfiRs1Addr <<~ exRs1 <.= sliceRs1 mem
   scribe toRs2Addr . First . Just =<< exRvfi.rvfiRs2Addr <<~ exRs2 <.= sliceRs2 mem
   isFirstCycle  <- use $ control.firstCycle -- first memory output undefined
@@ -381,7 +399,7 @@ decode = do
       exRvfi.rvfiTrap .= True
         
 -- | fetch instruction
-fetch :: RWS ToPipe FromPipe Pipe ()
+fetch :: KnownNat xl => RWS (ToPipe xl) (FromPipe xl) (Pipe xl) ()
 fetch = do
   scribe toMem . First . Just . instrMem =<< use fetchPC
   isMeMemory <- use $ control.meMemory
@@ -397,10 +415,10 @@ fetch = do
 -- | forward register writes
 fwd 
   :: Unsigned 5 
-  -> BitVector 32 
-  -> Maybe (Unsigned 5, BitVector 32) -- ^ meRegFwd
-  -> Maybe (Unsigned 5, BitVector 32) -- ^ wbRegFwd
-  -> BitVector 32
+  -> BitVector xl 
+  -> Maybe (Unsigned 5, BitVector xl) -- ^ meRegFwd
+  -> Maybe (Unsigned 5, BitVector xl) -- ^ wbRegFwd
+  -> BitVector xl
 fwd _    wr Nothing Nothing = wr
 fwd addr wr Nothing (Just (wbAddr, wbWr))
   | addr == wbAddr = wbWr
@@ -414,38 +432,27 @@ fwd addr wr (Just (meAddr, meWr)) (Just (wbAddr, wbWr))
   | otherwise      = wr
 
 -- | calcluate byte mask based on address
-byteMask :: BitVector 32 -> BitVector 4
-byteMask = (1 `shiftL`) . unpack . resize . slice d1 d0
+byteMaskX
+  :: (KnownNat xl, 1 <= Div xl 8, 1 <= Div yl 8)
+  => SNat yl -> BitVector xl -> BitVector (Div xl 8)
+byteMaskX yl@SNat =
+    shiftL (shiftL 1 (fromIntegral $ natVal $ divSNat yl d8) - 1) . unpack .
+    (.&.) (fromIntegral $ complement $ natVal yl `div` 8 - 1) . zeroResize .
+    (resizeTo =<< flogBaseSNat d2 . flip divSNat d8 . snatProxy)
 
--- | calculate half word mask based on address
-halfMask :: BitVector 32 -> BitVector 4
-halfMask addr = if addr .&. 0x2 == 0
-                  then 0x3
-                  else 0xC
+sliceX :: forall xl yl
+  .  (KnownNat xl, 1 <= yl)
+  => SNat yl -> BitVector (Div xl 8) -> BitVector xl -> BitVector yl
+sliceX yl@SNat mask = resizeTo yl . (pure 0 `fromMaybe` fold (<|>) (imap f mask' :< empty))
+  where
+    mask' :: Vec (Div xl yl) (BitVector (Div yl 8))
+    mask' = unconcatBitVector# (resize mask)
 
--- | slice address based on mask
-sliceByte :: BitVector 4 -> BitVector 32 -> BitVector 8
-sliceByte = \case
-  $(bitPattern "...1") -> slice d7  d0
-  $(bitPattern "..1.") -> slice d15 d8
-  $(bitPattern ".1..") -> slice d23 d16
-  $(bitPattern "1...") -> slice d31 d24
-  _ -> const 0
-
--- | slice address based on mask
-sliceHalf :: BitVector 4 -> BitVector 32 -> BitVector 16
-sliceHalf = \case
-  $(bitPattern "..11") -> slice d15 d0
-  $(bitPattern "11..") -> slice d31 d16
-  _ -> const 0
+    f k m = flip shiftR (fromIntegral (natVal yl)*fromEnum k) <$ guard (0 == complement m)
 
 -- | check if memory address misaligned on word boundary
-isMisaligned :: (Bits a, Num a) => a -> Bool
-isMisaligned a = a .&. 0x3 /= 0
-
--- | check if memory address misaligned on half-word boundary
-isMisalignedHalf :: (Bits a, Num a) => a -> Bool
-isMisalignedHalf a = a .&. 0x1 /= 0
+isMisaligned :: (Bits a, Num a, KnownNat xl) => SNat xl -> a -> Bool
+isMisaligned xl a = 0 /= a .&. fromIntegral (natVal xl `div` 8 - 1)
 
 -- | run monadic action when instruction is Just
 withInstr :: MonadState s m => Lens' s (Maybe a) -> (a -> m ()) -> m ()
