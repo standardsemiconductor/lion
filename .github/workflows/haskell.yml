@@ -37,14 +37,14 @@ jobs:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: ${{ matrix.cabal }}
 
-    - name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
-      uses: actions/cache@v2
-      with:
-        path: |
-          ~/.cabal/packages
-          ~/.cabal/store
-          dist-newstyle
-        key: ${{ runner.os }}-${{ matrix.ghc }}
+#    - name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
+#      uses: actions/cache@v2
+#      with:
+#        path: |
+#          ~/.cabal/packages
+#          ~/.cabal/store
+#          dist-newstyle
+#        key: ${{ runner.os }}-${{ matrix.ghc }}
 
     - name: Install dependencies
       run: |
