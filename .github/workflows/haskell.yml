@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }} 
     strategy:
       matrix:
-        ghc: ['8.8', '8.10']
+        ghc: ['8.8', '8.10.4']
         cabal: ['3.2', '3.4']
         os: [ubuntu-20.04]
     name: ${{ matrix.os }} GHC ${{ matrix.ghc }} Cabal ${{ matrix.cabal }}
