@@ -2,10 +2,18 @@
 
 System-On-Chip using Lion and targeting the [VELDT FPGA development board](https://standardsemiconductor.com).
 
-## Prerequisites
+## Setup
 * [Project IceStorm](https://github.com/standardsemiconductor/VELDT-info#project-icestorm)
 * [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain)
-  * Need `riscv64-unknown-*` binaries
+  * Need `riscv64-unknown-*` binaries e.g.:
+    ```console
+    foo@bar:~$ git clone https://github.com/riscv/riscv-gnu-toolchain.git
+    foo@bar:~$ cd riscv-gnu-toolchain
+    foo@bar:~/riscv-gnu-toolchain$ git submodule update --init --recursive
+    foo@bar:~/riscv-gnu-toolchain$ ./configure --prefix=/opt/riscv/
+    foo@bar:~/rsicv-gnu-toolchain$ sudo make
+    foo@bar:~/riscv-gnu-toolchain$ export PATH=$PATH:/opt/riscv/bin
+    ```
 
 ## Usage
 1. Ensure the VELDT is ON and in the FLASH mode.
