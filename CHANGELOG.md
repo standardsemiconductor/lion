@@ -1,5 +1,13 @@
 # Revision history for lion
 
+## 0.3.0.0
+
+* Update base dependency version bounds
+* Minor internal pipeline updates
+* Remove Cabal dependency
+* Move start PC configuration variable to type-level
+* Update documentation
+
 ## 0.2.0.0 -- 2021-03-27
 
 * Update core/memory/peripheral interface
