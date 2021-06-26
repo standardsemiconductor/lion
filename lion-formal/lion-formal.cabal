@@ -18,7 +18,7 @@ library
   build-depends:
     base          >= 4.13 && < 4.16,
     clash-prelude >= 1.4  && < 1.5,
-    lion          >= 0.2  && < 0.3,
+    lion          >= 0.3  && < 0.4,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
     ghc-typelits-knownnat
@@ -39,7 +39,7 @@ library
 
 executable formal
     main-is:          Main.hs
-    build-depends:    base >= 4.13 && < 4.15
+    build-depends:    base >= 4.13 && < 4.16
                     , clash-ghc
                     , directory
                     , shake
