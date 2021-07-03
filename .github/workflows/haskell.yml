@@ -14,9 +14,13 @@ jobs:
     runs-on: ${{ matrix.os }} 
     strategy:
       matrix:
-        ghc: ['8.8', '8.10.4']
+        ghc: ['8.8', '8.10.4', '9.0']
         cabal: ['3.2', '3.4']
         os: [ubuntu-20.04]
+        exclude:
+                # GHC 9.0 only Cabal 3.4
+                - ghc: '9.0'
+                  cabal: '3.2'
     name: ${{ matrix.os }} GHC ${{ matrix.ghc }} Cabal ${{ matrix.cabal }}
     steps:
     - name: Checkout
