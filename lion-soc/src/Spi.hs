@@ -223,8 +223,8 @@ csIO bcsnoe bcsno = (cs, wcsni)
                         0 -- clock enable
                         hasClock
                         hasClock
-                        ((!(3 :: Index 4)) <$> bcsnoe) -- output enable
-                        ((!(3 :: Index 4)) <$> bcsno)  -- dOut0
+                        ((! (3 :: Index 4)) <$> bcsnoe) -- output enable
+                        ((! (3 :: Index 4)) <$> bcsno)  -- dOut0
                         0 -- dOut1
                 
                      
