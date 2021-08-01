@@ -37,6 +37,10 @@ When connecting the `core` to memory and peripherals, ensure single cycle latenc
 
 Check out the [Lion Development project](https://github.com/standardsemiconductor/lion/projects/1) to see which features are in progress.
 
+## References and Additional Resources
+* [RISC-V Specifications](https://riscv.org/technical/specifications/)
+* [Computer Architecture: A Quantitative Approach 6th Ed.](https://www.elsevier.com/books/computer-architecture/hennessy/978-0-12-811905-1)
+
 [hackage]:            <https://hackage.haskell.org/package/lion>
 [hackage-badge]:      <https://img.shields.io/hackage/v/lion.svg?color=success>
 [hackage-deps-badge]: <https://img.shields.io/hackage-deps/v/lion.svg>
