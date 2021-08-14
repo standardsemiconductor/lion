@@ -116,7 +116,7 @@ spi
   -> Unbundled dom (SpiIO, BusOut 'Spi)
 spi toSpi = (spiIO, fromSpi)
   where
-    fromSpi = fmap FromSpi $ regMaybe 0 $ getFirst . _toCore <$> fromSysBus
+    fromSpi = fmap (FromSpi . fromMaybe 0) $ register Nothing $ getFirst . _toCore <$> fromSysBus
     fromSysBus = sysBus $ ToSysBus <$> sbacko
                                    <*> sbdato
                                    <*> toSpi
