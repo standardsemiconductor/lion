@@ -1,6 +1,6 @@
 # Lion SoC
 
-System-On-Chip using Lion and targeting the [VELDT FPGA development board](https://standardsemiconductor.com).
+[System-On-Chip](https://en.wikipedia.org/wiki/System_on_a_chip) using Lion and targeting the [VELDT FPGA development board](https://standardsemiconductor.com).
 
 ## Setup
 * [Project IceStorm](https://github.com/standardsemiconductor/VELDT-info#project-icestorm)
