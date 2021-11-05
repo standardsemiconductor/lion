@@ -24,6 +24,7 @@ import Data.Monoid.Generic
 import qualified Ice40.Spi as S
 import Ice40.IO
 import Bus
+import Lion.Util.Clash
 
 data SpiIO = SpiIO ("biwo" ::: Bit)
                    ("bowi" ::: Bit)
@@ -32,24 +33,24 @@ data SpiIO = SpiIO ("biwo" ::: Bit)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 
-data ToSysBus = ToSysBus
+data ToSysBus xl = ToSysBus
   { _sbAckO   :: Bool
   , _sbDatO   :: BitVector 8
-  , _fromCore :: BusIn 'Spi
+  , _fromCore :: BusIn xl 'Spi
   }
 makeLenses ''ToSysBus
 
-data FromSysBus = FromSysBus
+data FromSysBus xl = FromSysBus
   { _sbRWI  :: First Bool
   , _sbStbI :: First Bool
   , _sbAdrI :: First (BitVector 8)
   , _sbDatI :: First (BitVector 8)
-  , _toCore :: First (BitVector 32)
+  , _toCore :: First (BitVector xl)
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-  deriving Semigroup via GenericSemigroup FromSysBus
-  deriving Monoid via GenericMonoid FromSysBus
+  deriving Semigroup via GenericSemigroup (FromSysBus xl)
+  deriving Monoid via GenericMonoid (FromSysBus xl)
 makeLenses ''FromSysBus
 
 data SysBus = SysBus 
@@ -63,7 +64,7 @@ makeLenses ''SysBus
 mkSysBus :: SysBus
 mkSysBus = SysBus Nothing 0
 
-sysBusM :: RWS ToSysBus FromSysBus SysBus ()
+sysBusM :: KnownNat xl => RWS (ToSysBus xl) (FromSysBus xl) SysBus ()
 sysBusM = do
   instr <- use sbInstr
 
@@ -87,22 +88,23 @@ sysBusM = do
         Just _  -> return () -- busy, ignore command
         Nothing ->           -- idle, execute command
           let isWrite = bitToBool $ wr!(16 :: Index 32)
-              adri = slice d15 d8 wr
-              dati = slice d7  d0 wr 
+              adri = slice' d15 d8 wr
+              dati = slice' d7  d0 wr
           in sbInstr ?= if isWrite
                then (adri, Just dati)
                else (adri, Nothing)
     ToSpi $(bitPattern "0100") Nothing -> -- read received
-      scribe toCore . First . Just =<< uses sbRecv ((`shiftL` 16).zeroExtend)
+      scribe toCore . First . Just =<< uses sbRecv ((`shiftL` 16).zeroResize)
     _ -> -- read status, default instruction
       scribe toCore $ First $ Just $ if isJust instr
         then 0x01000000
         else 0x00000000
 
 sysBus 
-  :: HiddenClockResetEnable dom
-  => Signal dom ToSysBus
-  -> Signal dom FromSysBus
+  :: KnownNat xl
+  => HiddenClockResetEnable dom
+  => Signal dom (ToSysBus xl)
+  -> Signal dom (FromSysBus xl)
 sysBus = mealy sysBusMealy mkSysBus
   where
     sysBusMealy s i = (s', o)
@@ -111,9 +113,9 @@ sysBus = mealy sysBusMealy mkSysBus
 
 {-# NOINLINE spi #-}
 spi
-  :: HiddenClockResetEnable dom
-  => Signal dom (BusIn 'Spi)
-  -> Unbundled dom (SpiIO, BusOut 'Spi)
+  :: (HiddenClockResetEnable dom, KnownNat xl)
+  => Signal dom (BusIn xl 'Spi)
+  -> Unbundled dom (SpiIO, BusOut xl 'Spi)
 spi toSpi = (spiIO, fromSpi)
   where
     fromSpi = fmap (FromSpi . fromMaybe 0) $ register Nothing $ getFirst . _toCore <$> fromSysBus

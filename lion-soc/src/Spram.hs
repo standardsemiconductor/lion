@@ -14,27 +14,27 @@ import Ice40.Spram
 import Bus
 
 spram 
-  :: HiddenClockResetEnable dom 
-  => Signal dom (BusIn 'Spram)
-  -> Signal dom (BusOut 'Spram)
-spram busIn = FromSpram <$> ram32k32 addr dat msk we
+  :: (HiddenClockResetEnable dom, KnownNat xl)
+  => Signal dom (BusIn xl 'Spram)
+  -> Signal dom (BusOut xl 'Spram)
+spram busIn = FromSpram <$> ram32k addr dat msk we
   where
     (addr, dat, msk, we) = unbundle $ busIn <&> \case
       ToSpram a d m w -> (a, d, m, w)
 
-ram32k32
-  :: HiddenClockResetEnable dom
+ram32k :: forall dom xl
+   . (HiddenClockResetEnable dom, KnownNat xl)
   => Signal dom (BitVector 15) -- address
-  -> Signal dom (BitVector 32) -- dataIn
-  -> Signal dom (BitVector 8)  -- maskWrEn
+  -> Signal dom (BitVector xl) -- dataIn
+  -> Signal dom (BitVector (Div xl 4))  -- maskWrEn
   -> Signal dom Bit            -- wrEn
-  -> Signal dom (BitVector 32) -- dataOut        
-ram32k32 address dataIn maskWrEn wrEn = (++#) <$> dataOutH <*> dataOutL
+  -> Signal dom (BitVector xl) -- dataOut        
+ram32k address dataIn maskWrEn wrEn = resize . concatBitVector# <$> sequenceA dataOuts
   where
-    dataOutH = ram32k16 address dataInH maskWrEnH wrEn
-    dataOutL = ram32k16 address dataInL maskWrEnL wrEn
-    (dataInH, dataInL)     = unbundle $ split <$> dataIn
-    (maskWrEnH, maskWrEnL) = unbundle $ split <$> maskWrEn
+    dataOuts :: Vec (Div xl 16) (Signal dom (BitVector 16))
+    dataOuts = (\ u v -> ram32k16 address u v wrEn) <$> dataIns <*> maskWrEns
+    dataIns = unbundle $ unconcatBitVector# . resize <$> dataIn
+    maskWrEns = unbundle $ unconcatBitVector# . resize <$> maskWrEn
 
 ram32k16
   :: HiddenClockResetEnable dom

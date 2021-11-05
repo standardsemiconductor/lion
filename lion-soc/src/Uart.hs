@@ -12,8 +12,10 @@ import Clash.Prelude
 import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
+import Data.Bool ( bool )
 import Data.Maybe ( isJust, fromMaybe )
 import Data.Monoid.Generic
+import Lion.Util.Clash
 
 -- | uart register
 --   31 - 24 : 23 - 16 : 15 - 8 : 7 - 0
@@ -26,8 +28,8 @@ import Data.Monoid.Generic
 --   bits 15 - 8 : receiver buffer    -- read only -- reading this byte will reset the receiver
 --   bits 7  - 0 : transmitter buffer -- write only -- writing this byte will reset the transmitter
 
-data ToUart = ToUart
-  { _fromBus :: B.BusIn 'B.Uart
+data ToUart xl = ToUart
+  { _fromBus :: B.BusIn xl 'B.Uart
   , _rx      :: Bit
   }
 makeLenses ''ToUart
@@ -41,7 +43,7 @@ data RxFsm = RxIdle
   deriving anyclass NFDataX
 
 -- | Uart state
-data Uart = Uart
+data Uart xl = Uart
   { -- transmitter state
     _txIdx    :: Index 10             -- ^ buffer bit index
   , _txBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
@@ -51,14 +53,14 @@ data Uart = Uart
   , _rxIdx    :: Index 8              -- ^ buffer index
   , _rxBaud   :: Index 625            -- ^ baud rate counter (19200 @ 12Mhz)
   , _rxBuffer :: Vec 8 Bit            -- ^ receiver data buffer
-  , _rxRecv   :: Maybe (BitVector 32) -- ^ store received bytes for reading
+  , _rxRecv   :: Maybe (BitVector xl) -- ^ store received bytes for reading
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Uart 
 
 -- | Construct a Uart
-mkUart :: Uart
+mkUart :: Uart xl
 mkUart = Uart
   { -- transmitter state
     _txIdx    = 0
@@ -73,17 +75,17 @@ mkUart = Uart
   }
 
 -- | Uart output
-data FromUart = FromUart
+data FromUart xl = FromUart
   { _tx     :: First Bit
-  , _toCore :: First (BitVector 32)
+  , _toCore :: First (BitVector xl)
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-  deriving Semigroup via GenericSemigroup FromUart
-  deriving Monoid via GenericMonoid FromUart
+  deriving Semigroup via GenericSemigroup (FromUart xl)
+  deriving Monoid via GenericMonoid (FromUart xl)
 makeLenses ''FromUart
 
-uartM :: RWS ToUart FromUart Uart () -- ^ uart monadic action
+uartM :: KnownNat xl => RWS (ToUart xl) (FromUart xl) (Uart xl) () -- ^ uart monadic action
 uartM = do
   -- transmit
   bufferM <- use txBuffer
@@ -107,8 +109,8 @@ uartM = do
     _ -> return () 
 
   -- read status
-  rxS <- uses rxRecv   $ boolToBV . isJust
-  let txS = boolToBV $ isJust bufferM
+  rxS <- uses rxRecv   $ bool 0 1 . isJust
+  let txS = bool 0 1 $ isJust bufferM
       status = (rxS `shiftL` 1) .|. txS
   scribe toCore $ First $ Just $ status `shiftL` 16
 
@@ -137,21 +139,21 @@ uartM = do
     RxStop -> do
       ctr <- rxBaud <<%= increment
       when (ctr == maxBound) $ do
-        rxRecv <~ uses rxBuffer (Just . (`shiftL` 8) . zeroExtend . v2bv)
+        rxRecv <~ uses rxBuffer (Just . (`shiftL` 8) . zeroResize . v2bv)
         rxFsm %= increment
   where
     frame b = (1 :: BitVector 1) ++# b ++# (0 :: BitVector 1)
 
-uartMealy :: Uart -> ToUart -> (Uart, FromUart)
+uartMealy :: KnownNat xl => Uart xl -> ToUart xl -> (Uart xl, FromUart xl)
 uartMealy s i = (s', o)
   where 
     (_, s', o) = runRWS uartM i s
 
 uart
-  :: HiddenClockResetEnable dom 
+  :: (HiddenClockResetEnable dom, KnownNat xl)
   => Signal dom Bit                        -- ^ uart rx
-  -> Signal dom (B.BusIn 'B.Uart)          -- ^ soc bus 
-  -> Unbundled dom (Bit, B.BusOut 'B.Uart) -- ^ (uart tx, toCore)
+  -> Signal dom (B.BusIn xl 'B.Uart)          -- ^ soc bus 
+  -> Unbundled dom (Bit, B.BusOut xl 'B.Uart) -- ^ (uart tx, toCore)
 uart rxIn bus = (txOut, B.FromUart <$> uartOut)
   where
     uartOut  = register 0 $ fromMaybe 0 . getFirst . _toCore  <$> fromUart

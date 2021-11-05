@@ -55,6 +55,7 @@ library
     ViewPatterns
     TemplateHaskell
     TypeOperators
+    ScopedTypeVariables
 
 executable soc
     main-is:          Main.hs
