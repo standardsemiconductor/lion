@@ -1,3 +1,7 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+
 {-|
 Module      : Lion.Instruction
 Description : RISC-V ISA
@@ -9,6 +13,7 @@ Maintainer  : standardsemiconductor@gmail.com
 module Lion.Instruction where
 
 import Clash.Prelude
+import Data.Either ( isLeft )
 import Data.Function ( on )
 
 import Lion.Util.Clash
@@ -19,7 +24,7 @@ data Exception = IllegalInstruction
 
 -- | Writeback pipeline instruction
 data WbInstr xl
-    = WbRegWr (Unsigned 5) (BitVector xl)
+    = WbRegWr (Unsigned 5) (BitVector xl) (OpWidth xl)
     | WbLoad Load (Unsigned 5) (BitVector (Div xl 8))
     | WbStore
     | WbNop
@@ -28,7 +33,7 @@ data WbInstr xl
 
 -- | Memory pipeline instruction
 data MeInstr xl
-    = MeRegWr      (Unsigned 5)
+    = MeRegWr      (Unsigned 5) (OpWidth xl)
     | MeJump       (Unsigned 5) (BitVector xl)
     | MeBranch
     | MeStore                   (BitVector xl) (BitVector (Div xl 8)) (BitVector xl)
@@ -44,10 +49,28 @@ data ExInstr xl
     | ExBranch Branch              (BitVector xl)
     | ExStore  Store               (BitVector xl)
     | ExLoad   Load   (Unsigned 5) (BitVector xl)
-    | ExAlu    Op     (Unsigned 5)
-    | ExAluImm Op     (Unsigned 5) (BitVector xl)
+    | ExAlu    Op     (Unsigned 5)                (OpWidth xl)
+    | ExAluImm Op     (Unsigned 5) (BitVector xl) (OpWidth xl)
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
+
+data OpWidth xl where
+    FullWidth :: OpWidth xl
+    ShortWidth32 :: 33 <= xl => OpWidth xl
+
+deriving instance Show (OpWidth xl)
+deriving instance Eq (OpWidth xl)
+
+instance NFDataX (OpWidth xl) where
+    deepErrorX = errorX
+    hasUndefined = isLeft . isX
+    ensureSpine = id
+    rnfX = rwhnfX
+
+shorten :: forall xl . KnownNat xl => OpWidth xl -> BitVector xl -> BitVector xl
+shorten = \ case
+    FullWidth -> id
+    ShortWidth32 -> bitCoerce . (signResize :: _ 32 -> _) . resize
 
 -- | ALU operation
 data Op = Add
@@ -136,28 +159,28 @@ parseInstr i = case i of
   $(bitPattern ".................001.....0100011") -> Right $ ExStore Sh immS -- sh
   $(bitPattern ".................010.....0100011") -> Right $ ExStore Sw immS -- sw
   $(bitPattern ".................011.....0100011") -> Right $ ExStore Sd immS -- sd
-  $(bitPattern ".................000.....0010011") -> Right $ ExAluImm Add  rd immI -- addi
-  $(bitPattern ".................010.....0010011") -> Right $ ExAluImm Slt  rd immI -- slti
-  $(bitPattern ".................011.....0010011") -> Right $ ExAluImm Sltu rd immI -- sltiu
-  $(bitPattern ".................100.....0010011") -> Right $ ExAluImm Xor  rd immI -- xori
-  $(bitPattern ".................110.....0010011") -> Right $ ExAluImm Or   rd immI -- ori
-  $(bitPattern ".................111.....0010011") -> Right $ ExAluImm And  rd immI -- andi
-  $(bitPattern "000000x..........001.....0010011")
-    | 0 == x || 32 < natVal immI                   -> Right $ ExAluImm Sll  rd immI -- slli
-  $(bitPattern "000000x..........101.....0010011")
-    | 0 == x || 32 < natVal immI                   -> Right $ ExAluImm Srl  rd immI -- srli
-  $(bitPattern "010000x..........101.....0010011")
-    | 0 == x || 32 < natVal immI                   -> Right $ ExAluImm Sra  rd immI -- srai
-  $(bitPattern "0000000..........000.....0110011") -> Right $ ExAlu Add  rd -- add
-  $(bitPattern "0100000..........000.....0110011") -> Right $ ExAlu Sub  rd -- sub
-  $(bitPattern "0000000..........001.....0110011") -> Right $ ExAlu Sll  rd -- sll
-  $(bitPattern "0000000..........010.....0110011") -> Right $ ExAlu Slt  rd -- slt
-  $(bitPattern "0000000..........011.....0110011") -> Right $ ExAlu Sltu rd -- sltu
-  $(bitPattern "0000000..........100.....0110011") -> Right $ ExAlu Xor  rd -- xor
-  $(bitPattern "0000000..........101.....0110011") -> Right $ ExAlu Srl  rd -- srl
-  $(bitPattern "0100000..........101.....0110011") -> Right $ ExAlu Sra  rd -- sra
-  $(bitPattern "0000000..........110.....0110011") -> Right $ ExAlu Or   rd -- or
-  $(bitPattern "0000000..........111.....0110011") -> Right $ ExAlu And  rd -- and
+  $(bitPattern ".................000.....001.011") -> ExAluImm Add  rd immI <$> opWidth -- addi
+  $(bitPattern ".................010.....0010011") -> Right $ ExAluImm Slt  rd immI FullWidth -- slti
+  $(bitPattern ".................011.....0010011") -> Right $ ExAluImm Sltu rd immI FullWidth -- sltiu
+  $(bitPattern ".................100.....0010011") -> Right $ ExAluImm Xor  rd immI FullWidth -- xori
+  $(bitPattern ".................110.....0010011") -> Right $ ExAluImm Or   rd immI FullWidth -- ori
+  $(bitPattern ".................111.....0010011") -> Right $ ExAluImm And  rd immI FullWidth -- andi
+  $(bitPattern "000000x..........001.....001.011")
+    | 0 == x || 32 < natVal immI                   -> ExAluImm Sll  rd immI <$> opWidth -- slli
+  $(bitPattern "000000x..........101.....001.011")
+    | 0 == x || 32 < natVal immI                   -> ExAluImm Srl  rd immI <$> opWidth -- srli
+  $(bitPattern "010000x..........101.....001.011")
+    | 0 == x || 32 < natVal immI                   -> ExAluImm Sra  rd immI <$> opWidth -- srai
+  $(bitPattern "0000000..........000.....011.011") -> ExAlu Add  rd <$> opWidth -- add
+  $(bitPattern "0100000..........000.....011.011") -> ExAlu Sub  rd <$> opWidth -- sub
+  $(bitPattern "0000000..........001.....011.011") -> ExAlu Sll  rd <$> opWidth -- sll
+  $(bitPattern "0000000..........010.....0110011") -> Right $ ExAlu Slt  rd FullWidth -- slt
+  $(bitPattern "0000000..........011.....0110011") -> Right $ ExAlu Sltu rd FullWidth -- sltu
+  $(bitPattern "0000000..........100.....0110011") -> Right $ ExAlu Xor  rd FullWidth -- xor
+  $(bitPattern "0000000..........101.....011.011") -> ExAlu Srl  rd <$> opWidth -- srl
+  $(bitPattern "0100000..........101.....011.011") -> ExAlu Sra  rd <$> opWidth -- sra
+  $(bitPattern "0000000..........110.....0110011") -> Right $ ExAlu Or   rd FullWidth -- or
+  $(bitPattern "0000000..........111.....0110011") -> Right $ ExAlu And  rd FullWidth -- and
   _ -> Left IllegalInstruction
   where
 --    npcB = immB + pc
@@ -180,6 +203,11 @@ parseInstr i = case i of
     immJ :: BitVector xl
     immJ = signResize (slice d31 d31 i ++# slice d19 d12 i ++# slice d20 d20 i ++# slice d30 d25 i ++# slice d24 d21 i) `shiftL` 1
 
+    opWidth
+      | testBit i 3 = case compareSNat d33 (SNat :: SNat xl) of
+            SNatLE -> pure ShortWidth32
+            SNatGT -> Left IllegalInstruction
+      | otherwise = pure FullWidth
 
 sliceRd :: BitVector 32 -> Unsigned 5
 sliceRd = unpack . slice d11 d7

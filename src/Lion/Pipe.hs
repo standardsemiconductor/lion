@@ -14,6 +14,7 @@ module Lion.Pipe where
 import Clash.Prelude
 import Control.Lens hiding ( (:<), (:>), imap, indices, op )
 import Control.Monad.RWS
+import Data.Function ( on )
 import Data.Maybe ( isJust, fromMaybe )
 import Data.Monoid.Generic
 import Lion.Instruction
@@ -221,10 +222,10 @@ writeback = withInstr wbIR $ \instr -> do
   wbRvfi.rvfiValid .= True
   wbRvfi.rvfiOrder <~ wbNRet <<+= 1
   case instr of
-    WbRegWr rdAddr wr -> do
+    WbRegWr rdAddr wr opWidth -> do
       wbRvfi.rvfiRdAddr .= rdAddr
       rdData <- wbRvfi.rvfiRdWData <.= guardZero rdAddr wr
-      scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, rdData)
+      scribe toRd . First =<< control.wbRegFwd <.= Just (rdAddr, shorten opWidth rdData)
     WbLoad op rdAddr mask -> do
       control.wbMemory .= True
       wbRvfi.rvfiRdAddr .= rdAddr
@@ -256,14 +257,14 @@ memory = do
   wbRvfi <~ use meRvfi
   withInstr meIR $ \case
     MeNop -> wbIR ?= WbNop
-    MeRegWr rd -> do
+    MeRegWr rd opWidth -> do
       wr <- view fromAlu
       control.meRegFwd ?= (rd, wr)
-      wbIR ?= WbRegWr rd wr
+      wbIR ?= WbRegWr rd wr opWidth
     MeJump rd pc4 -> do
       control.meBranching .= True
       control.meRegFwd ?= (rd, pc4)
-      wbIR ?= WbRegWr rd pc4
+      wbIR ?= WbRegWr rd pc4 FullWidth
     MeBranch -> do
       control.meBranching .= True
       wbIR ?= WbNop
@@ -297,7 +298,7 @@ execute = do
       scribeAlu Add imm $ case op of
         Lui   -> 0
         Auipc -> pc
-      meIR ?= MeRegWr rd
+      meIR ?= MeRegWr rd FullWidth
     ExJump jump rd imm -> do
       npc <- meRvfi.rvfiPcWData <<~ control.exBranching <?= case jump of
         Jal  -> pc + imm
@@ -339,12 +340,12 @@ execute = do
          | op == Lh || op == Lhu -> helper d16
          | op == Lw || op == Lwu -> helper d32
          | otherwise -> helper d64
-    ExAlu op rd -> do
-      scribeAlu op rs1Data rs2Data
-      meIR ?= MeRegWr rd
-    ExAluImm op rd imm -> do
-      scribeAlu op rs1Data imm
-      meIR ?= MeRegWr rd
+    ExAlu op rd opWidth -> do
+      (scribeAlu op `on` shorten opWidth) rs1Data rs2Data
+      meIR ?= MeRegWr rd FullWidth
+    ExAluImm op rd imm opWidth -> do
+      scribeAlu op (shorten opWidth rs1Data) imm
+      meIR ?= MeRegWr rd FullWidth
   where
     scribeAlu op in1 in2 = do
       scribe toAluOp     $ First $ Just op
@@ -395,7 +396,7 @@ decode = do
         ExLoad{} -> True
         _        -> False
     Left IllegalInstruction -> do -- trap and instr=Nop (addi x0 x0 0)
-      unless bubble $ exIR ?= ExAlu Add 0
+      unless bubble $ exIR ?= ExAlu Add 0 FullWidth
       exRvfi.rvfiTrap .= True
         
 -- | fetch instruction
