@@ -4,3 +4,19 @@ write-ghc-environment-files: always
 
 package clash-prelude
   flags: -large-tuples
+
+source-repository-package
+    type: git
+    location: https://github.com/clash-lang/ghc-typelits-extra.git
+    tag: a3ebf6c600dde4d2573096e4ed18012ce732e9c9
+
+source-repository-package
+    type: git
+    location: https://github.com/clash-lang/clash-compiler.git
+    subdir: clash-prelude
+    tag: 3b763b262a5da1460b95b8bfce7c1f31db4b012f
+
+source-repository-package
+    type: git
+    location: https://github.com/standardsemiconductor/ice40-prim.git
+    tag: d756d8b52b79caca07c9c03ee42b5a77586c348e
