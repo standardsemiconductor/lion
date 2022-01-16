@@ -27,7 +27,7 @@ data RvfiCsr n = RvfiCsr
 makeLenses ''RvfiCsr
 
 -- | RISC-V Formal Interface
-data Rvfi = Rvfi
+data Rvfi xl = Rvfi
   { -- | When the core retires an instruction, it asserts the `rvfiValid` signal
     -- and uses the signals described in Rvfi to output the details of the
     -- retired instruction. The signals below are only valid during such a
@@ -85,8 +85,8 @@ data Rvfi = Rvfi
     -- | `rvfiRs1Data` and `rvfiRs2Data` are the values of the register
     -- addressed by rs1 and rs2 before execute of this instruction.
     -- This output must be zero when rs1/rs2 is zero.
-  , _rvfiRs1Data     :: "rs1_rdata"    ::: BitVector 32
-  , _rvfiRs2Data     :: "rs2_rdata"    ::: BitVector 32
+  , _rvfiRs1Data     :: "rs1_rdata"    ::: BitVector xl
+  , _rvfiRs2Data     :: "rs2_rdata"    ::: BitVector xl
 
     -- | `rvfiRdAddr` is the decoded rd register address for the retired
     -- instruction. For an instruction that writes no rd register, this output
@@ -96,51 +96,51 @@ data Rvfi = Rvfi
     -- | `rvfiRdWData` is the value of the register addressed by rd after
     -- execution of this instruction. This output must be zero when rd
     -- is zero.
-  , _rvfiRdWData     :: "rd_wdata"     ::: BitVector 32
+  , _rvfiRdWData     :: "rd_wdata"     ::: BitVector xl
 
     -- | This is the program counter (pc) before (`rvfiPcRData`) and after
     -- (`rvfiPcWData`) execution of this instruciton. I.e. this is the
     -- address of the retired instruction and the address of the next
     -- instruction.
-  , _rvfiPcRData     :: "pc_rdata"     ::: BitVector 32
-  , _rvfiPcWData     :: "pc_wdata"     ::: BitVector 32
+  , _rvfiPcRData     :: "pc_rdata"     ::: BitVector xl
+  , _rvfiPcWData     :: "pc_wdata"     ::: BitVector xl
 
     -- | For memory operations (`rvfiMemRMask` and/or `rvfiMemWMask` are non-zero),
     -- `rvfiMemAddr` holds the accessed memory location.
-  , _rvfiMemAddr     :: "mem_addr"     ::: BitVector 32
+  , _rvfiMemAddr     :: "mem_addr"     ::: BitVector xl
 
     -- | `rvfiMemRMask` is a bitmask that specifies which bytes in `rvfiMemRData`
     -- contain valid read data from `rvfiMemAddr`.
-  , _rvfiMemRMask    :: "mem_rmask"    ::: BitVector 4
+  , _rvfiMemRMask    :: "mem_rmask"    ::: BitVector (Div xl 8)
 
     -- | `rvfiMemWMask` is a bitmask that specifies which bytes in `rvfiMemWData` 
     -- contain valid data this is written to `rvfiMemAddr`.
-  , _rvfiMemWMask    :: "mem_wmask"    ::: BitVector 4
+  , _rvfiMemWMask    :: "mem_wmask"    ::: BitVector (Div xl 8)
 
     -- | `rvfiMemRData` is the pre-state data read from `rvfiMemAddr`.
     -- `rvfiMemRMask` specifies which bytes are valid.
-  , _rvfiMemRData    :: "mem_rdata"    ::: BitVector 32
+  , _rvfiMemRData    :: "mem_rdata"    ::: BitVector xl
 
     -- | `rvfiMemWData` is the post-state data written to `rvfiMemAddr`.
     -- `rvfiMemWMask` specifies which bytes are valid.
-  , _rvfiMemWData    :: "mem_wdata"    ::: BitVector 32
+  , _rvfiMemWData    :: "mem_wdata"    ::: BitVector xl
 
   , _rvfiCsrMinstret :: "csr_minstret" ::: RvfiCsr 64
   , _rvfiCsrMcycle   :: "csr_mcycle"   ::: RvfiCsr 64
-  , _rvfiCsrMscratch :: "csr_mscratch" ::: RvfiCsr 32
-  , _rvfiCsrMstatus  :: "csr_mstatus"  ::: RvfiCsr 32
-  , _rvfiCsrMisa     :: "csr_misa"     ::: RvfiCsr 32
+  , _rvfiCsrMscratch :: "csr_mscratch" ::: RvfiCsr xl
+  , _rvfiCsrMstatus  :: "csr_mstatus"  ::: RvfiCsr xl
+  , _rvfiCsrMisa     :: "csr_misa"     ::: RvfiCsr xl
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
 makeLenses ''Rvfi
 
 -- | Unwrap Rvfi from First monoid
-fromRvfi :: First Rvfi -> Rvfi
+fromRvfi :: KnownNat xl => First (Rvfi xl) -> Rvfi xl
 fromRvfi = fromMaybe mkRvfi . getFirst
 
 -- | Construct the RISC-V Formal Interface
-mkRvfi :: Rvfi 
+mkRvfi :: KnownNat xl => Rvfi xl
 mkRvfi = Rvfi
   { _rvfiValid       = False
   , _rvfiOrder       = 0    

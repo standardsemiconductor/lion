@@ -5,7 +5,7 @@ Copyright   : (c) David Cox, 2021
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
-The Lion core is a 32-bit [RISC-V](https://riscv.org/about/) processor written in Haskell using [Clash](https://clash-lang.org). Note, all peripherals and memory must have single cycle latency. See [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc) for an example of using the Lion core in a system.
+The Lion core is a xl-bit [RISC-V](https://riscv.org/about/) processor written in Haskell using [Clash](https://clash-lang.org). Note, all peripherals and memory must have single cycle latency. See [lion-soc](https://github.com/standardsemiconductor/lion/tree/main/lion-soc) for an example of using the Lion core in a system.
 -}
 
 module Lion.Core 
@@ -49,20 +49,21 @@ defaultCoreConfig = CoreConfig
   }
 
 -- | Core outputs
-data FromCore dom = FromCore
-  { toMem  :: Signal dom (Maybe P.ToMem) -- ^ shared memory and instruction bus, output from core to memory and peripherals
-  , toRvfi :: Signal dom Rvfi -- ^ formal verification interface output, see [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) for usage
+data FromCore dom xl = FromCore
+  { toMem  :: Signal dom (Maybe (P.ToMem xl)) -- ^ shared memory and instruction bus, output from core to memory and peripherals
+  , toRvfi :: Signal dom (Rvfi xl) -- ^ formal verification interface output, see [lion-formal](https://github.com/standardsemiconductor/lion/tree/main/lion-formal) for usage
   }
 
--- | RISC-V Core: RV32I
+-- | RISC-V Core: RV(32, 64)I
 core
-  :: forall a startPC dom
-   . HiddenClockResetEnable dom
-  => Alu a
-  => (KnownNat startPC, startPC <= 0xFFFFFFFF)
+  :: forall a startPC dom xl
+   . (KnownNat xl, KnownNat (Log2 xl), 1 <= Div xl 8)
+  => HiddenClockResetEnable dom
+  => Alu xl a
+  => (KnownNat startPC, startPC + 1 <= 2^xl)
   => CoreConfig (startPC :: Nat) (a :: AluConfig) -- ^ core configuration
-  -> Signal dom (BitVector 32)   -- ^ core input, from memory/peripherals
-  -> FromCore dom                -- ^ core output
+  -> Signal dom (BitVector xl)   -- ^ core input, from memory/peripherals
+  -> FromCore dom xl             -- ^ core output
 core config toCore = FromCore
   { toMem  = getFirst . P._toMem <$> fromPipe
   , toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
@@ -87,11 +88,12 @@ core config toCore = FromCore
 
 -- | Register bank
 regBank
-  :: HiddenClockResetEnable dom
+  :: KnownNat xl
+  => HiddenClockResetEnable dom
   => Signal dom (Unsigned 5)                        -- ^ Rs1 Addr
   -> Signal dom (Unsigned 5)                        -- ^ Rs2 Addr
-  -> Signal dom (Maybe (Unsigned 5, BitVector 32))  -- ^ Rd Write
-  -> Unbundled dom (BitVector 32, BitVector 32)     -- ^ (Rs1Data, Rs2Data)
+  -> Signal dom (Maybe (Unsigned 5, BitVector xl))  -- ^ Rd Write
+  -> Unbundled dom (BitVector xl, BitVector xl)     -- ^ (Rs1Data, Rs2Data)
 regBank rs1Addr rs2Addr rdWrM = (regFile rs1Addr, regFile rs2Addr)
   where
     regFile = flip (readNew (blockRamPow2 (repeat 0))) rdWrM
