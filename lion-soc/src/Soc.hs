@@ -1,7 +1,7 @@
 {-|
 Module      : Soc
 Description : Lion SoC on the VELDT
-Copyright   : (c) David Cox, 2021
+Copyright   : (c) David Cox, 2021-2022
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}
@@ -97,7 +97,7 @@ lion rxIn = FromSoc
 topEntity 
   :: "uart_rx" ::: Signal Lattice12Mhz Bit
   -> FromSoc Lattice12Mhz
-topEntity = withClockResetEnable clk latticeRst enableGen lion
+topEntity = withSpecificClockResetEnable clk latticeRst enableGen lion
   where
     clk = hf12Mhz (pure True :: Signal System Bool)
                   (pure True :: Signal System Bool)
