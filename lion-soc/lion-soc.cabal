@@ -21,7 +21,7 @@ library
   default-language: Haskell2010
   build-depends:
     base           >= 4.13 && < 4.17,
-    clash-prelude  >= 1.4 && < 1.5,
+    clash-prelude  >= 1.4 && < 1.6,
     generic-monoid >= 0.1 && < 0.2,
     ice40-prim     >= 0.3 && < 0.4,
     lens,
