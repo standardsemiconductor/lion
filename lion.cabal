@@ -8,7 +8,7 @@ license:            BSD-3-Clause
 license-file:       LICENSE
 author:             dopamane <standard.semiconductor@gmail.com>
 maintainer:         dopamane <standard.semiconductor@gmail.com>
-copyright:          (c) 2021 David Cox
+copyright:          (c) 2021-2022 David Cox
 category:           Hardware
 extra-source-files:
     CHANGELOG.md
@@ -30,7 +30,7 @@ library
     base           >= 4.13  && < 4.17,
     generic-monoid >= 0.1   && < 0.2,
     mtl            >= 2.2   && < 2.3,
-    lens           >= 4.19  && < 5.1,
+    lens           >= 4.19  && < 5.2,
     ice40-prim     >= 0.3   && < 0.4,
     clash-prelude  >= 1.2.5 && < 1.6,
     ghc-typelits-natnormalise,

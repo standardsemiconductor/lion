@@ -7,7 +7,7 @@ bug-reports:   https://github.com/standardsemiconductor/lion/issues
 license:       BSD-3-Clause
 author:        dopamane
 maintainer:    dopamane <standard.semiconductor@gmail.com>
-copyright:     (c) 2021 David Cox
+copyright:     (c) 2021-2022 David Cox
 category:      Hardware
 
 library
