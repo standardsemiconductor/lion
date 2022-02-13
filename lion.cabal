@@ -32,7 +32,7 @@ library
     mtl            >= 2.2   && < 2.3,
     lens           >= 4.19  && < 5.2,
     ice40-prim     >= 0.3   && < 0.4,
-    clash-prelude  >= 1.2.5 && < 1.6,
+    clash-prelude  >= 1.2.5 && < 1.7,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
     ghc-typelits-knownnat
