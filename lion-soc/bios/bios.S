@@ -21,7 +21,16 @@
 
 _start:
     # set LED red
-    jal  set_led_red
+    li   a1, LED_BASE # set pointer LED_BASE
+    li   a0, CR0      # load cr0 register address
+    slli a0, a0, 8    # shift address
+    ori  a0, a0, 0x80 # set cr0 enable
+    sh   a0, (a1)     # send command
+
+    li   a0, PWRR     # load pwrr register address
+    slli a0, a0, 8    # shift address
+    ori  a0, a0, 0xFF # set pwrr 0xFF full red
+    sh   a0, (a1)     # send command
 
     # wait until user presses any key
     jal  get_char
@@ -33,25 +42,25 @@ _start:
     jal  put_str
 
     # choose (e)xisting, or upload (n)ew image?
-1:  la   a0, prompt # load prompt
-    jal  put_str    # print prompt
-    jal  get_char   # read response
-    li   a1, 0x65   # ascii e
-    li   a2, 0x6e   # ascii n
-    beq  a0, a1, 5f # branch to use existing image
-    beq  a0, a2, 2f # branch to upload new image
-    j    1b         # invalid answer ask again.
+1:  la   a0, image_prompt   # load image prompt
+    jal  put_str            # print image prompt
+    jal  get_char           # read response
+    li   a1, 0x65           # ascii e
+    li   a2, 0x6e           # ascii n
+    beq  a0, a1, 5f         # branch to use existing image
+    beq  a0, a2, 2f         # branch to upload new image
+    j    1b                 # invalid answer ask again.
 
     # upload new image from uart into ram
-2:  la   a0, read_str   # print ready
-    jal  put_str        # print ready
+2:  la   a0, ready_str      # print ready
+    jal  put_str            # print ready
 
-    li   t0, SPRAM_BASE # load SPRAM base
-    li   t1, SPRAM_END  # load SPRAM end
-3:  jal  get_char       # read byte
-    sb   a0, (t0)       # store byte
-    addi t0, t0, 1      # increment SPRAM address
-    bne  t0, t1, 3b     # if SPRAM not full, get another byte
+    li   t0, SPRAM_BASE     # load SPRAM base
+    li   t1, SPRAM_END      # load SPRAM end
+3:  jal  get_char           # read byte
+    sb   a0, (t0)           # store byte
+    addi t0, t0, 1          # increment SPRAM address
+    bne  t0, t1, 3b         # if SPRAM not full, get another byte
 
     # load ram into spi flash
     jal  init_spi           # initialize spi
@@ -100,9 +109,9 @@ _start:
 6:  jal  transfer_start_spi # start SPI flash transfer
     li   a0, 0x03           # load read array opcode
     jal  transfer_spi       # send read array opcode
-    li   a0, t0, 16         # load 2 byte of SPI flash address
+    srli a0, t0, 16         # load 2 byte of SPI flash address
     jal  transfer_spi       # send 2 byte of SPI flash address
-    li   a0, t0, 8          # load 1 byte of SPI flash address
+    srli a0, t0, 8          # load 1 byte of SPI flash address
     jal  transfer_spi       # send 1 byte of SPI flash address
     mv   a0, t0             # load 0 byte of SPI flash address
     jal  transfer_spi       # send 0 byte of SPI flash address
@@ -115,71 +124,10 @@ _start:
     bne  t1, t2, 6b         # read another byte while SPRAM has space
 
     # boot from ram
-7:  la   a0, boot   # load boot prompt
-    jal  put_str    # write boot prompt
-    j    SPRAM_BASE # boot image
+7:  la   a0, boot_msg # load boot message
+    jal  put_str      # write boot message
+    j    SPRAM_BASE   # boot image
 
-    # check SPRAM
-#    la   a0, check_spram_str
-#    jal  put_str
-#    jal  check_spram
-#    beqz a0, 1f
-#    la   a0, fail_str
-#    j    2f
-#1:  la   a0, success_str
-#2:  jal  put_str
-
-    # check SPI Flash
-#    la  a0, check_flash_str
-#    jal put_str
-#    jal init_spi
-    
-    # resume from deep power down
-#    jal  transfer_start_spi
-#    li   a0, 0xAB
-#    jal  transfer_spi
-#    jal  transfer_end_spi
-
-    # read JEDEC ID
-#    jal  transfer_start_spi
-
-#    li   a0, 0x9F
-#    jal  transfer_spi
-
-#    li   a0, 0x00
-#    jal  transfer_spi
-#    mv   t0, a0
-
-#    li   a0, 0x00
-#    jal  transfer_spi
-#    mv   t1, a0
-
-#    li   a0, 0x00
-#    jal  transfer_spi
-#    mv   t2, a0
-    
-#    jal  transfer_end_spi
-
-    # shift jedec out of t0,1,2 into a0
-#    li   a0, 0x0
-#    slli t0, t0, 16
-#    or   a0, a0, t0
-#    slli t1, t1, 8
-#    or   a0, a0, t1
-#    or   a0, a0, t2
-
-    # compare jedec vs expected then print success or failure.
-#    li   a1, 0x1F8501 # expected JEDEC ID
-#    beq  a0, a1, 3f       # branch if equal
-#    la   a0, fail_str
-#    j    4f
-#3:  la   a0, success_str
-#4:  jal  put_str
-
-    # echo user input
-#5:  jal  get_char
-#    jal  put_char
-#    j    5b
 
 init_spi:
     li   a0, SPI_BASE    # set SPI_BASE pointer
@@ -323,57 +271,19 @@ write_enable:
     ret
 
 
-#check_spram:
-#    li   a0, 0x0
-#    li   a1, SPRAM_BASE
-#    li   a2, 0x1234abcd
-#
-#    # check word
-#    sw   a2, (a1)
-#    li   a3, 0x0  # zero a3
-#    lw   a3, (a1)
-#    xor  a3, a3, a2
-#    or   a0, a0, a3
-#
-#    # check half-word
-#    sh   a2, 4(a1)  # store lower half
-#    lhu  a3, 4(a1)  # load lower half
-#    li   a4, 0xabcd
-#    xor  a4, a4, a3
-#    or   a0, a0, a4
-#
-#    sh   a2, 6(a1)  # store to upper half
-#    lhu  a3, 6(a1)  # load from upper half
-#    li   a4, 0xabcd
-#    xor  a4, a4, a3
-#    or   a0, a0, a4
-#
-#    # check byte
-#    sb   a2, 8(a1)
-#    lbu  a3, 8(a1)
-#    li   a4, 0xcd
-#    xor  a4, a4, a3
-#    or   a0, a0, a4
-#
-#    sb   a2, 9(a1)
-#    lbu  a3, 9(a1)
-#    li   a4, 0xcd
-#    xor  a4, a4, a3
-#    or   a0, a0, a4
-#
-#    sb   a2, 10(a1)
-#    lbu  a3, 10(a1)
-#    li   a4, 0xcd
-#    xor  a4, a4, a3
-#    or   a0, a0, a4
-#
-#    sb   a2, 11(a1)
-#    lbu  a3, 11(a1)
-#    li   a4, 0xcd
-#    xor  a4, a4, a3
-#    or   a0, a0, a4
-#
-#    ret
+wait_spi_busy:
+    mv   s0, ra             # save return address
+1:  jal  transfer_start_spi # start transfer
+    li   a0, 0x05           # load read status register byte 1 opcode
+    jal  transfer_spi       # send read status command
+    li   a0, 0x00           # load dummy byte
+    jal  transfer_spi       # read status byte
+    mv   a2, a0             # move status byte to a2 register
+    jal  transfer_end_spi   # end transfer
+    andi a2, a2, 0x01       # mask busy status bit
+    bnez a2, 1b             # 0 = device ready, 1 = device busy: continue poll
+    mv   ra, s0             # restore return address
+    ret
 
 
 get_char:
@@ -383,15 +293,6 @@ get_char:
     beqz a1, 1b        # wait until receiver full
     lbu  a1, 0x1(a0)   # read receiver buffer
     mv   a0, a1        # return data in a0
-    ret
-
-
-put_char:
-    li   a1, UART_BASE # set UART_BASE pointer
-1:  lbu  a2, 0x2(a1)   # read status
-    andi a2, a2, 0x1   # mask transmitter status
-    bnez a2, 1b        # wait until transmitter empty
-    sb   a0, (a1)      # transmit byte
     ret
 
 
@@ -407,25 +308,6 @@ put_str:
     j    1b
 2:  ret 
 
-
-set_led_red:
-    li   a1, LED_BASE
-
-    # enable cr0
-    li   a0, CR0
-    slli a0, a0, 8
-    ori  a0, a0, 0x80
-    sh   a0, (a1)
-    
-    # set pwrr
-    li   a0, PWRR
-    slli a0, a0, 8
-    ori  a0, a0, 0xFF
-    sh   a0, (a1)
-
-    ret
-
-
     .section .rodata
     .align 4
 
@@ -435,13 +317,16 @@ name:
 copyright:
     .string "\n\rStandard Semiconductor (c) 2022\n\r\n\r"
 
-#check_spram_str:
-#    .string "Checking SPRAM..."
+image_prompt:
+     .string "Choose (e)xisting or upload (n)ew image (e/n)? "
 
-check_flash_str:
-    .string "Checking FLASH..."
+ready_str:
+     .string "Ready, upload image.\n\r"
 
-success_str:
-    .string "SUCCESS\n\r"
-fail_str:
-    .string "FAIL\n\r"
+boot_msg:
+     .string "Booting..."
+
+#success_str:
+#    .string "SUCCESS\n\r"
+#fail_str:
+#    .string "FAIL\n\r"
