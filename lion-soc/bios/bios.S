@@ -14,6 +14,7 @@
     .equ SPI_SR    , 0x00000C00
 
     .equ SPRAM_BASE, 0x20000
+    .equ SPRAM_END,  0x40000
 
     .section .text
     .globl _start
@@ -31,6 +32,72 @@ _start:
     la   a0, copyright
     jal  put_str
 
+    # choose (e)xisting, or upload (n)ew image?
+1:  la   a0, prompt
+    jal  put_str
+    jal  get_char   # read response
+    li   a1, 0x65   # ascii e
+    li   a2, 0x6e   # ascii n
+    beq  a0, a1, 5f # branch to use existing image
+    beq  a0, a2, 2f # branch to upload new image
+    j    1b         # invalid answer ask again.
+
+    # upload new image from uart into ram
+2:  la   a0, read_str   # print ready
+    jal  put_str        # print ready
+
+    li   t0, SPRAM_BASE # load SPRAM base
+    li   t1, SPRAM_END  # load SPRAM end
+3:  jal  get_char       # read byte
+    sb   a0, (t0)       # store byte
+    addi t0, t0, 1      # increment SPRAM address
+    bne  t0, t1, 3b     # if SPRAM not full, get another byte
+
+    # load ram into spi flash
+    jal  init_spi           # initialize spi
+
+    jal  transfer_start_spi # resume spi from deep power down
+    li   a0, 0xAB           # load command
+    jal  transfer_spi       # send command
+    jal  transfer_end_spi   # end
+
+    jal  write_enable       # chip erase
+    jal  transfer_start_spi # start transfer
+    li   a0, 0x60           # load chip erase opcode
+    jal  transfer_spi       # send command
+    jal  transfer_end_spi   # end
+
+    li   t0, 0              # SPI flash address
+    li   t1, SPRAM_BASE     # SPRAM base address
+    li   t2, SPRAM_END      # SPRAM end address
+
+4:  jal  wait_spi_busy      # wait while spi busy
+
+    jal  write_enable       # byte program
+    jal  transfer_start_spi # start transfer
+    li   a0, 0x02           # load byte program opcode
+    jal  transfer_spi       # transfer byte
+    srli a0, t0, 16         # load 2 byte of SPI flash address
+    jal  transfer_spi       # send 2 byte of SPI flash address
+    srli a0, t0, 8          # load 1 byte of SPI flash address
+    jal  transfer_spi       # send 1 byte of SPI flash address
+    mv   a0, t0             # load 0 byte of SPI flash address
+    jal  transfer_spi       # send 0 byte of SPI flash address
+    lbu  a0, (t1)           # load data byte from SPRAM
+    jal  transfer_spi       # send data byte from SPRAM
+    jal  transfer_end_spi   # end transfer
+    jal  wait_spi_busy      # wait while spi busy
+    addi t0, t0, 1          # increment SPI flash byte address
+    addi t1, t1, 1          # increment SPRAM byte address
+    bne  t1, t2, 4b         # transfer another byte while SPI flash has space
+
+    # load image from spi flash into ram
+5:
+    # boot from ram
+    la   a0, boot
+    jal  put_str
+    j    SPRAM_BASE
+
     # check SPRAM
 #    la   a0, check_spram_str
 #    jal  put_str
@@ -42,56 +109,56 @@ _start:
 #2:  jal  put_str
 
     # check SPI Flash
-    la  a0, check_flash_str
-    jal put_str
-    jal init_spi
+#    la  a0, check_flash_str
+#    jal put_str
+#    jal init_spi
     
     # resume from deep power down
-    jal  transfer_start_spi
-    li   a0, 0xAB
-    jal  transfer_spi
-    jal  transfer_end_spi
+#    jal  transfer_start_spi
+#    li   a0, 0xAB
+#    jal  transfer_spi
+#    jal  transfer_end_spi
 
     # read JEDEC ID
-    jal  transfer_start_spi
+#    jal  transfer_start_spi
 
-    li   a0, 0x9F
-    jal  transfer_spi
+#    li   a0, 0x9F
+#    jal  transfer_spi
 
-    li   a0, 0x00
-    jal  transfer_spi
-    mv   t0, a0
+#    li   a0, 0x00
+#    jal  transfer_spi
+#    mv   t0, a0
 
-    li   a0, 0x00
-    jal  transfer_spi
-    mv   t1, a0
+#    li   a0, 0x00
+#    jal  transfer_spi
+#    mv   t1, a0
 
-    li   a0, 0x00
-    jal  transfer_spi
-    mv   t2, a0
+#    li   a0, 0x00
+#    jal  transfer_spi
+#    mv   t2, a0
     
-    jal  transfer_end_spi
+#    jal  transfer_end_spi
 
     # shift jedec out of t0,1,2 into a0
-    li   a0, 0x0
-    slli t0, t0, 16
-    or   a0, a0, t0
-    slli t1, t1, 8
-    or   a0, a0, t1
-    or   a0, a0, t2
+#    li   a0, 0x0
+#    slli t0, t0, 16
+#    or   a0, a0, t0
+#    slli t1, t1, 8
+#    or   a0, a0, t1
+#    or   a0, a0, t2
 
     # compare jedec vs expected then print success or failure.
-    li   a1, 0x1F8501 # expected JEDEC ID
-    beq  a0, a1, 3f       # branch if equal
-    la   a0, fail_str
-    j    4f
-3:  la   a0, success_str
-4:  jal  put_str
+#    li   a1, 0x1F8501 # expected JEDEC ID
+#    beq  a0, a1, 3f       # branch if equal
+#    la   a0, fail_str
+#    j    4f
+#3:  la   a0, success_str
+#4:  jal  put_str
 
     # echo user input
-5:  jal  get_char
-    jal  put_char
-    j    5b
+#5:  jal  get_char
+#    jal  put_char
+#    j    5b
 
 init_spi:
     li   a0, SPI_BASE    # set SPI_BASE pointer
