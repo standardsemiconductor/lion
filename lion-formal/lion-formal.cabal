@@ -17,7 +17,7 @@ library
   default-language: Haskell2010
   build-depends:
     base          >= 4.13 && < 4.17,
-    clash-prelude >= 1.4  && < 1.6,
+    clash-prelude >= 1.4  && < 1.7,
     lion          >= 0.3  && < 0.4,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
