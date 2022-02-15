@@ -1,5 +1,8 @@
 # Revision history for lion
 
+## 0.X.X.X
+* Update clash-prelude dependency bounds #4
+
 ## 0.3.0.0
 
 * Update base dependency version bounds
