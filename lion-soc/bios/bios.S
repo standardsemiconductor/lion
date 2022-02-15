@@ -313,6 +313,16 @@ transfer_end_spi:
     ret
 
 
+write_enable:
+    mv   s0, ra             # save return address
+    jal  transfer_start_spi # start SPI flash transfer
+    li   a0, 0x06           # load write enable opcode
+    jal  transfer_spi       # send write enable opcode
+    jal  transfer_end_spi   # end transfer
+    mv   ra, s0             # restore return address
+    ret
+
+
 #check_spram:
 #    li   a0, 0x0
 #    li   a1, SPRAM_BASE
