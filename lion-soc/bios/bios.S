@@ -33,8 +33,8 @@ _start:
     jal  put_str
 
     # choose (e)xisting, or upload (n)ew image?
-1:  la   a0, prompt
-    jal  put_str
+1:  la   a0, prompt # load prompt
+    jal  put_str    # print prompt
     jal  get_char   # read response
     li   a1, 0x65   # ascii e
     li   a2, 0x6e   # ascii n
@@ -90,13 +90,34 @@ _start:
     addi t0, t0, 1          # increment SPI flash byte address
     addi t1, t1, 1          # increment SPRAM byte address
     bne  t1, t2, 4b         # transfer another byte while SPI flash has space
+    j    7f                 # jump to boot
 
     # load image from spi flash into ram
-5:
+5:  li   t0, 0              # load SPI flash address
+    li   t1, SPRAM_BASE     # load SPRAM base address
+    li   t2, SPRAM_END      # load SPRAM end address
+
+6:  jal  transfer_start_spi # start SPI flash transfer
+    li   a0, 0x03           # load read array opcode
+    jal  transfer_spi       # send read array opcode
+    li   a0, t0, 16         # load 2 byte of SPI flash address
+    jal  transfer_spi       # send 2 byte of SPI flash address
+    li   a0, t0, 8          # load 1 byte of SPI flash address
+    jal  transfer_spi       # send 1 byte of SPI flash address
+    mv   a0, t0             # load 0 byte of SPI flash address
+    jal  transfer_spi       # send 0 byte of SPI flash address
+    li   a0, 0x00           # load dummy byte
+    jal  transfer_spi       # send dummy byte, recv data byte
+    sb   a0, (t1)           # store data byte in SPRAM address
+    jal  transfer_end_spi   # end transfer
+    addi t0, t0, 1          # increment SPI flash byte address
+    addi t1, t1, 1          # increment SPRAM byte address
+    bne  t1, t2, 6b         # read another byte while SPRAM has space
+
     # boot from ram
-    la   a0, boot
-    jal  put_str
-    j    SPRAM_BASE
+7:  la   a0, boot   # load boot prompt
+    jal  put_str    # write boot prompt
+    j    SPRAM_BASE # boot image
 
     # check SPRAM
 #    la   a0, check_spram_str
@@ -402,7 +423,7 @@ name:
     .string "\n\r   __   _             ____     _____\n\r  / /  (_)__  ___    / __/__  / ___/\n\r / /__/ / _ \\/ _ \\  _\\ \\/ _ \\/ /__  \n\r/____/_/\\___/_//_/ /___/\\___/\\___/  \n\r"
 
 copyright:
-    .string "\n\rStandard Semiconductor (c) 2021\n\r\n\r"
+    .string "\n\rStandard Semiconductor (c) 2022\n\r\n\r"
 
 #check_spram_str:
 #    .string "Checking SPRAM..."
