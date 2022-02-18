@@ -5,12 +5,12 @@
     .equ UART_BASE , 0x4
 
     .equ SPI_BASE  , 0x8
-    .equ SPI_CR1   , 0x00000900  
-    .equ SPI_CR2   , 0x00000A00
-    .equ SPI_BR    , 0x00000B00
-    .equ SPI_TXDR  , 0x00000D00
+#    .equ SPI_CR1   , 0x00000900
+#    .equ SPI_CR2   , 0x00000A00
+#    .equ SPI_BR    , 0x00000B00
+#    .equ SPI_TXDR  , 0x00000D00
     .equ SPI_RXDR  , 0x00000E00
-    .equ SPI_CSR   , 0x00000F00
+#    .equ SPI_CSR   , 0x00000F00
     .equ SPI_SR    , 0x00000C00
 
     .equ SPRAM_BASE, 0x20000
@@ -22,15 +22,14 @@
 _start:
     # set LED red
     li   a1, LED_BASE # set pointer LED_BASE
-    li   a0, CR0      # load cr0 register address
-    slli a0, a0, 8    # shift address
-    ori  a0, a0, 0x80 # set cr0 enable
-    sh   a0, (a1)     # send command
+#    li   a0, CR0      # load cr0 register address
+#    slli a0, a0, 8    # shift address
+#    ori  a0, a0, 0x80 # set cr0 enable
+    li   a0, 0x0880 # byte1: cr0 address, byte0: enable bit
+    sh   a0, (a1)   # send command
 
-    li   a0, PWRR     # load pwrr register address
-    slli a0, a0, 8    # shift address
-    ori  a0, a0, 0xFF # set pwrr 0xFF full red
-    sh   a0, (a1)     # send command
+    li   a0, 0x01FF # byte1: pwrr address, byte0: full on
+    sh   a0, (a1)   # send command
 
     # wait until user presses any key
     jal  get_char
@@ -47,15 +46,12 @@ _start:
     jal  get_char           # read response
     li   a1, 0x65           # ascii e
     li   a2, 0x6e           # ascii n
-    beq  a0, a1, 5f         # branch to use existing image
+    beq  a0, a1, 7f         # branch to use existing image
     beq  a0, a2, 2f         # branch to upload new image
     j    1b                 # invalid answer ask again.
 
     # upload new image from uart into ram
-2:  la   a0, ready_str      # print ready
-    jal  put_str            # print ready
-
-    li   t0, SPRAM_BASE     # load SPRAM base
+2:  li   t0, SPRAM_BASE     # load SPRAM base
     li   t1, SPRAM_END      # load SPRAM end
 3:  jal  get_char           # read byte
     sb   a0, (t0)           # store byte
@@ -63,7 +59,19 @@ _start:
     bne  t0, t1, 3b         # if SPRAM not full, get another byte
 
     # load ram into spi flash
-    jal  init_spi           # initialize spi
+    li   a0, SPI_BASE    # initialize spi, set SPI_BASE pointer
+
+    # enable spi
+4:  lbu  a1, 3(a0)       # read bus status
+    bnez a1, 4b          # wait until bus idle
+    li   a1, 0x00010980  # set WRITE mode, CR1 address, data
+    sw   a1, (a0)        # send command
+
+    # set clock div
+5:  lbu  a1, 3(a0)       # read bus status
+    bnez a1, 5b          # wait until bus idle
+    li   a1, 0x00010B03  # set WRITE mode, BR address, data
+    sw   a1, (a0)        # send command
 
     jal  transfer_start_spi # resume spi from deep power down
     li   a0, 0xAB           # load command
@@ -80,7 +88,7 @@ _start:
     li   t1, SPRAM_BASE     # SPRAM base address
     li   t2, SPRAM_END      # SPRAM end address
 
-4:  jal  wait_spi_busy      # wait while spi busy
+6:  jal  wait_spi_busy      # wait while spi busy
 
     jal  write_enable       # byte program
     jal  transfer_start_spi # start transfer
@@ -98,15 +106,15 @@ _start:
     jal  wait_spi_busy      # wait while spi busy
     addi t0, t0, 1          # increment SPI flash byte address
     addi t1, t1, 1          # increment SPRAM byte address
-    bne  t1, t2, 4b         # transfer another byte while SPI flash has space
-    j    7f                 # jump to boot
+    bne  t1, t2, 6b         # transfer another byte while SPI flash has space
+    j    9f                 # jump to boot
 
     # load image from spi flash into ram
-5:  li   t0, 0              # load SPI flash address
+7:  li   t0, 0              # load SPI flash address
     li   t1, SPRAM_BASE     # load SPRAM base address
     li   t2, SPRAM_END      # load SPRAM end address
 
-6:  jal  transfer_start_spi # start SPI flash transfer
+8:  jal  transfer_start_spi # start SPI flash transfer
     li   a0, 0x03           # load read array opcode
     jal  transfer_spi       # send read array opcode
     srli a0, t0, 16         # load 2 byte of SPI flash address
@@ -121,36 +129,10 @@ _start:
     jal  transfer_end_spi   # end transfer
     addi t0, t0, 1          # increment SPI flash byte address
     addi t1, t1, 1          # increment SPRAM byte address
-    bne  t1, t2, 6b         # read another byte while SPRAM has space
+    bne  t1, t2, 8b         # read another byte while SPRAM has space
 
     # boot from ram
-7:  la   a0, boot_msg # load boot message
-    jal  put_str      # write boot message
-    j    SPRAM_BASE   # boot image
-
-
-init_spi:
-    li   a0, SPI_BASE    # set SPI_BASE pointer
-  
-    # enable spi
-1:  lbu  a1, 3(a0)       # read bus status
-    bnez a1, 1b          # wait until bus idle
-    li   a1, 0x00010000  # set WRITE mode
-    li   a2, SPI_CR1     # set CR1 address
-    or   a1, a1, a2      # set CR1 address
-    ori  a1, a1, 0x80    # set data
-    sw   a1, (a0)        # send command
-
-    # set clock div
-2:  lbu  a1, 3(a0)       # read bus status
-    bnez a1, 2b          # wait until bus idle
-    li   a1, 0x00010000  # set WRITE mode
-    li   a2, SPI_BR      # set BR address
-    or   a1, a1, a2      # set BR address
-    ori  a1, a1, 0x03    # set data
-    sw   a1, (a0)        # send command
-
-    ret
+9:  j    SPRAM_BASE   # boot image
 
 
 transfer_start_spi:
@@ -159,18 +141,13 @@ transfer_start_spi:
     # set CSN
 1:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 1b         # wait until bus idle
-    li   a1, 0x00010000 # set WRITE mode
-    li   a2, SPI_CSR    # set CSR address
-    or   a1, a1, a2     # set CSR address
+    li   a1, 0x00010F00 # set WRITE mode and CSR address
     sw   a1, (a0)       # send command
 
     # set spi master, cs hold
 2:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 2b         # wait until bus idle
-    li   a1, 0x00010000 # set WRITE mode
-    li   a2, SPI_CR2    # set CR2 address
-    or   a1, a1, a2     # set CR2 address
-    ori  a1, a1, 0xC0   # set data
+    li   a1, 0x00010AC0 # set WRITE mode, CR2 address, data
     sw   a1, (a0)       # send command
 
     # wait trdy
@@ -195,9 +172,7 @@ transfer_spi:
     # write txdr
 1:  lbu  a2, 3(a1)      # read bus status
     bnez a2, 1b         # wait until bus idle
-    li   a2, 0x00010000 # set WRITE mode
-    li   a3, SPI_TXDR   # set TXDR address
-    or   a2, a2, a3     # set TXDR address
+    li   a2, 0x00010D00 # set WRITE mode, TXDR address
     or   a2, a2, a0     # set data
     sw   a2, (a1)       # send command
 
@@ -230,27 +205,19 @@ transfer_end_spi:
     # set csn
 1:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 1b         # wait until bus idle
-    li   a1, 0x00010000 # set WRITE mode
-    li   a2, SPI_CSR    # set CSR address
-    or   a1, a1, a2     # set CSR address
-    ori  a1, a1, 0x0F   # set data
+    li   a1, 0x00010F0F # set WRITE mode, CSR address, data
     sw   a1, (a0)       # send command
 
     # unset cs hold
 2:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 2b         # wait until bus idle
-    li   a1, 0x00010000 # set WRITE mode
-    li   a2, SPI_CR2    # set CR2 address
-    or   a1, a1, a2     # set CR2 address
-    ori  a1, a1, 0x80   # set data
+    li   a1, 0x00010A80 # set WRITE mode, CR2 address, data
     sw   a1, (a0)       # send command
 
     # wait not tip
 3:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 3b         # wait until bus idle
-    li   a1, 0x00000000 # set READ mode
-    li   a2, SPI_SR     # set SR address
-    or   a1, a1, a2     # set SR address
+    li   a1, 0x00000C00 # set READ mode, SR address
     sw   a1, (a0)       # send command
 4:  lbu  a1, 3(a0)      # read bus status
     bnez a1, 4b         # wait until bus idle
@@ -318,13 +285,7 @@ copyright:
     .string "\n\rStandard Semiconductor (c) 2022\n\r\n\r"
 
 image_prompt:
-     .string "Choose (e)xisting or upload (n)ew image (e/n)? "
-
-ready_str:
-     .string "Ready, upload image.\n\r"
-
-boot_msg:
-     .string "Booting..."
+     .string "(e)xisting or (n)ew image (e/n)? "
 
 #success_str:
 #    .string "SUCCESS\n\r"
