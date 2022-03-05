@@ -10,7 +10,7 @@
     foo@bar:~$ git clone https://github.com/riscv-collab/riscv-gnu-toolchain.git
     foo@bar:~$ cd riscv-gnu-toolchain
     foo@bar:~/riscv-gnu-toolchain$ git submodule update --init --recursive
-    foo@bar:~/riscv-gnu-toolchain$ ./configure --prefix=/opt/riscv/ --enable-multi-lib
+    foo@bar:~/riscv-gnu-toolchain$ ./configure --prefix=/opt/riscv/ --enable-multilib
     foo@bar:~/rsicv-gnu-toolchain$ sudo make
     foo@bar:~/riscv-gnu-toolchain$ export PATH=$PATH:/opt/riscv/bin
     ```
