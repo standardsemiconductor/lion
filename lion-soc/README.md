@@ -82,7 +82,7 @@ Status Byte:
 76543210
 ......**
       ||__Transmitter Status: 0 = Empty (Idle), 1 = Full (Busy)
-      |___Receiver Status:    0 = Empty, 1 = Full
+      |___Receiver Status:    0 = Full, 1 = Empty
 ```
 
 #### UART Usage Examples
