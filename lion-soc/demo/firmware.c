@@ -8,7 +8,7 @@ void write_uart(uint8_t data) {
 }
 
 uint8_t read_uart() {
-  while (((uint8_t *) UART)[2] & 0x2 != 1); // wait until receiver full
+  while (((uint8_t *) UART)[2] & 0x2); // wait until receiver full
   return ((uint8_t *) UART)[1];
 }
 

@@ -1,4 +1,4 @@
-	.section .init "ax"
+	.section .init, "ax"
 	.global _start
 _start:
 	.cfi_startproc
