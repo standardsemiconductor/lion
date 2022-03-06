@@ -257,7 +257,7 @@ get_char:
     li   a0, UART_BASE # set UART_BASE pointer
 1:  lbu  a1, 0x2(a0)   # read status register
     andi a1, a1, 0x2   # mask receiver status
-    beqz a1, 1b        # wait until receiver full
+    bnez a1, 1b        # wait until receiver full
     lbu  a1, 0x1(a0)   # read receiver buffer
     mv   a0, a1        # return data in a0
     ret

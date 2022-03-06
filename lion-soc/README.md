@@ -101,7 +101,7 @@ Status Byte:
    li   a0, 0x4     # set pointer to UART peripheral memory location
 1: lbu  a1, 0x2(a0) # read status register
    andi a1, a1, 0x2 # mask receiver status
-   beqz a1, 1b      # wait until receiver full
+   bnez a1, 1b      # wait until receiver full
    lbu  a1, 0x1(a0) # read receiver buffer
 ```
 ### SPI Flash
