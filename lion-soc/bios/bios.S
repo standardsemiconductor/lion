@@ -22,14 +22,11 @@
 _start:
     # set LED red
     li   a1, LED_BASE # set pointer LED_BASE
-#    li   a0, CR0      # load cr0 register address
-#    slli a0, a0, 8    # shift address
-#    ori  a0, a0, 0x80 # set cr0 enable
-    li   a0, 0x0880 # byte1: cr0 address, byte0: enable bit
-    sh   a0, (a1)   # send command
+    li   a0, 0x0880   # byte1: cr0 address, byte0: enable bit
+    sh   a0, (a1)     # send command
 
-    li   a0, 0x01FF # byte1: pwrr address, byte0: full on
-    sh   a0, (a1)   # send command
+    li   a0, 0x01FF   # byte1: pwrr address, byte0: full on
+    sh   a0, (a1)     # send command
 
     # wait until user presses any key
     jal  get_char
@@ -132,7 +129,10 @@ _start:
     bne  t1, t2, 8b         # read another byte while SPRAM has space
 
     # boot from ram
-9:  j    SPRAM_BASE   # boot image
+9:  li   a1, LED_BASE # set pointer LED_BASE
+    li   a0, 0x0100   # byte1: pwrr addr, byte0: full off
+    sh   a0, (a1)     # send command
+    j    SPRAM_BASE   # boot image
 
 
 transfer_start_spi:
