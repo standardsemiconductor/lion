@@ -55,6 +55,11 @@ _start:
     addi t0, t0, 1          # increment SPRAM address
     bne  t0, t1, 3b         # if SPRAM not full, get another byte
 
+    # check
+    #li  a1, LED_BASE
+    #li  a0, 0x0100
+    #sh  a0, (a1)
+
     # load ram into spi flash
     li   a0, SPI_BASE    # initialize spi, set SPI_BASE pointer
 
@@ -64,11 +69,21 @@ _start:
     li   a1, 0x00010980  # set WRITE mode, CR1 address, data
     sw   a1, (a0)        # send command
 
+    # check
+    #li   a1, LED_BASE
+    #li   a0, 0x0100
+    #sh   a0, (a1)
+
     # set clock div
 5:  lbu  a1, 3(a0)       # read bus status
     bnez a1, 5b          # wait until bus idle
     li   a1, 0x00010B03  # set WRITE mode, BR address, data
     sw   a1, (a0)        # send command
+
+    # check
+    li   a1, LED_BASE
+    li   a0, 0x0100
+    sh   a0, (a1)
 
     jal  transfer_start_spi # resume spi from deep power down
     li   a0, 0xAB           # load command
@@ -129,9 +144,9 @@ _start:
     bne  t1, t2, 8b         # read another byte while SPRAM has space
 
     # boot from ram
-9:  li   a1, LED_BASE # set pointer LED_BASE
-    li   a0, 0x0100   # byte1: pwrr addr, byte0: full off
-    sh   a0, (a1)     # send command
+9:  #li   a1, LED_BASE # set pointer LED_BASE
+    #li   a0, 0x0100   # byte1: pwrr addr, byte0: full off
+    #sh   a0, (a1)     # send command
     j    SPRAM_BASE   # boot image
 
 
