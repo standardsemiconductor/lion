@@ -75,8 +75,8 @@ lion rxIn = FromSoc
   , spiIO  = spiio
   }
   where
-    config :: CoreConfig 0x400 'Hard
-    config = CoreConfig PipeConfig
+    config :: CoreConfig 'Hard
+    config = CoreConfig $ PipeConfig 0x400
     fromBios         = bios      $ romMap   <$> fromCore
     fromRgb          = rgb       $ ledMap   <$> peripheral <*> fromCore
     (tx, fromUart)   = uart rxIn $ uartMap  <$> peripheral <*> fromCore

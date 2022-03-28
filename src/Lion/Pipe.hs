@@ -17,14 +17,15 @@ import Lion.Instruction
 import Lion.Rvfi
 
 -- | Pipeline configuration
-data PipeConfig (startPC :: Nat) = PipeConfig
-  deriving stock (Generic, Show, Eq)
+newtype PipeConfig = PipeConfig
+  { startPC :: BitVector 32 -- ^ start program counter
+  } deriving stock (Generic, Show, Eq)
 
 -- | Default pipeline configuration
 -- 
 -- `startPC` = 0
-defaultPipeConfig :: PipeConfig 0
-defaultPipeConfig = PipeConfig
+defaultPipeConfig :: PipeConfig
+defaultPipeConfig = PipeConfig 0
 
 -- | Pipeline inputs
 data ToPipe = ToPipe
@@ -151,13 +152,9 @@ data Pipe = Pipe
   deriving anyclass NFDataX
 makeLenses ''Pipe
 
-mkPipe 
-  :: forall startPC
-   . (KnownNat startPC, startPC <= 0xFFFFFFFF)
-  => PipeConfig (startPC :: Nat) 
-  -> Pipe
-mkPipe _ = Pipe
-  { _fetchPC = natToNum @startPC
+mkPipe :: PipeConfig -> Pipe
+mkPipe pipeConfig = Pipe
+  { _fetchPC = startPC pipeConfig
 
   -- decode stage 
   , _dePC    = 0
@@ -185,8 +182,7 @@ mkPipe _ = Pipe
 -- | 5-Stage RISC-V pipeline
 pipe 
   :: HiddenClockResetEnable dom
-  => (KnownNat startPC, startPC <= 0xFFFFFFFF)
-  => PipeConfig (startPC :: Nat)
+  => PipeConfig
   -> Signal dom ToPipe
   -> Signal dom FromPipe
 pipe config = mealy pipeMealy (mkPipe config)

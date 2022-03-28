@@ -33,8 +33,8 @@ import qualified Lion.Instruction as I (Op(Add))
 -- | Core configuration
 --
 -- ALU configuration default: `Soft`
-newtype CoreConfig (startPC :: Nat) (a :: AluConfig) = CoreConfig
-  { pipeConfig :: P.PipeConfig (startPC :: Nat) -- ^ pipeline configuration
+newtype CoreConfig (a :: AluConfig) = CoreConfig
+  { pipeConfig :: P.PipeConfig -- ^ pipeline configuration
   }
   deriving stock (Generic, Show, Eq)
 
@@ -43,7 +43,7 @@ newtype CoreConfig (startPC :: Nat) (a :: AluConfig) = CoreConfig
 -- ALU configuration = `Soft`
 --
 -- `pipeConfig` = `defaultPipeConfig`
-defaultCoreConfig :: CoreConfig 0 'Soft
+defaultCoreConfig :: CoreConfig 'Soft
 defaultCoreConfig = CoreConfig
   { pipeConfig = P.defaultPipeConfig
   }
@@ -56,11 +56,10 @@ data FromCore dom = FromCore
 
 -- | RISC-V Core: RV32I
 core
-  :: forall a startPC dom
+  :: forall a dom
    . HiddenClockResetEnable dom
   => Alu a
-  => (KnownNat startPC, startPC <= 0xFFFFFFFF)
-  => CoreConfig (startPC :: Nat) (a :: AluConfig) -- ^ core configuration
+  => CoreConfig (a :: AluConfig) -- ^ core configuration
   -> Signal dom (BitVector 32)   -- ^ core input, from memory/peripherals
   -> FromCore dom                -- ^ core output
 core config toCore = FromCore
