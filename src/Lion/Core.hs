@@ -38,7 +38,8 @@ data CoreConfig = CoreConfig
 -- | Default core configuration
 --
 -- `aluConfig` = `Soft`
--- `pipeConfig` = `defaultPipeConfig`
+--
+-- `pipeConfig` = `P.defaultPipeConfig`
 defaultCoreConfig :: CoreConfig
 defaultCoreConfig = CoreConfig
   { aluConfig  = Soft
