@@ -18,11 +18,9 @@ module Lion.Core
   , FromCore(..)
   , P.ToMem(..)
   , P.MemoryAccess(..)
-  , Alu
   ) where
 
 import Clash.Prelude
-import Data.Proxy
 import Data.Maybe
 import Data.Monoid
 import Lion.Alu
@@ -31,21 +29,21 @@ import qualified Lion.Pipe as P
 import qualified Lion.Instruction as I (Op(Add))
 
 -- | Core configuration
---
--- ALU configuration default: `Soft`
-newtype CoreConfig (startPC :: Nat) (a :: AluConfig) = CoreConfig
-  { pipeConfig :: P.PipeConfig (startPC :: Nat) -- ^ pipeline configuration
+data CoreConfig = CoreConfig
+  { aluConfig  :: AluConfig    -- ^ ALU configuration, default: `Soft`
+  , pipeConfig :: P.PipeConfig -- ^ pipeline configuration
   }
   deriving stock (Generic, Show, Eq)
 
 -- | Default core configuration
 --
--- ALU configuration = `Soft`
+-- `aluConfig` = `Soft`
 --
--- `pipeConfig` = `defaultPipeConfig`
-defaultCoreConfig :: CoreConfig 0 'Soft
+-- `pipeConfig` = `P.defaultPipeConfig`
+defaultCoreConfig :: CoreConfig
 defaultCoreConfig = CoreConfig
-  { pipeConfig = P.defaultPipeConfig
+  { aluConfig  = Soft
+  , pipeConfig = P.defaultPipeConfig
   }
 
 -- | Core outputs
@@ -56,13 +54,10 @@ data FromCore dom = FromCore
 
 -- | RISC-V Core: RV32I
 core
-  :: forall a startPC dom
-   . HiddenClockResetEnable dom
-  => Alu a
-  => (KnownNat startPC, startPC <= 0xFFFFFFFF)
-  => CoreConfig (startPC :: Nat) (a :: AluConfig) -- ^ core configuration
-  -> Signal dom (BitVector 32)   -- ^ core input, from memory/peripherals
-  -> FromCore dom                -- ^ core output
+  :: HiddenClockResetEnable dom
+  => CoreConfig                 -- ^ core configuration
+  -> Signal dom (BitVector 32)  -- ^ core input, from memory/peripherals
+  -> FromCore dom               -- ^ core output
 core config toCore = FromCore
   { toMem  = getFirst . P._toMem <$> fromPipe
   , toRvfi = fromMaybe mkRvfi . getFirst . P._toRvfi <$> fromPipe
@@ -72,7 +67,8 @@ core config toCore = FromCore
     aluOp = fromMaybe I.Add . getFirst . P._toAluOp     <$> fromPipe
     aluInput1 = fromMaybe 0 . getFirst . P._toAluInput1 <$> fromPipe
     aluInput2 = fromMaybe 0 . getFirst . P._toAluInput2 <$> fromPipe
-    aluOutput = alu (Proxy :: Proxy a) aluOp aluInput1 aluInput2
+    aluOutput = alu (aluConfig config) aluOp aluInput1 aluInput2
+
     -- reg bank connection
     rs1Addr = fromMaybe 0 . getFirst . P._toRs1Addr <$> fromPipe
     rs2Addr = fromMaybe 0 . getFirst . P._toRs2Addr <$> fromPipe
