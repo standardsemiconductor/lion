@@ -1,7 +1,7 @@
 {-| 
 Module      : Lion.Alu
 Description : Lion arithmetic logic unit
-Copyright   : (c) David Cox, 2021
+Copyright   : (c) David Cox, 2021-2022
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
@@ -12,25 +12,38 @@ module Lion.Alu where
 
 import Clash.Prelude
 import Data.Function ( on )
-import Data.Proxy
-import Ice40.Mac 
-import Lion.Instruction
+import Ice40.Mac (
+  Input(..),
+  Parameter(..),
+  defaultInput,
+  defaultParameter,
+  mac
+  )
+import Lion.Instruction (Op(..))
 
 -- | ALU configuration
 data AluConfig = Hard -- ^ use hard adder and subtractor from iCE40 SB_MAC16
                | Soft -- ^ use generic adder and subtractor: (+) and (-)
   deriving stock (Generic, Show, Eq)
 
-class Alu (config :: AluConfig) where
-  alu :: HiddenClockResetEnable dom 
-      => Proxy (config :: AluConfig)
-      -> Signal dom Op
-      -> Signal dom (BitVector 32)
-      -> Signal dom (BitVector 32)
-      -> Signal dom (BitVector 32)
+alu
+  :: HiddenClockResetEnable dom
+  => AluConfig
+  -> Signal dom Op
+  -> Signal dom (BitVector 32)
+  -> Signal dom (BitVector 32)
+  -> Signal dom (BitVector 32)
+alu = \case
+  Hard -> hardAlu
+  Soft -> softAlu
 
-instance Alu 'Soft where
-  alu _ op in1 = register 0 . liftA3 aluFunc op in1 
+softAlu
+ :: HiddenClockResetEnable dom
+ => Signal dom Op
+ -> Signal dom (BitVector 32)
+ -> Signal dom (BitVector 32)
+ -> Signal dom (BitVector 32)
+softAlu op in1 = register 0 . liftA3 aluFunc op in1
     where
       aluFunc = \case 
         Add  -> (+)
@@ -47,9 +60,14 @@ instance Alu 'Soft where
           shamt = unpack . resize . slice d4 d0
           sign = unpack :: BitVector 32 -> Signed 32
           (...) = (.).(.)
-      
-instance Alu 'Hard where
-  alu _ op in1 in2 = mux isAddSub adderSubtractor $ register 0 $ baseAlu op in1 in2
+
+hardAlu
+  :: HiddenClockResetEnable dom
+  => Signal dom Op
+  -> Signal dom (BitVector 32)
+  -> Signal dom (BitVector 32)
+  -> Signal dom (BitVector 32)
+hardAlu op in1 in2 = mux isAddSub adderSubtractor $ register 0 $ baseAlu op in1 in2
     where
       isAdd = (Add == ) <$> op
       isSub = (Sub == ) <$> op
@@ -80,7 +98,7 @@ baseAlu = liftA3 $ \case
 -- | addSub32PipelinedUnsigned
 hardAddSub
   :: HiddenClock dom
-  => Signal dom Bit -- 0 = Add, 1 = Sub
+  => Signal dom Bit -- ^ 0 = Add, 1 = Sub
   -> Signal dom (BitVector 32)
   -> Signal dom (BitVector 32)
   -> Signal dom (BitVector 32)

@@ -67,6 +67,14 @@ concat4 b3 b2 b1 b0 = b3 ++# b2 ++# b1 ++# b0
 --------------
 -- Lion SoC --
 --------------
+
+-- | Lion core configuration
+lionConfig :: CoreConfig
+lionConfig = CoreConfig
+  { aluConfig  = Hard
+  , pipeConfig = PipeConfig 0x400
+  }
+
 {-# NOINLINE lion #-}
 lion :: HiddenClockResetEnable dom => Signal dom Bit -> FromSoc dom
 lion rxIn = FromSoc
@@ -75,15 +83,13 @@ lion rxIn = FromSoc
   , spiIO  = spiio
   }
   where
-    config :: CoreConfig 'Hard
-    config = CoreConfig $ PipeConfig 0x400
     fromBios         = bios      $ romMap   <$> fromCore
     fromRgb          = rgb       $ ledMap   <$> peripheral <*> fromCore
     (tx, fromUart)   = uart rxIn $ uartMap  <$> peripheral <*> fromCore
     fromSpram        = spram     $ spramMap <$> peripheral <*> fromCore
     (spiio, fromSpi) = S.spi     $ spiMap   <$> peripheral <*> fromCore
     peripheral = selectPeripheral <$> fromCore
-    fromCore = toMem $ core config $ 
+    fromCore = toMem $ core lionConfig $
       busMapOut <$> fromBios 
                 <*> fromUart
                 <*> fromSpram
