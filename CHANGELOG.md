@@ -1,7 +1,8 @@
 # Revision history for lion
 
-## 0.X.X.X
+## 0.4.0.0
 * Update clash-prelude dependency bounds #4
+* Type-level -> data-level configuration #6
 
 ## 0.3.0.0
 
