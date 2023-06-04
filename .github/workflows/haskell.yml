@@ -38,7 +38,11 @@ jobs:
         cabal-version: ${{ matrix.cabal }}
 
     - name: Freeze
-      run: cabal freeze
+      run: |
+        cabal freeze
+        cd lion-formal && cabal freeze
+        cd lion-metric && cabal freeze
+        cd lion-soc    && cabal freeze
 
     - name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
       uses: actions/cache@v3
