@@ -14,17 +14,13 @@ jobs:
     runs-on: ${{ matrix.os }} 
     strategy:
       matrix:
-        ghc: ['8.8', '8.10.4', '9.0']
-        cabal: ['3.2', '3.4']
+        ghc: ['9.0']
+        cabal: ['3.10']
         os: [ubuntu-20.04]
-        exclude:
-                # GHC 9.0 only Cabal 3.4
-                - ghc: '9.0'
-                  cabal: '3.2'
     name: ${{ matrix.os }} GHC ${{ matrix.ghc }} Cabal ${{ matrix.cabal }}
     steps:
     - name: Checkout
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         submodules: true
     
@@ -36,7 +32,7 @@ jobs:
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
     - name: Setup Haskell
-      uses: haskell/actions/setup@v1
+      uses: haskell/actions/setup@v2
       with:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: ${{ matrix.cabal }}
