@@ -37,12 +37,17 @@ jobs:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: ${{ matrix.cabal }}
 
-    - name: Freeze
-      run: |
-        cabal freeze
-        cd lion-formal && cabal freeze
-        cd lion-metric && cabal freeze
-        cd lion-soc    && cabal freeze
+    - name: Freeze lion
+      run: cabal freeze
+    - name: Freeze lion-formal
+      working-directory: lion-formal
+      run: cabal freeze
+    - name: Freeze lion-metric
+      working-directory: lion-metric
+      run: cabal freeze
+    - name: Freeze lion-soc
+      working-directory: lion-soc
+      run: cabal freeze
 
     - name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
       uses: actions/cache@v3
