@@ -37,11 +37,20 @@ jobs:
         ghc-version: ${{ matrix.ghc }}
         cabal-version: ${{ matrix.cabal }}
 
-    - name: Install dependencies
-      run: |
-        cabal update
-        cabal build --only-dependencies
-    - name: Build
+    - name: Freeze
+      run: cabal freeze
+
+    - name: Cache ~/.cabal/packages, ~/.cabal/store and dist-newstyle
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cabal/packages
+          ~/.cabal/store
+          dist-newstyle
+        key: ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/*.cabal', '**/cabal.project', '**/cabal.project.freeze') }}
+        restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-
+
+    - name: Build library
       run: cabal build
 
     - name: Install icestorm prerequisites
@@ -50,7 +59,7 @@ jobs:
         sudo apt-get install build-essential clang bison flex libreadline-dev gawk tcl-dev libffi-dev git graphviz xdot pkg-config python python3 libftdi-dev qt5-default python3-dev libboost-all-dev cmake libeigen3-dev
 
     - name: Checkout icestorm
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: YosysHQ/icestorm
         path: icestorm
@@ -62,7 +71,7 @@ jobs:
         sudo make install
 
     - name: Checkout nextpnr
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: YosysHQ/nextpnr
         ref: master
@@ -77,7 +86,7 @@ jobs:
         sudo make install
 
     - name: Checkout yosys
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: YosysHQ/yosys
         ref: master
@@ -90,7 +99,7 @@ jobs:
         sudo make install
 
     - name: Checkout SymbiYosys
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: YosysHQ/SymbiYosys
         ref: master
@@ -103,7 +112,7 @@ jobs:
         sudo make install
 
     - name: Checkout Boolector
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: boolector/boolector
         ref: master
@@ -120,7 +129,7 @@ jobs:
         sudo cp deps/btor2tools/bin/btorsim /usr/local/bin
 
     - name: Checkout riscv-gnu-toolchain
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         repository: riscv/riscv-gnu-toolchain
         ref: master
