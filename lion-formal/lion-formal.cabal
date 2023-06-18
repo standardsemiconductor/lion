@@ -39,7 +39,7 @@ library
 
 executable formal
     main-is:          Main.hs
-    build-depends:    base >= 4.13 && < 4.16
+    build-depends:    base
                     , clash-ghc
                     , directory
                     , shake
