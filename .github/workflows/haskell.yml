@@ -32,7 +32,25 @@ jobs:
       with:
         ghc-version: ${{ matrix.ghc-version }}
 
-    - name: Configure the build
+    - name: Configure Lion
+      run: |
+        cabal configure --enable-tests --enable-benchmarks --disable-documentation
+        cabal build --dry-run
+
+    - name: Configure Formal Verification
+      working-directory: lion-formal
+      run: |
+        cabal configure --enable-tests --enable-benchmarks --disable-documentation
+        cabal build --dry-run
+
+    - name: Configure SoC
+      working-directory: lion-soc
+      run: |
+        cabal configure --enable-tests --enable-benchmarks --disable-documentation
+        cabal build --dry-run
+
+    - name: Configure Metric
+      working-directory: lion-metric
       run: |
         cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
