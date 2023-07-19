@@ -26,6 +26,13 @@ jobs:
       with:
         submodules: true
 
+    - name: Free up environment resources
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf /usr/local/share/boost
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+
     - name: Set up GHC ${{ matrix.ghc-version }}
       uses: haskell/actions/setup@v2
       id: setup
@@ -186,7 +193,7 @@ jobs:
       run: |
         sudo apt-get install autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev texinfo libtool patchutils bc zlib1g-dev libexpat-dev
         ./configure --prefix=$HOME/opt/riscv
-        sudo make
+        sudo make -j$(nproc)
         echo "$HOME/opt/riscv/bin" >> $GITHUB_PATH
 
     - name: Formal Verification
