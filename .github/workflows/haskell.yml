@@ -27,10 +27,10 @@ jobs:
         submodules: true
 
     - name: Set up GHC ${{ matrix.ghc-version }}
-        uses: haskell/actions/setup@v2
-        id: setup
-        with:
-          ghc-version: ${{ matrix.ghc-version }}
+      uses: haskell/actions/setup@v2
+      id: setup
+      with:
+        ghc-version: ${{ matrix.ghc-version }}
 
     - name: Configure the build
       run: |
