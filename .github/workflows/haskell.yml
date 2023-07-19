@@ -32,24 +32,24 @@ jobs:
       with:
         ghc-version: ${{ matrix.ghc-version }}
 
-    - name: Configure Lion
+    - name: Configure lion
       run: |
         cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
-    - name: Configure Formal Verification
+    - name: Configure lion-formal
       working-directory: lion-formal
       run: |
         cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
-    - name: Configure SoC
+    - name: Configure lion-soc
       working-directory: lion-soc
       run: |
         cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
-    - name: Configure Metric
+    - name: Configure lion-metric
       working-directory: lion-metric
       run: |
         cabal configure --enable-tests --enable-benchmarks --disable-documentation
@@ -65,7 +65,19 @@ jobs:
         key: ${{ env.key }}-plan-${{ hashFiles('**/plan.json') }}
         restore-keys: ${{ env.key }}-
 
-    - name: Install dependencies
+    - name: Install lion dependencies
+      run: cabal build all --only-dependencies
+
+    - name: Install lion-formal dependencies
+      working-directory: lion-formal
+      run: cabal build all --only-dependencies
+
+    - name: Install lion-soc dependencies
+      working-directory: lion-soc
+      run: cabal build all --only-dependencies
+
+    - name: Install lion-metric dependencies
+      working-directory: lion-metric
       run: cabal build all --only-dependencies
 
     - name: Save cached dependencies
