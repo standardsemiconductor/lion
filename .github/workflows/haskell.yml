@@ -75,7 +75,6 @@ jobs:
     - name: Install lion dependencies
       run: |
         cabal build all --only-dependencies
-        cabal haddock all --only-dependencies
 
     - name: Install lion-formal dependencies
       working-directory: lion-formal
