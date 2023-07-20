@@ -1,3 +1,4 @@
+# https://github.com/haskell/actions/tree/main/setup#model-cabal-workflow-with-caching
 name: Haskell CI
 on:
   push:
