@@ -41,25 +41,25 @@ jobs:
 
     - name: Configure lion
       run: |
-        cabal configure --enable-tests --enable-benchmarks --disable-documentation
+        cabal configure --enable-tests --enable-benchmarks --enable-documentation
         cabal build --dry-run
 
     - name: Configure lion-formal
       working-directory: lion-formal
       run: |
-        cabal configure --enable-tests --enable-benchmarks --disable-documentation
+        cabal configure --enable-tests --enable-benchmarks --enable-documentation
         cabal build --dry-run
 
     - name: Configure lion-soc
       working-directory: lion-soc
       run: |
-        cabal configure --enable-tests --enable-benchmarks --disable-documentation
+        cabal configure --enable-tests --enable-benchmarks --enable-documentation
         cabal build --dry-run
 
     - name: Configure lion-metric
       working-directory: lion-metric
       run: |
-        cabal configure --enable-tests --enable-benchmarks --disable-documentation
+        cabal configure --enable-tests --enable-benchmarks --enable-documentation
         cabal build --dry-run
 
     - name: Restore cached dependencies
@@ -73,7 +73,9 @@ jobs:
         restore-keys: ${{ env.key }}-
 
     - name: Install lion dependencies
-      run: cabal build all --only-dependencies
+      run: |
+        cabal build all --only-dependencies
+        cabal haddock all --only-dependencies
 
     - name: Install lion-formal dependencies
       working-directory: lion-formal
