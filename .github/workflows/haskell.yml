@@ -175,12 +175,12 @@ jobs:
     - name: Install boolector
       working-directory: boolector
       run: |
-        ./contrib/setup-btor2tools.sh
         ./contrib/setup-lingeling.sh
+        ./contrib/setup-btor2tools.sh
         ./configure.sh
         make -C build -j$(nproc)
         sudo cp build/bin/{boolector,btor*} /usr/local/bin
-        sudo cp deps/btor2tools/bin/btorsim /usr/local/bin
+        sudo cp deps/btor2tools/build/bin/btorsim /usr/local/bin
 
     - name: Checkout riscv-gnu-toolchain
       uses: actions/checkout@v3
