@@ -35,7 +35,7 @@ jobs:
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
 
     - name: Set up GHC ${{ matrix.ghc-version }}
-      uses: haskell/actions/setup@v2
+      uses: haskell-actions/setup@v2
       id: setup
       with:
         ghc-version: ${{ matrix.ghc-version }}
