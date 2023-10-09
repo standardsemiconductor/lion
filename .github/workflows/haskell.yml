@@ -29,10 +29,26 @@ jobs:
 
     - name: Free up environment resources
       run: |
+        df -h
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf /opt/ghc
         sudo rm -rf /usr/local/share/boost
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        df -h
+
+    - name: install ccache
+      run: |
+        sudo apt-get update
+        sudo apt-get upgrade
+        sudo apt-get install ccache
+        ccache -s
+
+    - name: Restore ccache
+      id: ccache-restore
+      uses: actions/cache/restore@v3
+      with:
+        path: .ccache
+        key: ${{ runner.os }}-ccache
 
     - name: Set up GHC ${{ matrix.ghc-version }}
       uses: haskell-actions/setup@v2
@@ -63,7 +79,7 @@ jobs:
         cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
-    - name: Restore cached dependencies
+    - name: Restore Haskell cached dependencies
       uses: actions/cache/restore@v3
       id: cache
       env:
@@ -108,9 +124,7 @@ jobs:
       run: cabal haddock all
 
     - name: Install icestorm prerequisites
-      run: |
-        sudo apt-get update
-        sudo apt-get install build-essential clang bison flex libreadline-dev gawk tcl-dev libffi-dev git graphviz xdot pkg-config python python3 libftdi-dev qt5-default python3-dev libboost-all-dev cmake libeigen3-dev
+      run: sudo apt-get install build-essential clang bison flex libreadline-dev gawk tcl-dev libffi-dev git graphviz xdot pkg-config python python3 libftdi-dev qt5-default python3-dev libboost-all-dev cmake libeigen3-dev
 
     - name: Checkout icestorm
       uses: actions/checkout@v3
@@ -220,3 +234,13 @@ jobs:
         cabal run 
         cabal run metric -- clean
         cabal clean
+
+    - name: ccache statistics
+      run: ccache -s
+
+    - name: save ccache
+      id: ccache-save
+      uses: actions/cache/save@v3
+      with:
+        path: .ccache
+        key: ${{ steps.ccache-restore.outputs.cache-primary-key }}
