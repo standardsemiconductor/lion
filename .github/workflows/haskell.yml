@@ -39,8 +39,12 @@ jobs:
     - name: install ccache
       run: |
         sudo apt-get update
-        sudo apt-get install ccache
+        sudo apt-get install build-essential ccache
         ccache -s
+        sudo ln -s ccache /usr/local/bin/gcc
+        sudo ln -s ccache /usr/local/bin/g++
+        export CC=gcc
+        export CXX=g++
 
     - name: Restore ccache
       id: ccache-restore
