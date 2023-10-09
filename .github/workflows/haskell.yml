@@ -61,25 +61,25 @@ jobs:
 
     - name: Configure lion
       run: |
-        cabal configure --enable-tests --enable-benchmarks --enable-documentation
+        cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
     - name: Configure lion-formal
       working-directory: lion-formal
       run: |
-        cabal configure --enable-tests --enable-benchmarks --enable-documentation
+        cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
     - name: Configure lion-soc
       working-directory: lion-soc
       run: |
-        cabal configure --enable-tests --enable-benchmarks --enable-documentation
+        cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
     - name: Configure lion-metric
       working-directory: lion-metric
       run: |
-        cabal configure --enable-tests --enable-benchmarks --enable-documentation
+        cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
     - name: Restore Haskell cached dependencies
