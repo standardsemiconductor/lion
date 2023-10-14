@@ -50,6 +50,9 @@ main = shakeArgs opts $ do
          , "_build/bios/bios.rom3"
          ]
 
+  phony "demo" $ do
+    need [ "_build/demo/led/led.bin"]
+
   -- yosys synthesis
   "_build/Soc.json" %> \out -> do
     putInfo "Synthesizing Soc"
@@ -111,6 +114,39 @@ main = shakeArgs opts $ do
          "bios/bios.S"
          "-o"
          [out]
+
+  "_build/demo/led/led.o" %> \out -> do
+    need [ "demo/link.ld"
+         , "demo/crt0.S"
+         , "demo/firmware.c"
+         , "demo/led/led.c"
+         ]
+    cmd_ "riscv64-unknown-elf-gcc"
+         "-march=rv32i"
+         "-mabi=ilp32"
+         "-Wall"
+         "-g"
+         "-ffreestanding"
+         "-O0"
+         "-Wl,--gc-sections"
+         "-nostartfiles"
+         "-Wl,-T,demo/link.ld demo/crt0.S demo/firmware.c demo/led/led.c"
+         "-o"
+         [out]
+  "_build/demo/led/led.bin" %> \out -> do
+    need ["_build/demo/led/led.o"]
+    cmd_ "riscv64-unknown-elf-objcopy"
+         "-O"
+         "binary"
+         "_build/demo/led/led.o"
+         [out]
+    cmd_ "dd"
+         "if=/dev/zero"
+         "of=_build/demo/led/led.bin"
+         "bs=1"
+         "count=1"
+         "seek=131071"
+
   where
     opts = shakeOptions
       { shakeFiles = buildDir

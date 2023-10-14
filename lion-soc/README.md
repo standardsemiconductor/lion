@@ -4,13 +4,13 @@
 
 ## Setup
 * [Project IceStorm](https://github.com/standardsemiconductor/VELDT-info#project-icestorm)
-* [riscv-gnu-toolchain](https://github.com/riscv/riscv-gnu-toolchain)
+* [riscv-gnu-toolchain](https://github.com/riscv-collab/riscv-gnu-toolchain)
   * Need `riscv64-unknown-*` binaries e.g.:
     ```console
-    foo@bar:~$ git clone https://github.com/riscv/riscv-gnu-toolchain.git
+    foo@bar:~$ git clone https://github.com/riscv-collab/riscv-gnu-toolchain.git
     foo@bar:~$ cd riscv-gnu-toolchain
     foo@bar:~/riscv-gnu-toolchain$ git submodule update --init --recursive
-    foo@bar:~/riscv-gnu-toolchain$ ./configure --prefix=/opt/riscv/
+    foo@bar:~/riscv-gnu-toolchain$ ./configure --prefix=/opt/riscv/ --enable-multilib
     foo@bar:~/rsicv-gnu-toolchain$ sudo make
     foo@bar:~/riscv-gnu-toolchain$ export PATH=$PATH:/opt/riscv/bin
     ```
@@ -83,7 +83,7 @@ Status Byte:
 76543210
 ......**
       ||__Transmitter Status: 0 = Empty (Idle), 1 = Full (Busy)
-      |___Receiver Status:    0 = Empty, 1 = Full
+      |___Receiver Status:    0 = Full, 1 = Empty
 ```
 
 #### UART Usage Examples
@@ -102,7 +102,7 @@ Status Byte:
    li   a0, 0x4     # set pointer to UART peripheral memory location
 1: lbu  a1, 0x2(a0) # read status register
    andi a1, a1, 0x2 # mask receiver status
-   beqz a1, 1b      # wait until receiver full
+   bnez a1, 1b      # wait until receiver full
    lbu  a1, 0x1(a0) # read receiver buffer
 ```
 ### SPI Flash

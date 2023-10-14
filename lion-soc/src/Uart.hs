@@ -12,7 +12,7 @@ import Clash.Prelude
 import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
-import Data.Maybe ( isJust, fromMaybe )
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Monoid.Generic
 
 -- | uart register
@@ -20,7 +20,7 @@ import Data.Monoid.Generic
 --     resvd : status  :  recv  : send
 --
 --   bits 31 - 24: reserved
---   bits 23 - 16: status byte, bit 17 - 0 = receiver empty, 1 = receiver full
+--   bits 23 - 16: status byte, bit 17 - 0 = receiver full, 1 = receiver empty
 --                              bit 16 - 0 = transmitter empty (idle), 1 = transmitter full (busy)
 --                              status byte is read only
 --   bits 15 - 8 : receiver buffer    -- read only -- reading this byte will reset the receiver
@@ -107,7 +107,7 @@ uartM = do
     _ -> return () 
 
   -- read status
-  rxS <- uses rxRecv   $ boolToBV . isJust
+  rxS <- uses rxRecv   $ boolToBV . isNothing
   let txS = boolToBV $ isJust bufferM
       status = (rxS `shiftL` 1) .|. txS
   scribe toCore $ First $ Just $ status `shiftL` 16
