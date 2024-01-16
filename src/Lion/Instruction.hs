@@ -1,14 +1,14 @@
 {-|
 Module      : Lion.Instruction
 Description : RISC-V ISA
-Copyright   : (c) David Cox, 2021
+Copyright   : (c) David Cox
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}
 
 module Lion.Instruction where
 
-import Clash.Prelude
+import Clash.Prelude hiding (And, Xor)
 import Data.Function ( on )
 
 data Exception = IllegalInstruction

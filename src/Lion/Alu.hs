@@ -1,7 +1,7 @@
 {-| 
 Module      : Lion.Alu
 Description : Lion arithmetic logic unit
-Copyright   : (c) David Cox, 2021-2022
+Copyright   : (c) David Cox
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
@@ -10,7 +10,7 @@ Configurable alu, choose between soft and hard adders/subtractors
 
 module Lion.Alu where
 
-import Clash.Prelude
+import Clash.Prelude hiding (And, Xor)
 import Data.Function ( on )
 import Ice40.Mac (
   Input(..),
