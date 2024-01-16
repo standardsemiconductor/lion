@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc-version: ['9.0', '9.2', '9.4', '9.6']
+        ghc-version: ['9.0', '9.4', '9.6']
         os: [ubuntu-20.04]
 
     steps:
