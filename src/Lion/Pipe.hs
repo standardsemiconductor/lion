@@ -1,7 +1,7 @@
 {-|
 Module      : Lion.Pipe
 Description : RISC-V 5-stage pipeline
-Copyright   : (c) David Cox, 2021
+Copyright   : (c) David Cox, 2024
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}
