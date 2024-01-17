@@ -16,10 +16,11 @@
     ```
 
 ## Usage
-1. Ensure the VELDT is ON and in the FLASH mode.
-2. `cabal run soc -- prog` 
-3. Cycle power switch, set mode switch to FPGA.
-4. `cabal run com` to open serial port, then press any key to display the Lion SoC name. The Lion Soc will echo any further input. Press <kbd>Ctrl-c</kbd> to end the program. The default port for `com` is `/dev/ttyUSB0`. If you require a different port, specify it as an argument: `cabal run com -- path/to/port`. Other serial port programs will work as well; be sure to specify 8 data bits, 1 stop bit, no flow control, and a baud rate of 19200.
+1. `cabal build`
+2. Ensure the VELDT is ON and in the FLASH mode.
+3. `cabal run soc -- prog` 
+4. Cycle power switch, set mode switch to FPGA.
+5. `cabal run com` to open serial port, then press any key to display the Lion SoC name. The Lion Soc will echo any further input. Press <kbd>Ctrl-c</kbd> to end the program. The default port for `com` is `/dev/ttyUSB0`. If you require a different port, specify it as an argument: `cabal run com -- path/to/port`. Other serial port programs will work as well; be sure to specify 8 data bits, 1 stop bit, no flow control, and a baud rate of 19200.
 ```
    __   _             ____     _____
   / /  (_)__  ___    / __/__  / ___/
