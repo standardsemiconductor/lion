@@ -1,7 +1,7 @@
 {-|
 Module      : Lion.Instruction
 Description : RISC-V ISA
-Copyright   : (c) David Cox, 2021
+Copyright   : (c) David Cox, 2024
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 -}

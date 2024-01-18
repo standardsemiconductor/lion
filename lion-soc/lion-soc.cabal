@@ -25,7 +25,7 @@ library
     generic-monoid >= 0.1 && < 0.2,
     ice40-prim     >= 0.3 && < 0.4,
     lens,
-    lion           >= 0.3 && < 0.4,
+    lion           >= 0.4 && < 0.5,
     mtl            >= 2.2 && < 2.3,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
