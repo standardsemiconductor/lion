@@ -1,7 +1,7 @@
 {-| 
 Module      : Lion.Alu
 Description : Lion arithmetic logic unit
-Copyright   : (c) David Cox
+Copyright   : (c) David Cox, 2021-2024
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 

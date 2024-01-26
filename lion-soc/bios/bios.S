@@ -335,7 +335,7 @@ name:
     .string "\n\r   __   _             ____     _____\n\r  / /  (_)__  ___    / __/__  / ___/\n\r / /__/ / _ \\/ _ \\  _\\ \\/ _ \\/ /__  \n\r/____/_/\\___/_//_/ /___/\\___/\\___/  \n\r"
 
 copyright:
-    .string "\n\rStandard Semiconductor (c) 2021\n\r\n\r"
+    .string "\n\rStandard Semiconductor (c) 2024\n\r\n\r"
 
 #check_spram_str:
 #    .string "Checking SPRAM..."
