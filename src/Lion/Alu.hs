@@ -10,7 +10,7 @@ Configurable alu, choose between soft and hard adders/subtractors
 
 module Lion.Alu where
 
-import Clash.Prelude
+import Clash.Prelude hiding (And, Xor)
 import Data.Function ( on )
 import Ice40.Mac (
   Input(..),
