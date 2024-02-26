@@ -1,7 +1,7 @@
 {-|
 Module      : Lion.Rvfi
 Description : Lion RISC-V Formal Verification Interface
-Copyright   : (c) David Cox, 2021
+Copyright   : (c) David Cox, 2024
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 

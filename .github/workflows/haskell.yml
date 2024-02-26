@@ -29,13 +29,15 @@ jobs:
 
     - name: Free up environment resources
       run: |
+        df -h
         sudo rm -rf /usr/share/dotnet
         sudo rm -rf /opt/ghc
         sudo rm -rf /usr/local/share/boost
         sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        df -h
 
     - name: Set up GHC ${{ matrix.ghc-version }}
-      uses: haskell/actions/setup@v2
+      uses: haskell-actions/setup@v2
       id: setup
       with:
         ghc-version: ${{ matrix.ghc-version }}
@@ -63,7 +65,7 @@ jobs:
         cabal configure --enable-tests --enable-benchmarks --disable-documentation
         cabal build --dry-run
 
-    - name: Restore cached dependencies
+    - name: Restore Haskell cached dependencies
       uses: actions/cache/restore@v3
       id: cache
       env:
@@ -175,12 +177,12 @@ jobs:
     - name: Install boolector
       working-directory: boolector
       run: |
-        ./contrib/setup-btor2tools.sh
         ./contrib/setup-lingeling.sh
+        ./contrib/setup-btor2tools.sh
         ./configure.sh
         make -C build -j$(nproc)
         sudo cp build/bin/{boolector,btor*} /usr/local/bin
-        sudo cp deps/btor2tools/bin/btorsim /usr/local/bin
+        sudo cp deps/btor2tools/build/bin/btorsim /usr/local/bin
 
     - name: Checkout riscv-gnu-toolchain
       uses: actions/checkout@v3
