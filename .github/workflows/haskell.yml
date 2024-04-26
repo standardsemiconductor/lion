@@ -154,15 +154,15 @@ jobs:
         make -j$(nproc)
         sudo make install
 
-    - name: Checkout SymbiYosys
+    - name: Checkout SymbiYosys (sby)
       uses: actions/checkout@v4
       with:
-        repository: YosysHQ/SymbiYosys
-        ref: master
-        path: SymbiYosys
+        repository: YosysHQ/sby
+        ref: main
+        path: sby
 
     - name: Install SymbiYosys
-      working-directory: SymbiYosys
+      working-directory: sby
       run: |
         sudo apt-get install libboost-program-options-dev autoconf libgmp-dev cmake
         sudo make install
