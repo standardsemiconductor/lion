@@ -23,7 +23,7 @@ jobs:
         os: [ubuntu-20.04]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -115,7 +115,7 @@ jobs:
         sudo apt-get install build-essential clang bison flex libreadline-dev gawk tcl-dev libffi-dev git graphviz xdot pkg-config python python3 libftdi-dev qt5-default python3-dev libboost-all-dev cmake libeigen3-dev
 
     - name: Checkout icestorm
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: YosysHQ/icestorm
         path: icestorm
@@ -127,7 +127,7 @@ jobs:
         sudo make install
 
     - name: Checkout nextpnr
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: YosysHQ/nextpnr
         ref: master
@@ -142,7 +142,7 @@ jobs:
         sudo make install
 
     - name: Checkout yosys
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: YosysHQ/yosys
         ref: main
@@ -155,7 +155,7 @@ jobs:
         sudo make install
 
     - name: Checkout SymbiYosys
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: YosysHQ/SymbiYosys
         ref: master
@@ -168,7 +168,7 @@ jobs:
         sudo make install
 
     - name: Checkout Boolector
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: boolector/boolector
         ref: master
@@ -185,7 +185,7 @@ jobs:
         sudo cp deps/btor2tools/build/bin/btorsim /usr/local/bin
 
     - name: Checkout riscv-gnu-toolchain
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         repository: riscv/riscv-gnu-toolchain
         ref: master
