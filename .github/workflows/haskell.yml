@@ -147,6 +147,7 @@ jobs:
         repository: YosysHQ/yosys
         ref: main
         path: yosys
+        submodules: true
 
     - name: Install yosys
       working-directory: yosys
