@@ -71,7 +71,7 @@ Max frequency for clock: 14.93 MHz (PASS @ 12MHz)
 |----------|----------|------------------|---------------|
 | Reserved | Reserved | Register Address | Register Data |
 
-See [Appendix D of the iCE40 LED Driver Usage Guide](https://github.com/standardsemiconductor/VELDT-info/blob/master/ICE40LEDDriverUsageGuide.pdf) for information on LED control bus addressable registers and register field descriptions.
+See [Appendix D of the iCE40 LED Driver Usage Guide](https://github.com/standardsemiconductor/VELDT-info/blob/main/ICE40LEDDriverUsageGuide.pdf) for information on LED control bus addressable registers and register field descriptions.
 
 ### UART
 | Byte 3   | Byte 2 | Byte 1    | Byte 0    |
@@ -107,7 +107,7 @@ Status Byte:
 ```
 ### SPI Flash
 
-See [VELDT-info](https://github.com/standardsemiconductor/VELDT-info#veldt-info) for more information about the on-board [SPI flash chip](https://github.com/standardsemiconductor/VELDT-info/blob/master/AT25SF081.pdf) and the [Lattice SPI and SysBus interface](https://github.com/standardsemiconductor/VELDT-info/blob/master/AdvancediCE40SPII2CHardenedIPUsageGuide.pdf).
+See [VELDT-info](https://github.com/standardsemiconductor/VELDT-info#veldt-info) for more information about the on-board [SPI flash chip](https://github.com/standardsemiconductor/VELDT-info/AT25SF081.pdf) and the [Lattice SPI and SysBus interface](https://github.com/standardsemiconductor/VELDT-info/AdvancediCE40SPII2CHardenedIPUsageGuide.pdf).
 
 #### Peripheral Register
 | Byte 3        | Byte 2                                | Byte 1                 | Byte 0              |
