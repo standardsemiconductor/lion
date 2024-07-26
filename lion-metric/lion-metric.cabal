@@ -15,8 +15,8 @@ library
   hs-source-dirs: src
   default-language: Haskell2010
   build-depends:
-    base          >= 4.13 && < 4.17,
-    clash-prelude >= 1.4  && < 1.7,
+    base          >= 4.13 && < 4.21,
+    clash-prelude >= 1.4  && < 1.9,
     lion          >= 0.4  && < 0.5,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
@@ -40,7 +40,7 @@ library
 
 executable metric
   main-is: Main.hs
-  build-depends: base >= 4.13 && < 4.16
+  build-depends: base >= 4.13 && < 4.21
                , clash-ghc
                , shake
   hs-source-dirs: app
