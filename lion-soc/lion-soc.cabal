@@ -20,13 +20,13 @@ library
   hs-source-dirs: src
   default-language: Haskell2010
   build-depends:
-    base           >= 4.13 && < 4.17,
-    clash-prelude  >= 1.4 && < 1.7,
+    base           >= 4.13 && < 4.21,
+    clash-prelude  >= 1.4 && < 1.9,
     generic-monoid >= 0.1 && < 0.2,
     ice40-prim     >= 0.3 && < 0.4,
     lens,
     lion           >= 0.4 && < 0.5,
-    mtl            >= 2.2 && < 2.3,
+    mtl            >= 2.2 && < 2.4,
     ghc-typelits-natnormalise,
     ghc-typelits-extra,
     ghc-typelits-knownnat
