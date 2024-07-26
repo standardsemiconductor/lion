@@ -15,6 +15,8 @@ import Data.Maybe ( isJust )
 import Data.Monoid.Generic
 import Lion.Instruction
 import Lion.Rvfi
+import Data.Monoid (First(..))
+import Control.Monad (unless)
 
 -- | Pipeline configuration
 newtype PipeConfig = PipeConfig
@@ -22,7 +24,7 @@ newtype PipeConfig = PipeConfig
   } deriving stock (Generic, Show, Eq)
 
 -- | Default pipeline configuration
--- 
+--
 -- `startPC` = 0
 defaultPipeConfig :: PipeConfig
 defaultPipeConfig = PipeConfig 0
@@ -55,7 +57,7 @@ data ToMem = ToMem
   deriving anyclass NFDataX
 
 -- | Construct instruction memory access
-instrMem 
+instrMem
   :: BitVector 32 -- ^ instruction address
   -> ToMem
 instrMem addr = ToMem
@@ -66,7 +68,7 @@ instrMem addr = ToMem
   }
 
 -- | Construct data memory access
-dataMem 
+dataMem
   :: BitVector 32         -- ^ memory address
   -> BitVector 4          -- ^ byte mask
   -> Maybe (BitVector 32) -- ^ write
@@ -111,8 +113,8 @@ data Control = Control
 makeLenses ''Control
 
 mkControl :: Control
-mkControl = Control 
-  { _firstCycle  = True   
+mkControl = Control
+  { _firstCycle  = True
   , _exBranching = Nothing
   , _meBranching = False
   , _deLoad      = False
@@ -156,9 +158,9 @@ mkPipe :: PipeConfig -> Pipe
 mkPipe pipeConfig = Pipe
   { _fetchPC = startPC pipeConfig
 
-  -- decode stage 
+  -- decode stage
   , _dePC    = 0
-  
+
   -- execute stage
   , _exIR    = Nothing
   , _exPC    = 0
@@ -169,18 +171,18 @@ mkPipe pipeConfig = Pipe
   -- memory stage
   , _meIR    = Nothing
   , _meRvfi  = mkRvfi
- 
+
   -- writeback stage
   , _wbIR    = Nothing
   , _wbNRet  = 0
   , _wbRvfi  = mkRvfi
-  
+
   -- pipeline control
   , _control = mkControl
   }
 
 -- | 5-Stage RISC-V pipeline
-pipe 
+pipe
   :: HiddenClockResetEnable dom
   => PipeConfig
   -> Signal dom ToPipe
@@ -188,7 +190,7 @@ pipe
 pipe config = mealy pipeMealy (mkPipe config)
   where
     pipeMealy s i = let ((), s', o) = runRWS pipeM i s
-                    in (s', o) 
+                    in (s', o)
 
 -- | Monadic pipeline
 pipeM :: RWS ToPipe FromPipe Pipe ()
@@ -329,21 +331,21 @@ execute = do
       scribe toAluInput1 $ First $ Just in1
       scribe toAluInput2 $ First $ Just in2
 
-    regFwd 
-      :: MonadState s m 
+    regFwd
+      :: MonadState s m
       => MonadReader r m
-      => Lens' s (Unsigned 5) 
+      => Lens' s (Unsigned 5)
       -> Lens' r (BitVector 32)
       -> Lens' s (Maybe (Unsigned 5, BitVector 32))
       -> Lens' s (Maybe (Unsigned 5, BitVector 32))
       -> m (BitVector 32)
-    regFwd rsAddr rsData meFwd wbFwd = 
+    regFwd rsAddr rsData meFwd wbFwd =
       guardZero rsAddr =<< fwd <$> use rsAddr <*> view rsData <*> use meFwd <*> use wbFwd
       where
         guardZero  -- register x0 always has value 0.
-          :: MonadState s m 
-          => Lens' s (Unsigned 5) 
-          -> BitVector 32 
+          :: MonadState s m
+          => Lens' s (Unsigned 5)
+          -> BitVector 32
           -> m (BitVector 32)
         guardZero addr value = do
           isZero <- uses addr (== 0)
@@ -375,7 +377,7 @@ decode = do
     Left IllegalInstruction -> do -- trap and instr=Nop (addi x0 x0 0)
       unless bubble $ exIR ?= ExAlu Add 0
       exRvfi.rvfiTrap .= True
-        
+
 -- | fetch instruction
 fetch :: RWS ToPipe FromPipe Pipe ()
 fetch = do
@@ -391,9 +393,9 @@ fetch = do
 -------------
 
 -- | forward register writes
-fwd 
-  :: Unsigned 5 
-  -> BitVector 32 
+fwd
+  :: Unsigned 5
+  -> BitVector 32
   -> Maybe (Unsigned 5, BitVector 32) -- ^ meRegFwd
   -> Maybe (Unsigned 5, BitVector 32) -- ^ wbRegFwd
   -> BitVector 32
