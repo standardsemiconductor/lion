@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 {-|
 Module      : Uart
 Description : Lion Soc Uart Peripheral
@@ -13,9 +15,11 @@ import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
 import Data.Maybe ( isJust, fromMaybe )
-import Data.Monoid (First(..))
 import Data.Monoid.Generic
+#if __GLASGOW_HASKELL__ > 902
 import Control.Monad (when, forM_)
+import Data.Monoid (First(..))
+#endif
 
 -- | uart register
 --   31 - 24 : 23 - 16 : 15 - 8 : 7 - 0

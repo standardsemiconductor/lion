@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 {-|
 Module      : Lion.Alu
 Description : Lion arithmetic logic unit
@@ -10,7 +12,11 @@ Configurable alu, choose between soft and hard adders/subtractors
 
 module Lion.Alu where
 
+#if __GLASGOW_HASKELL__ > 902
 import Clash.Prelude hiding (And(..), Xor(..))
+#else
+import Clash.Prelude
+#endif
 import Data.Function ( on )
 import Ice40.Mac (
   Input(..),

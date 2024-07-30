@@ -1,7 +1,9 @@
+{-# LANGUAGE CPP #-}
+
 {-|
 Module      : Spi
 Description : Lion SoC SPI peripheral
-Copyright   : (c) David Cox, 2021
+Copyright   : (c) David Cox, 2024
 License     : BSD-3-Clause
 Maintainer  : standardsemiconductor@gmail.com
 
@@ -20,12 +22,14 @@ import Clash.Prelude
 import Control.Monad.RWS
 import Control.Lens hiding (Index)
 import Data.Maybe ( fromMaybe, isJust )
-import Data.Monoid (First(..))
 import Data.Monoid.Generic
 import qualified Ice40.Spi as S
 import Ice40.IO
 import Bus
+#if __GLASGOW_HASKELL__ > 902
 import Control.Monad (when)
+import Data.Monoid (First(..))
+#endif
 
 data SpiIO = SpiIO ("biwo" ::: Bit)
                    ("bowi" ::: Bit)
