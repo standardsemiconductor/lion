@@ -1,4 +1,4 @@
-{-| 
+{-|
 Module      : Lion.Alu
 Description : Lion arithmetic logic unit
 Copyright   : (c) David Cox, 2021-2024
@@ -10,7 +10,7 @@ Configurable alu, choose between soft and hard adders/subtractors
 
 module Lion.Alu where
 
-import Clash.Prelude
+import Clash.Prelude hiding (And(..), Xor(..))
 import Data.Function ( on )
 import Ice40.Mac (
   Input(..),
@@ -45,7 +45,7 @@ softAlu
  -> Signal dom (BitVector 32)
 softAlu op in1 = register 0 . liftA3 aluFunc op in1
     where
-      aluFunc = \case 
+      aluFunc = \case
         Add  -> (+)
         Sub  -> (-)
         Sll  -> \x y -> x `shiftL` shamt y
@@ -73,13 +73,13 @@ hardAlu op in1 in2 = mux isAddSub adderSubtractor $ register 0 $ baseAlu op in1 
       isSub = (Sub == ) <$> op
       isAddSub = delay False $ isAdd .||. isSub
       adderSubtractor = hardAddSub (boolToBit <$> isSub) in1 in2
-  
+
 baseAlu
   :: Signal dom Op
   -> Signal dom (BitVector 32)
   -> Signal dom (BitVector 32)
   -> Signal dom (BitVector 32)
-baseAlu = liftA3 $ \case 
+baseAlu = liftA3 $ \case
   Add  -> \_ _ -> 0
   Sub  -> \_ _ -> 0
   Sll  -> \x y -> x `shiftL` shamt y

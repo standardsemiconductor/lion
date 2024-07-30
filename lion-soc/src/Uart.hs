@@ -13,7 +13,9 @@ import qualified Bus as B
 import Control.Lens hiding (Index, Empty)
 import Control.Monad.RWS
 import Data.Maybe ( isJust, fromMaybe )
+import Data.Monoid (First(..))
 import Data.Monoid.Generic
+import Control.Monad (when, forM_)
 
 -- | uart register
 --   31 - 24 : 23 - 16 : 15 - 8 : 7 - 0
@@ -31,7 +33,7 @@ data ToUart = ToUart
   , _rx      :: Bit
   }
 makeLenses ''ToUart
-  
+
 -- | Receiver finite-state machine
 data RxFsm = RxIdle
            | RxStart
@@ -55,7 +57,7 @@ data Uart = Uart
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass NFDataX
-makeLenses ''Uart 
+makeLenses ''Uart
 
 -- | Construct a Uart
 mkUart :: Uart
@@ -104,7 +106,7 @@ uartM = do
       txIdx    .= 0
       txBaud   .= 0
       txBuffer ?= frame wr
-    _ -> return () 
+    _ -> return ()
 
   -- read status
   rxS <- uses rxRecv   $ boolToBV . isJust
@@ -115,14 +117,14 @@ uartM = do
   -- receive
   rxIn <- view rx
   use rxFsm >>= \case
-    RxIdle -> 
+    RxIdle ->
       when (rxIn == low) $ do
         rxBaud %= increment
         rxFsm  %= increment
     RxStart -> do
       ctr <- rxBaud <<%= increment
       let baudHalf = maxBound `shiftR` 1
-      when (ctr == baudHalf) $ do 
+      when (ctr == baudHalf) $ do
         rxBaud .= 0
         if rxIn == low
           then rxFsm %= increment
@@ -132,7 +134,7 @@ uartM = do
       when (ctr == maxBound) $ do
         idx <- rxIdx <<%= increment
         rxBuffer %= (rxIn +>>)
-        when (idx == maxBound) $ 
+        when (idx == maxBound) $
           rxFsm %= increment
     RxStop -> do
       ctr <- rxBaud <<%= increment
@@ -144,13 +146,13 @@ uartM = do
 
 uartMealy :: Uart -> ToUart -> (Uart, FromUart)
 uartMealy s i = (s', o)
-  where 
+  where
     (_, s', o) = runRWS uartM i s
 
 uart
-  :: HiddenClockResetEnable dom 
+  :: HiddenClockResetEnable dom
   => Signal dom Bit                        -- ^ uart rx
-  -> Signal dom (B.BusIn 'B.Uart)          -- ^ soc bus 
+  -> Signal dom (B.BusIn 'B.Uart)          -- ^ soc bus
   -> Unbundled dom (Bit, B.BusOut 'B.Uart) -- ^ (uart tx, toCore)
 uart rxIn bus = (txOut, B.FromUart <$> uartOut)
   where

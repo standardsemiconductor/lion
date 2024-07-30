@@ -20,10 +20,12 @@ import Clash.Prelude
 import Control.Monad.RWS
 import Control.Lens hiding (Index)
 import Data.Maybe ( fromMaybe, isJust )
+import Data.Monoid (First(..))
 import Data.Monoid.Generic
 import qualified Ice40.Spi as S
 import Ice40.IO
 import Bus
+import Control.Monad (when)
 
 data SpiIO = SpiIO ("biwo" ::: Bit)
                    ("bowi" ::: Bit)
@@ -52,8 +54,8 @@ data FromSysBus = FromSysBus
   deriving Monoid via GenericMonoid FromSysBus
 makeLenses ''FromSysBus
 
-data SysBus = SysBus 
-  { _sbInstr :: Maybe (BitVector 8, Maybe (BitVector 8)) 
+data SysBus = SysBus
+  { _sbInstr :: Maybe (BitVector 8, Maybe (BitVector 8))
   , _sbRecv  :: BitVector 8
   }
   deriving stock (Generic, Show, Eq)
@@ -88,7 +90,7 @@ sysBusM = do
         Nothing ->           -- idle, execute command
           let isWrite = bitToBool $ wr!(16 :: Index 32)
               adri = slice d15 d8 wr
-              dati = slice d7  d0 wr 
+              dati = slice d7  d0 wr
           in sbInstr ?= if isWrite
                then (adri, Just dati)
                else (adri, Nothing)
@@ -99,7 +101,7 @@ sysBusM = do
         then 0x01000000
         else 0x00000000
 
-sysBus 
+sysBus
   :: HiddenClockResetEnable dom
   => Signal dom ToSysBus
   -> Signal dom FromSysBus
@@ -120,7 +122,7 @@ spi toSpi = (spiIO, fromSpi)
     fromSysBus = sysBus $ ToSysBus <$> sbacko
                                    <*> sbdato
                                    <*> toSpi
-   
+
     spiIO = SpiIO <$> biwo <*> bowi <*> wck <*> cs
     (biwo, bi)   = biwoIO woe    wo
     (bowi, wi)   = bowiIO boe    bo
@@ -132,7 +134,7 @@ spi toSpi = (spiIO, fromSpi)
     adri = fromMaybe 0 . getFirst . _sbAdrI <$> fromSysBus
     dati = fromMaybe 0 . getFirst . _sbDatI <$> fromSysBus
 
-    (sbdato, sbacko, _, _, wo, woe, bo, boe, wcko, wckoe, bcsno, bcsnoe) 
+    (sbdato, sbacko, _, _, wo, woe, bo, boe, wcko, wckoe, bcsno, bcsnoe)
       = S.spi "0b0000"
               rwi
               stbi
@@ -144,8 +146,8 @@ spi toSpi = (spiIO, fromSpi)
               wcsni
 
 {-# NOINLINE biwoIO #-}
-biwoIO 
-  :: HiddenClock dom 
+biwoIO
+  :: HiddenClock dom
   => Signal dom Bit
   -> Signal dom Bit
   -> Unbundled dom (Bit, Bit)
@@ -165,10 +167,10 @@ biwoIO woe wo = (biwo, bi)
                        0
 
 {-# NOINLINE bowiIO #-}
-bowiIO 
-  :: HiddenClock dom 
-  => Signal dom Bit 
-  -> Signal dom Bit 
+bowiIO
+  :: HiddenClock dom
+  => Signal dom Bit
+  -> Signal dom Bit
   -> Unbundled dom (Bit, Bit)
 bowiIO boe bo = (bowi, wi)
   where
@@ -186,10 +188,10 @@ bowiIO boe bo = (bowi, wi)
                        0
 
 {-# NOINLINE wckIO #-}
-wckIO 
-  :: HiddenClock dom 
-  => Signal dom Bit 
-  -> Signal dom Bit 
+wckIO
+  :: HiddenClock dom
+  => Signal dom Bit
+  -> Signal dom Bit
   -> Unbundled dom (Bit, Bit)
 wckIO wckoe wcko = (wck, wcki)
   where
@@ -207,10 +209,10 @@ wckIO wckoe wcko = (wck, wcki)
                         0
 
 {-# NOINLINE csIO #-}
-csIO 
-  :: HiddenClock dom 
-  => Signal dom (BitVector 4) 
-  -> Signal dom (BitVector 4) 
+csIO
+  :: HiddenClock dom
+  => Signal dom (BitVector 4)
+  -> Signal dom (BitVector 4)
   -> Unbundled dom (Bit, Bit)
 csIO bcsnoe bcsno = (cs, wcsni)
   where
@@ -226,5 +228,5 @@ csIO bcsnoe bcsno = (cs, wcsni)
                         ((! (3 :: Index 4)) <$> bcsnoe) -- output enable
                         ((! (3 :: Index 4)) <$> bcsno)  -- dOut0
                         0 -- dOut1
-                
-                     
+
+
