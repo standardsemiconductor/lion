@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 {-|
 Module      : Lion.Pipe
 Description : RISC-V 5-stage pipeline
@@ -15,8 +17,11 @@ import Data.Maybe ( isJust )
 import Data.Monoid.Generic
 import Lion.Instruction
 import Lion.Rvfi
+
+#if __GLASGOW_HASKELL__ > 902
 import Data.Monoid (First(..))
 import Control.Monad (unless)
+#endif
 
 -- | Pipeline configuration
 newtype PipeConfig = PipeConfig
