@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 {-|
 Module      : Lion.Instruction
 Description : RISC-V ISA
@@ -8,7 +10,11 @@ Maintainer  : standardsemiconductor@gmail.com
 
 module Lion.Instruction where
 
+#if __GLASGOW_HASKELL__ > 902
 import Clash.Prelude hiding (Xor(Xor), And(And))
+#else
+import Clash.Prelude
+#endif
 import Data.Function ( on )
 
 data Exception = IllegalInstruction
