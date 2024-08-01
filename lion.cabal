@@ -1,6 +1,6 @@
 cabal-version:      2.4
 name:               lion
-version:            0.4.0.0
+version:            0.4.0.1
 synopsis:           RISC-V Core
 description:        Lion is a formally verified, 5-stage pipeline [RISC-V](https://riscv.org) core. Lion targets the [VELDT FPGA development board](https://standardsemiconductor.com) and is written in Haskell using [Clash](https://clash-lang.org).
 bug-reports:        https://github.com/standardsemiconductor/lion/issues
