@@ -1,6 +1,11 @@
 # Revision history for lion
 
+## 0.4.0.1
+
+* GHC and library updates #21
+
 ## 0.4.0.0
+
 * Update clash-prelude dependency bounds #4
 * Type-level -> data-level configuration #6
 
